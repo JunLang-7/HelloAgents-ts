@@ -11,6 +11,8 @@ export class HelloAgentsError extends Error {
 }
 
 export class LLMError extends HelloAgentsError {}
+export class LLMAbortError extends LLMError {}
+export class LLMTimeoutError extends LLMAbortError {}
 export class AgentError extends HelloAgentsError {}
 export class ConfigError extends HelloAgentsError {}
 export class ToolError extends HelloAgentsError {}

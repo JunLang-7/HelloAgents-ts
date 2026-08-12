@@ -23,3 +23,13 @@ assert.equal(
   }).toJSON().timestamp,
   '2026-08-12T12:34:56.123456'
 );
+const adapter = new packageEntry.MockAdapter({
+  invoke: () => ({ content: 'Node LLM', model: 'test-model', usage: {}, latency_ms: 0 })
+});
+const llm = new packageEntry.HelloAgentsLLM({
+  model: 'test-model',
+  apiKey: 'test-key',
+  baseUrl: 'https://provider.test',
+  adapter
+});
+assert.equal((await llm.invoke([{ role: 'user', content: 'hello' }])).content, 'Node LLM');

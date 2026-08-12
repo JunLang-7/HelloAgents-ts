@@ -9,7 +9,7 @@ const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'helloagents-package-'));
 const packageName = '@junlang-7/helloagents';
 const expectedVersion = '0.0.0-development';
-const importCheck = `import { FunctionTool, HelloAgentsLLM, Message, MockAdapter, SimpleAgent, TokenCounter, ToolRegistry, createConfig, metadata, version } from '${packageName}';
+const importCheck = `import { FunctionTool, HelloAgentsLLM, Message, MockAdapter, ReActAgent, SimpleAgent, TokenCounter, ToolRegistry, createConfig, metadata, version } from '${packageName}';
 import { z } from 'zod';
 const message = Message.fromJSON({ role: 'user', content: 'consumer', timestamp: '2026-08-12T12:34:56.123456', metadata: {} });
 const llm = new HelloAgentsLLM({ model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test', adapter: new MockAdapter({ invoke: () => ({ content: 'consumer LLM', model: 'test-model', usage: {}, latency_ms: 0 }) }) });
@@ -17,7 +17,8 @@ const registry = new ToolRegistry();
 registry.registerFunction(new FunctionTool({ name: 'echo', description: 'Echo consumer input.', inputSchema: z.object({ input: z.string() }).strict(), handler: ({ input }) => input }));
 const counter = new TokenCounter({ tokenize: (text) => [...text].length });
 const agent = new SimpleAgent({ name: 'consumer-agent', llm });
-if (version !== '${expectedVersion}' || metadata.name !== '${packageName}' || createConfig().contextWindow !== 128000 || message.toJSON().timestamp !== '2026-08-12T12:34:56.123456' || (await llm.invoke([{ role: 'user', content: 'hello' }])).content !== 'consumer LLM' || (await registry.execute('echo', { input: 'consumer tool' })).toJSON().data.output !== 'consumer tool' || counter.count('consumer 🌍') !== 10 || (await agent.run('consumer agent')) !== 'consumer LLM') process.exit(1);`;
+const react = new ReActAgent({ name: 'consumer-react', llm: new HelloAgentsLLM({ model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test', adapter: new MockAdapter({ invokeWithTools: () => ({ content: 'consumer ReAct', tool_calls: [], model: 'test-model', usage: {}, latency_ms: 0 }) }) }) });
+if (version !== '${expectedVersion}' || metadata.name !== '${packageName}' || createConfig().contextWindow !== 128000 || message.toJSON().timestamp !== '2026-08-12T12:34:56.123456' || (await llm.invoke([{ role: 'user', content: 'hello' }])).content !== 'consumer LLM' || (await registry.execute('echo', { input: 'consumer tool' })).toJSON().data.output !== 'consumer tool' || counter.count('consumer 🌍') !== 10 || (await agent.run('consumer agent')) !== 'consumer LLM' || (await react.run('consumer ReAct')) !== 'consumer ReAct') process.exit(1);`;
 
 function run(command, arguments_, cwd) {
   return execFileSync(command, arguments_, {

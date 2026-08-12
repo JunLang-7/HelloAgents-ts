@@ -64,6 +64,7 @@ export {
   eventTypeSchema
 } from './core/lifecycle.js';
 export type { AgentEventJSON, EventType, LifecycleHook } from './core/lifecycle.js';
+export { StreamBuffer, streamToJsonLines, streamToSse } from './core/streaming.js';
 export { SessionData, parseSessionData, sessionDataSchema } from './core/session-data.js';
 export type { SessionDataJSON } from './core/session-data.js';
 export { ToolErrorCode, getAllToolErrorCodes, isToolErrorCode } from './tools/errors.js';
@@ -115,7 +116,11 @@ export type {
   ContextPacket
 } from './context/context-builder.js';
 export { SimpleAgent } from './agents/simple-agent.js';
-export type { SimpleAgentOptions } from './agents/simple-agent.js';
+export type {
+  AgentInvocationOptions,
+  AgentLifecycleOptions,
+  SimpleAgentOptions
+} from './agents/simple-agent.js';
 export { DEFAULT_REACT_SYSTEM_PROMPT, ReActAgent } from './agents/react-agent.js';
 export type { ReActAgentOptions, ReActSessionMetadata } from './agents/react-agent.js';
 

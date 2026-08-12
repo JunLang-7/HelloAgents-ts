@@ -141,6 +141,25 @@ export { Agent } from './agents/agent.js';
 export type { AgentOptions, LoadedSessionResult } from './agents/agent.js';
 export { DEFAULT_REACT_SYSTEM_PROMPT, ReActAgent } from './agents/react-agent.js';
 export type { ReActAgentOptions, ReActSessionMetadata } from './agents/react-agent.js';
+export {
+  DEFAULT_REFLECTION_PROMPTS,
+  ReflectionAgent,
+  ReflectionMemory
+} from './agents/reflection-agent.js';
+export type {
+  ReflectionAgentOptions,
+  ReflectionPrompts,
+  ReflectionRecord
+} from './agents/reflection-agent.js';
+export {
+  DEFAULT_EXECUTOR_PROMPT,
+  DEFAULT_PLANNER_PROMPT,
+  INVALID_PLAN_ANSWER,
+  PlanAndSolveAgent,
+  PlanSolveAgent,
+  parsePlan
+} from './agents/plan-solve-agent.js';
+export type { PlanSolveAgentOptions } from './agents/plan-solve-agent.js';
 
 export const version = '0.0.0-development';
 

@@ -96,6 +96,16 @@ export type {
   ToolParameter
 } from './tools/tool.js';
 export { ToolRegistry, globalRegistry } from './tools/registry.js';
+export {
+  CalculatorTool,
+  EditTool,
+  GlobTool,
+  GrepTool,
+  ReadTool,
+  WriteTool,
+  calculate
+} from './tools/builtin.js';
+export type { FileToolOptions } from './tools/builtin.js';
 export { CircuitBreaker } from './tools/circuit-breaker.js';
 export type {
   CircuitBreakerOptions,

@@ -114,6 +114,8 @@ export type {
   ContextBuilderOptions,
   ContextPacket
 } from './context/context-builder.js';
+export { SimpleAgent } from './agents/simple-agent.js';
+export type { SimpleAgentOptions } from './agents/simple-agent.js';
 
 export const version = '0.0.0-development';
 

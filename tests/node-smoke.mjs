@@ -65,3 +65,5 @@ assert.deepEqual((await nodeRegistry.execute('node_echo', '{"input":"Node tool"}
 const nodeCounter = new packageEntry.TokenCounter({ tokenize: (text) => [...text].length });
 assert.equal(nodeCounter.count('Node 🌍'), 6);
 assert.equal(nodeCounter.getStats().cache_misses, 1);
+const nodeAgent = new packageEntry.SimpleAgent({ name: 'node-agent', llm });
+assert.equal(await nodeAgent.run('hello'), 'Node LLM');

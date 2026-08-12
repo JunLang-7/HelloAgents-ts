@@ -91,3 +91,17 @@ async function* nodeEvents() {
 const nodeSse = [];
 for await (const value of packageEntry.streamToSse(nodeEvents())) nodeSse.push(value);
 assert.equal(nodeSse[0]?.startsWith('event: llm_chunk'), true);
+const nodeSessionDirectory = await import('node:fs/promises').then(({ mkdtemp }) =>
+  mkdtemp('/tmp/helloagents-node-session-')
+);
+const nodeStore = new packageEntry.SessionStore({ sessionDir: nodeSessionDirectory });
+const nodeSession = await nodeStore.save({
+  agentConfig: {},
+  history: [],
+  toolSchemaHash: 'node',
+  readCache: {},
+  metadata: {},
+  sessionName: 'smoke'
+});
+assert.equal((await nodeStore.load(nodeSession)).sessionId.length > 0, true);
+await (await import('node:fs/promises')).rm(nodeSessionDirectory, { recursive: true, force: true });

@@ -16,6 +16,13 @@ export {
 export { HelloAgentsLLM } from './core/llm.js';
 export type { HelloAgentsLLMOptions, LLMInvokeOptions } from './core/llm.js';
 export { MockAdapter } from './adapters/mock.js';
+export {
+  AnthropicAdapter,
+  GeminiAdapter,
+  OpenAIAdapter,
+  createAdapter
+} from './adapters/providers.js';
+export type { FetchLike } from './adapters/providers.js';
 export { llmMessageSchema, toolChoiceSchema } from './adapters/base.js';
 export type {
   AdapterCallOptions,

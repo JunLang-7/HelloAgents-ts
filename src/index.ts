@@ -13,6 +13,7 @@ export {
   LLMTimeoutError,
   ToolError
 } from './core/errors.js';
+export { SkillError } from './core/errors.js';
 export { HelloAgentsLLM } from './core/llm.js';
 export type { HelloAgentsLLMOptions, LLMInvokeOptions } from './core/llm.js';
 export { MockAdapter } from './adapters/mock.js';
@@ -167,6 +168,9 @@ export {
   withTraceFinalization
 } from './observability/trace-logger.js';
 export type { TraceEvent, TraceLoggerOptions, TraceStats } from './observability/trace-logger.js';
+export { SkillLoader } from './skills/loader.js';
+export type { Skill, SkillLoaderOptions, SkillMetadata, SkillResources } from './skills/loader.js';
+export { SkillTool } from './tools/skill.js';
 
 export const version = '0.0.0-development';
 

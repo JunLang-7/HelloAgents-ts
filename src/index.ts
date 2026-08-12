@@ -160,6 +160,13 @@ export {
   parsePlan
 } from './agents/plan-solve-agent.js';
 export type { PlanSolveAgentOptions } from './agents/plan-solve-agent.js';
+export {
+  TraceLogger,
+  createTraceHooks,
+  traceEventSchema,
+  withTraceFinalization
+} from './observability/trace-logger.js';
+export type { TraceEvent, TraceLoggerOptions, TraceStats } from './observability/trace-logger.js';
 
 export const version = '0.0.0-development';
 

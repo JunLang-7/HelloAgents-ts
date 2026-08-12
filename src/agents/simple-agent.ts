@@ -5,6 +5,7 @@ import { Message } from '../core/message.js';
 import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
 import { ToolRegistry } from '../tools/registry.js';
 import type { ExpandableTool, Tool } from '../tools/tool.js';
+import type { TraceLogger } from '../observability/trace-logger.js';
 
 export interface SimpleAgentOptions {
   readonly name: string;
@@ -13,6 +14,8 @@ export interface SimpleAgentOptions {
   readonly toolRegistry?: ToolRegistry;
   readonly enableToolCalling?: boolean;
   readonly maxToolIterations?: number;
+  /** Optional session trace; a run always finalizes it, including on errors. */
+  readonly traceLogger?: TraceLogger;
 }
 
 export interface AgentLifecycleOptions {
@@ -45,6 +48,7 @@ export class SimpleAgent {
   public readonly maxToolIterations: number;
   private toolRegistry: ToolRegistry | undefined;
   private enableToolCalling: boolean;
+  private readonly traceLogger: TraceLogger | undefined;
   private history: Message[] = [];
 
   public constructor(options: SimpleAgentOptions) {
@@ -52,6 +56,7 @@ export class SimpleAgent {
     this.llm = options.llm;
     this.systemPrompt = options.systemPrompt;
     this.toolRegistry = options.toolRegistry;
+    this.traceLogger = options.traceLogger;
     this.enableToolCalling = (options.enableToolCalling ?? true) && this.toolRegistry !== undefined;
     this.maxToolIterations = options.maxToolIterations ?? 3;
   }
@@ -80,12 +85,29 @@ export class SimpleAgent {
 
   public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
     const messages = this.buildMessages(input);
-    const answer =
-      !this.hasTools() || !this.toolRegistry
-        ? (await this.llm.invoke(messages, options)).content
-        : await this.runWithTools(messages, options);
-    this.history.push(new Message(input, 'user'), new Message(answer, 'assistant'));
-    return answer;
+    await this.traceLogger?.logEvent('session_start', {
+      agent_name: this.name,
+      agent_type: 'SimpleAgent'
+    });
+    await this.traceLogger?.logEvent('message_written', { role: 'user', content: input });
+    try {
+      const answer =
+        !this.hasTools() || !this.toolRegistry
+          ? await this.runDirect(messages, options)
+          : await this.runWithTools(messages, options);
+      this.history.push(new Message(input, 'user'), new Message(answer, 'assistant'));
+      await this.traceLogger?.logEvent('session_end', { status: 'success', final_answer: answer });
+      return answer;
+    } catch (error) {
+      await this.traceLogger?.logEvent('error', {
+        error_type: error instanceof Error ? error.name : 'Error',
+        message: error instanceof Error ? error.message : String(error)
+      });
+      await this.traceLogger?.logEvent('session_end', { status: 'error' });
+      throw error;
+    } finally {
+      await this.traceLogger?.finalize();
+    }
   }
 
   public async *stream(input: string, options?: LLMInvokeOptions): AsyncIterable<string> {
@@ -172,6 +194,17 @@ export class SimpleAgent {
     const schemas = registry.toOpenAISchemas() as unknown as Record<string, unknown>[];
     for (let iteration = 0; iteration < this.maxToolIterations; iteration += 1) {
       const response = await this.llm.invokeWithTools(messages, schemas, 'auto', options);
+      await this.traceLogger?.logEvent(
+        'model_output',
+        {
+          content: response.content,
+          model: response.model,
+          usage: response.usage,
+          latency_ms: response.latencyMs,
+          tool_calls: response.toolCalls.length
+        },
+        iteration + 1
+      );
       if (response.toolCalls.length === 0) return response.content ?? '抱歉，我无法回答这个问题。';
       messages.push({
         role: 'assistant',
@@ -183,10 +216,34 @@ export class SimpleAgent {
         }))
       });
       for (const call of response.toolCalls) {
+        await this.traceLogger?.logEvent(
+          'tool_call',
+          { tool_name: call.name, arguments: call.arguments },
+          iteration + 1
+        );
         const result = await registry.execute(call.name, call.arguments);
+        await this.traceLogger?.logEvent(
+          'tool_result',
+          { tool_name: call.name, result: result.toJSON() },
+          iteration + 1
+        );
         messages.push({ role: 'tool', tool_call_id: call.id, content: result.text });
       }
     }
-    return (await this.llm.invoke(messages, options)).content;
+    return this.runDirect(messages, options);
+  }
+
+  private async runDirect(
+    messages: LLMMessage[],
+    options: LLMInvokeOptions | undefined
+  ): Promise<string> {
+    const response = await this.llm.invoke(messages, options);
+    await this.traceLogger?.logEvent('model_output', {
+      content: response.content,
+      model: response.model,
+      usage: response.usage,
+      latency_ms: response.latencyMs
+    });
+    return response.content;
   }
 }

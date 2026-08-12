@@ -16,6 +16,7 @@ export class LLMTimeoutError extends LLMAbortError {}
 export class AgentError extends HelloAgentsError {}
 export class ConfigError extends HelloAgentsError {}
 export class ToolError extends HelloAgentsError {}
+export class SkillError extends HelloAgentsError {}
 
 type ErrorConstructor = new (message: string, cause?: unknown) => HelloAgentsError;
 

@@ -1,10 +1,13 @@
 import type { HelloAgentsLLM } from '../core/llm.js';
+import type { ResolvedConfig } from '../core/config.js';
 import { Message } from '../core/message.js';
 import { HistoryManager } from '../context/history-manager.js';
 import type { HistoryManagerOptions } from '../context/history-manager.js';
 import type { SessionStore } from '../core/session-store.js';
 import { ToolRegistry } from '../tools/registry.js';
 import type { ToolResponse } from '../tools/response.js';
+import { SkillLoader } from '../skills/loader.js';
+import { SkillTool } from '../tools/skill.js';
 
 export interface AgentOptions {
   readonly name: string;
@@ -13,6 +16,8 @@ export interface AgentOptions {
   readonly toolRegistry?: ToolRegistry;
   readonly sessionStore?: SessionStore;
   readonly history?: HistoryManagerOptions;
+  /** Opt-in configuration-driven Skill discovery and registration. */
+  readonly config?: Pick<ResolvedConfig, 'skillsEnabled' | 'skillsDir' | 'skillsAutoRegister'>;
 }
 export interface LoadedSessionResult {
   readonly config: { consistent: boolean; warnings: string[] };
@@ -31,6 +36,7 @@ export abstract class Agent {
   public readonly systemPrompt: string | undefined;
   public readonly toolRegistry: ToolRegistry;
   public readonly sessionStore: SessionStore | undefined;
+  private readonly config: AgentOptions['config'];
   protected readonly historyManager: HistoryManager;
 
   public constructor(options: AgentOptions) {
@@ -39,7 +45,15 @@ export abstract class Agent {
     this.systemPrompt = options.systemPrompt;
     this.toolRegistry = options.toolRegistry ?? new ToolRegistry();
     this.sessionStore = options.sessionStore;
+    this.config = options.config;
     this.historyManager = new HistoryManager(options.history ?? { maxTokens: 128_000 });
+  }
+  public async registerConfiguredSkills(): Promise<SkillLoader | undefined> {
+    const config = this.config;
+    if (!config?.skillsEnabled) return undefined;
+    const loader = await SkillLoader.create({ skillsDir: config.skillsDir });
+    if (config.skillsAutoRegister) this.toolRegistry.register(new SkillTool(loader));
+    return loader;
   }
   public abstract run(input: string): Promise<string>;
   public getHistory(): readonly Message[] {

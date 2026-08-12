@@ -66,6 +66,29 @@ export {
 export type { AgentEventJSON, EventType, LifecycleHook } from './core/lifecycle.js';
 export { SessionData, parseSessionData, sessionDataSchema } from './core/session-data.js';
 export type { SessionDataJSON } from './core/session-data.js';
+export { ToolErrorCode, getAllToolErrorCodes, isToolErrorCode } from './tools/errors.js';
+export type { ToolErrorCode as ToolErrorCodeValue } from './tools/errors.js';
+export { ToolResponse, ToolStatus, toolResponseSchema } from './tools/response.js';
+export type {
+  ToolErrorInfo,
+  ToolResponseJSON,
+  ToolStatus as ToolStatusValue
+} from './tools/response.js';
+export {
+  FunctionTool,
+  Tool,
+  expandableTool,
+  toolAction,
+  toolParameterSchema
+} from './tools/tool.js';
+export type {
+  ExpandableTool,
+  FunctionToolOptions,
+  OpenAIToolSchema,
+  ToolOptions,
+  ToolParameter
+} from './tools/tool.js';
+export { ToolRegistry, globalRegistry } from './tools/registry.js';
 
 export const version = '0.0.0-development';
 

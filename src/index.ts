@@ -175,6 +175,15 @@ export { CustomFilter, FullAccessFilter, ReadOnlyFilter } from './tools/tool-fil
 export type { CustomFilterOptions, ToolFilter, ToolFilterMode } from './tools/tool-filter.js';
 export { TaskTool } from './tools/task.js';
 export type { TaskToolOptions } from './tools/task.js';
+export { DEV_LOG_CATEGORIES, DevLogTool, TodoWriteTool } from './tools/todo-devlog.js';
+export type {
+  DevLogCategory,
+  DevLogEntry,
+  DevLogToolOptions,
+  TodoItem,
+  TodoStatus,
+  TodoWriteToolOptions
+} from './tools/todo-devlog.js';
 export { createAgentFactory, IsolatedSubagent } from './agents/subagent.js';
 export type {
   AgentFactory,

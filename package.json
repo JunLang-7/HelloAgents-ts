@@ -2,8 +2,23 @@
   "name": "@junlang-7/helloagents",
   "version": "0.0.0-development",
   "description": "Bun-first, Node.js-compatible TypeScript implementation of HelloAgents.",
+  "keywords": [
+    "agents",
+    "ai",
+    "bun",
+    "llm",
+    "typescript"
+  ],
   "license": "CC-BY-NC-SA-4.0",
   "author": "JunLang-7",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JunLang-7/HelloAgents-ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JunLang-7/HelloAgents-ts/issues"
+  },
+  "homepage": "https://github.com/JunLang-7/HelloAgents-ts#readme",
   "type": "module",
   "packageManager": "bun@1.3.14",
   "engines": {
@@ -36,11 +51,12 @@
     "format:check": "prettier --check .",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "build:js": "bun build ./src/index.ts --outdir ./dist --target node --format esm",
+    "build:js": "bun build ./src/index.ts --outdir ./dist --target node --format esm --sourcemap=external",
     "build:types": "tsc -p tsconfig.build.json",
     "build": "bun run build:js && bun run build:types",
     "test:node": "node ./tests/node-smoke.mjs && node ./tests/node-todo-devlog-smoke.mjs",
     "test:package": "node ./tests/package-consumer.mjs",
+    "test:integration": "bun run build && node ./tests/real-api-opt-in.mjs",
     "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run build && bun run test:node && bun run test:package"
   },
   "dependencies": {

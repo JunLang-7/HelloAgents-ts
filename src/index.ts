@@ -67,6 +67,12 @@ export type { AgentEventJSON, EventType, LifecycleHook } from './core/lifecycle.
 export { StreamBuffer, streamToJsonLines, streamToSse } from './core/streaming.js';
 export { SessionData, parseSessionData, sessionDataSchema } from './core/session-data.js';
 export type { SessionDataJSON } from './core/session-data.js';
+export { SessionStore } from './core/session-store.js';
+export type {
+  SaveSessionOptions,
+  SessionStoreOptions,
+  SessionSummary
+} from './core/session-store.js';
 export { ToolErrorCode, getAllToolErrorCodes, isToolErrorCode } from './tools/errors.js';
 export type { ToolErrorCode as ToolErrorCodeValue } from './tools/errors.js';
 export { ToolResponse, ToolStatus, toolResponseSchema } from './tools/response.js';
@@ -121,6 +127,8 @@ export type {
   AgentLifecycleOptions,
   SimpleAgentOptions
 } from './agents/simple-agent.js';
+export { Agent } from './agents/agent.js';
+export type { AgentOptions, LoadedSessionResult } from './agents/agent.js';
 export { DEFAULT_REACT_SYSTEM_PROMPT, ReActAgent } from './agents/react-agent.js';
 export type { ReActAgentOptions, ReActSessionMetadata } from './agents/react-agent.js';
 

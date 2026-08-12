@@ -1,12 +1,17 @@
 import type { ZodType } from 'zod';
 
-import { ToolErrorCode } from './errors.js';
 import { ToolError } from '../core/errors.js';
+import { CircuitBreaker } from './circuit-breaker.js';
+import { ToolErrorCode } from './errors.js';
 import { ToolResponse } from './response.js';
 import type { ExpandableTool, FunctionToolOptions, OpenAIToolSchema, Tool } from './tool.js';
 import { FunctionTool } from './tool.js';
 
 type RegisteredTool = Tool | ExpandableTool;
+
+export interface ToolRegistryOptions {
+  readonly circuitBreaker?: CircuitBreaker;
+}
 
 function isExpandableTool(tool: RegisteredTool): tool is ExpandableTool {
   return 'expandable' in tool && tool.expandable;
@@ -26,6 +31,11 @@ export class ToolRegistry {
   private readonly tools = new Map<string, Tool>();
   private readonly functions = new Map<string, FunctionTool>();
   public readonly readMetadataCache = new Map<string, Record<string, unknown>>();
+  public readonly circuitBreaker: CircuitBreaker;
+
+  public constructor(options: ToolRegistryOptions = {}) {
+    this.circuitBreaker = options.circuitBreaker ?? new CircuitBreaker();
+  }
 
   public register(tool: RegisteredTool, autoExpand = true): this {
     if (autoExpand && isExpandableTool(tool)) {
@@ -72,13 +82,41 @@ export class ToolRegistry {
   }
 
   public async execute(name: string, input: unknown): Promise<ToolResponse> {
-    const tool = this.tools.get(name);
-    if (!tool) {
-      return ToolResponse.error(ToolErrorCode.NOT_FOUND, `未找到名为 '${name}' 的工具`, undefined, {
-        tool_name: name
-      });
+    if (!this.circuitBreaker.canExecute(name)) {
+      const status = this.circuitBreaker.getStatus(name);
+      return ToolResponse.error(
+        ToolErrorCode.CIRCUIT_OPEN,
+        `工具 '${name}' 当前被禁用，由于连续失败。${status.recover_in_seconds ?? 0} 秒后可用。`,
+        undefined,
+        { tool_name: name, circuit_status: status }
+      );
     }
-    return tool.execute(normalizeInput(input));
+
+    const tool = this.tools.get(name);
+    let response: ToolResponse;
+    if (!tool) {
+      response = ToolResponse.error(
+        ToolErrorCode.NOT_FOUND,
+        `未找到名为 '${name}' 的工具`,
+        undefined,
+        {
+          tool_name: name
+        }
+      );
+    } else {
+      try {
+        response = await tool.execute(normalizeInput(input));
+      } catch (error) {
+        response = ToolResponse.error(
+          ToolErrorCode.EXECUTION_ERROR,
+          `执行工具 '${name}' 时发生异常: ${error instanceof Error ? error.message : String(error)}`,
+          undefined,
+          { tool_name: name, input }
+        );
+      }
+    }
+    this.circuitBreaker.recordResult(name, response);
+    return response;
   }
 
   public executeTool(name: string, input: unknown): Promise<ToolResponse> {

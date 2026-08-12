@@ -4,7 +4,29 @@
  * Concrete exports are added by their owning compatibility Issues. Keeping the
  * entry point present from the first commit makes the package contract testable.
  */
-export { AgentError, ConfigError, HelloAgentsError, LLMError, ToolError } from './core/errors.js';
+export {
+  AgentError,
+  ConfigError,
+  HelloAgentsError,
+  LLMAbortError,
+  LLMError,
+  LLMTimeoutError,
+  ToolError
+} from './core/errors.js';
+export { HelloAgentsLLM } from './core/llm.js';
+export type { HelloAgentsLLMOptions, LLMInvokeOptions } from './core/llm.js';
+export { MockAdapter } from './adapters/mock.js';
+export { llmMessageSchema, toolChoiceSchema } from './adapters/base.js';
+export type {
+  AdapterCallOptions,
+  AdapterConfig,
+  AdapterRequest,
+  AdapterToolRequest,
+  BaseLLMAdapter,
+  LLMAdapterFactory,
+  LLMMessage,
+  ToolChoice
+} from './adapters/base.js';
 export {
   Config,
   configSchema,

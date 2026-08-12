@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { z } from 'zod';
 
+import toolResponseFixture from './fixtures/python-v1-tool-response.json' with { type: 'json' };
+
 import {
   FunctionTool,
   Tool,
@@ -47,6 +49,12 @@ class ThrowingTool extends Tool<typeof ThrowingTool.inputSchema> {
 }
 
 describe('ToolResponse', () => {
+  test('round-trips the shared Python V1 tool-response fixture without field renaming', () => {
+    expect(JSON.stringify(ToolResponse.fromObject(toolResponseFixture).toJSON())).toBe(
+      JSON.stringify(toolResponseFixture)
+    );
+  });
+
   test('round-trips the Python V1 protocol without emitting absent optional fields', () => {
     const response = ToolResponse.partial('truncated', { items: [1, 2] });
 

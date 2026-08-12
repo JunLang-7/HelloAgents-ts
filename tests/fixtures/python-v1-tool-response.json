@@ -1,0 +1,7 @@
+{
+  "status": "partial",
+  "text": "Output truncated",
+  "data": { "path": "report.txt", "preview": "first lines" },
+  "stats": { "time_ms": 12, "original_bytes": 8192 },
+  "context": { "tool_name": "read", "params_input": { "path": "report.txt" } }
+}

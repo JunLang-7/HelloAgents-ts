@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { z } from 'zod';
 
 const packageEntry = await import('../dist/index.js');
 
@@ -50,3 +51,14 @@ assert.equal(
     .content,
   'Node provider'
 );
+const nodeTool = new packageEntry.FunctionTool({
+  name: 'node_echo',
+  description: 'Echo Node input.',
+  inputSchema: z.object({ input: z.string() }).strict(),
+  handler: ({ input }) => input
+});
+const nodeRegistry = new packageEntry.ToolRegistry();
+nodeRegistry.registerFunction(nodeTool);
+assert.deepEqual((await nodeRegistry.execute('node_echo', '{"input":"Node tool"}')).toJSON().data, {
+  output: 'Node tool'
+});

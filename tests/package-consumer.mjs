@@ -9,8 +9,9 @@ const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'helloagents-package-'));
 const packageName = '@junlang-7/helloagents';
 const expectedVersion = '0.0.0-development';
-const importCheck = `import { metadata, version } from '${packageName}';
-if (version !== '${expectedVersion}' || metadata.name !== '${packageName}') process.exit(1);`;
+const importCheck = `import { Message, createConfig, metadata, version } from '${packageName}';
+const message = Message.fromJSON({ role: 'user', content: 'consumer', timestamp: '2026-08-12T12:34:56.123456', metadata: {} });
+if (version !== '${expectedVersion}' || metadata.name !== '${packageName}' || createConfig().contextWindow !== 128000 || message.toJSON().timestamp !== '2026-08-12T12:34:56.123456') process.exit(1);`;
 
 function run(command, arguments_, cwd) {
   return execFileSync(command, arguments_, {

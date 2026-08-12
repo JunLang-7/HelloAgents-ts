@@ -1,0 +1,7 @@
+HelloAgents TypeScript is an adaptation of HelloAgents Python.
+
+Upstream project: https://github.com/jjyaoao/HelloAgents
+Upstream license: Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+
+HelloAgents-go (https://github.com/chaojixinren/HelloAgents-go) is consulted
+only as a cross-language implementation reference.

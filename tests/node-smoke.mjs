@@ -33,3 +33,20 @@ const llm = new packageEntry.HelloAgentsLLM({
   adapter
 });
 assert.equal((await llm.invoke([{ role: 'user', content: 'hello' }])).content, 'Node LLM');
+const openAiAdapter = new packageEntry.OpenAIAdapter(
+  {
+    model: 'test-model',
+    apiKey: 'test-key',
+    baseUrl: 'https://provider.test/v1',
+    timeoutMs: 1000
+  },
+  async () =>
+    new Response(JSON.stringify({ choices: [{ message: { content: 'Node provider' } }] }), {
+      headers: { 'content-type': 'application/json' }
+    })
+);
+assert.equal(
+  (await openAiAdapter.invoke({ messages: [{ role: 'user', content: 'hello' }], options: {} }))
+    .content,
+  'Node provider'
+);

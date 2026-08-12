@@ -10,6 +10,7 @@ import type {
   ToolChoice
 } from '../adapters/base.js';
 import { llmMessageSchema, toolChoiceSchema } from '../adapters/base.js';
+import { createAdapter } from '../adapters/providers.js';
 import { LLMAbortError, LLMError, LLMTimeoutError, parseOrThrow } from './errors.js';
 import { parseLLMResponse, parseLLMToolResponse, parseStreamStats } from './responses.js';
 import type { LLMResponse, LLMToolResponse, StreamStats } from './responses.js';
@@ -117,14 +118,7 @@ export class HelloAgentsLLM {
       baseUrl: this.baseUrl,
       timeoutMs: this.timeoutMs
     };
-    this.adapter =
-      options.adapter ??
-      options.adapterFactory?.(config) ??
-      (() => {
-        throw new LLMError(
-          'No LLM adapter configured; add a provider adapter or inject MockAdapter'
-        );
-      })();
+    this.adapter = options.adapter ?? options.adapterFactory?.(config) ?? createAdapter(config);
   }
 
   private callOptions(options: LLMInvokeOptions | undefined): AdapterCallOptions {

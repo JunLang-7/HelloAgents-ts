@@ -15,6 +15,7 @@ export default tseslint.config(
     files: ['tests/**/*.mjs'],
     languageOptions: {
       globals: {
+        Response: 'readonly',
         URL: 'readonly',
         process: 'readonly'
       }

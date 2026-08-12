@@ -67,3 +67,21 @@ assert.equal(nodeCounter.count('Node 🌍'), 6);
 assert.equal(nodeCounter.getStats().cache_misses, 1);
 const nodeAgent = new packageEntry.SimpleAgent({ name: 'node-agent', llm });
 assert.equal(await nodeAgent.run('hello'), 'Node LLM');
+const nodeReact = new packageEntry.ReActAgent({
+  name: 'node-react',
+  llm: new packageEntry.HelloAgentsLLM({
+    model: 'test-model',
+    apiKey: 'test-key',
+    baseUrl: 'https://provider.test',
+    adapter: new packageEntry.MockAdapter({
+      invokeWithTools: () => ({
+        content: 'Node ReAct',
+        tool_calls: [],
+        model: 'test-model',
+        usage: {},
+        latency_ms: 0
+      })
+    })
+  })
+});
+assert.equal(await nodeReact.run('hello'), 'Node ReAct');

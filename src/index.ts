@@ -116,6 +116,8 @@ export type {
 } from './context/context-builder.js';
 export { SimpleAgent } from './agents/simple-agent.js';
 export type { SimpleAgentOptions } from './agents/simple-agent.js';
+export { DEFAULT_REACT_SYSTEM_PROMPT, ReActAgent } from './agents/react-agent.js';
+export type { ReActAgentOptions, ReActSessionMetadata } from './agents/react-agent.js';
 
 export const version = '0.0.0-development';
 

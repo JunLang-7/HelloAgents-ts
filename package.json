@@ -39,7 +39,7 @@
     "build:js": "bun build ./src/index.ts --outdir ./dist --target node --format esm",
     "build:types": "tsc -p tsconfig.build.json",
     "build": "bun run build:js && bun run build:types",
-    "test:node": "node ./tests/node-smoke.mjs",
+    "test:node": "node ./tests/node-smoke.mjs && node ./tests/node-todo-devlog-smoke.mjs",
     "test:package": "node ./tests/package-consumer.mjs",
     "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run build && bun run test:node && bun run test:package"
   },

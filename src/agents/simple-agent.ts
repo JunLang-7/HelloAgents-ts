@@ -1,4 +1,6 @@
 import type { LLMMessage } from '../adapters/base.js';
+import { AgentEvent } from '../core/lifecycle.js';
+import type { LifecycleHook } from '../core/lifecycle.js';
 import { Message } from '../core/message.js';
 import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
 import { ToolRegistry } from '../tools/registry.js';
@@ -11,6 +13,28 @@ export interface SimpleAgentOptions {
   readonly toolRegistry?: ToolRegistry;
   readonly enableToolCalling?: boolean;
   readonly maxToolIterations?: number;
+}
+
+export interface AgentLifecycleOptions {
+  readonly onStart?: LifecycleHook;
+  readonly onFinish?: LifecycleHook;
+  readonly onError?: LifecycleHook;
+  readonly hookTimeoutMs?: number;
+}
+export interface AgentInvocationOptions extends LLMInvokeOptions {
+  readonly lifecycle?: AgentLifecycleOptions;
+}
+
+async function invokeHook(
+  hook: LifecycleHook | undefined,
+  event: AgentEvent,
+  timeoutMs: number
+): Promise<void> {
+  if (!hook) return;
+  await Promise.race([
+    Promise.resolve(hook(event)).catch(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs))
+  ]);
 }
 
 /** Python V1 SimpleAgent: direct conversation or a bounded function-calling loop. */
@@ -72,6 +96,61 @@ export class SimpleAgent {
       yield chunk;
     }
     this.history.push(new Message(input, 'user'), new Message(complete, 'assistant'));
+  }
+
+  public async arun(input: string, options: AgentInvocationOptions = {}): Promise<string> {
+    const { lifecycle, ...llmOptions } = options;
+    const timeoutMs = lifecycle?.hookTimeoutMs ?? 5_000;
+    await invokeHook(
+      lifecycle?.onStart,
+      AgentEvent.create('agent_start', this.name, { input_text: input }),
+      timeoutMs
+    );
+    try {
+      const answer = await this.run(input, llmOptions);
+      await invokeHook(
+        lifecycle?.onFinish,
+        AgentEvent.create('agent_finish', this.name, { result: answer }),
+        timeoutMs
+      );
+      return answer;
+    } catch (error) {
+      await invokeHook(
+        lifecycle?.onError,
+        AgentEvent.create('agent_error', this.name, {
+          error: error instanceof Error ? error.message : String(error)
+        }),
+        timeoutMs
+      );
+      throw error;
+    }
+  }
+
+  public async *arunStream(
+    input: string,
+    options: AgentInvocationOptions = {}
+  ): AsyncIterable<AgentEvent> {
+    const { lifecycle, ...llmOptions } = options;
+    const timeoutMs = lifecycle?.hookTimeoutMs ?? 5_000;
+    const started = AgentEvent.create('agent_start', this.name, { input_text: input });
+    yield started;
+    await invokeHook(lifecycle?.onStart, started, timeoutMs);
+    try {
+      for await (const chunk of this.stream(input, llmOptions)) {
+        yield AgentEvent.create('llm_chunk', this.name, { chunk });
+      }
+      const result = this.history.at(-1)?.content ?? '';
+      const finished = AgentEvent.create('agent_finish', this.name, { result });
+      yield finished;
+      await invokeHook(lifecycle?.onFinish, finished, timeoutMs);
+    } catch (error) {
+      const failed = AgentEvent.create('agent_error', this.name, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      yield failed;
+      await invokeHook(lifecycle?.onError, failed, timeoutMs);
+      throw error;
+    }
   }
 
   private buildMessages(input: string): LLMMessage[] {

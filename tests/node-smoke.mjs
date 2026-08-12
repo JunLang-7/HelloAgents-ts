@@ -85,3 +85,9 @@ const nodeReact = new packageEntry.ReActAgent({
   })
 });
 assert.equal(await nodeReact.run('hello'), 'Node ReAct');
+async function* nodeEvents() {
+  yield packageEntry.AgentEvent.create('llm_chunk', 'node-agent', { chunk: 'Node stream' });
+}
+const nodeSse = [];
+for await (const value of packageEntry.streamToSse(nodeEvents())) nodeSse.push(value);
+assert.equal(nodeSse[0]?.startsWith('event: llm_chunk'), true);

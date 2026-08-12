@@ -96,6 +96,24 @@ export type {
   CircuitStatus
 } from './tools/circuit-breaker.js';
 export type { ToolRegistryOptions } from './tools/registry.js';
+export { TokenCounter } from './context/token-counter.js';
+export type { TokenCounterOptions, TokenCounterStats } from './context/token-counter.js';
+export { HistoryManager } from './context/history-manager.js';
+export type { HistoryManagerOptions } from './context/history-manager.js';
+export { ObservationTruncator } from './context/observation-truncator.js';
+export type {
+  ObservationTruncatorOptions,
+  TruncationReason,
+  TruncationResult
+} from './context/observation-truncator.js';
+export { WorkingMemory } from './context/working-memory.js';
+export type { WorkingMemoryItem, WorkingMemoryOptions } from './context/working-memory.js';
+export { ContextBuilder } from './context/context-builder.js';
+export type {
+  BuildContextOptions,
+  ContextBuilderOptions,
+  ContextPacket
+} from './context/context-builder.js';
 
 export const version = '0.0.0-development';
 

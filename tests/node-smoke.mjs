@@ -62,3 +62,6 @@ nodeRegistry.registerFunction(nodeTool);
 assert.deepEqual((await nodeRegistry.execute('node_echo', '{"input":"Node tool"}')).toJSON().data, {
   output: 'Node tool'
 });
+const nodeCounter = new packageEntry.TokenCounter({ tokenize: (text) => [...text].length });
+assert.equal(nodeCounter.count('Node 🌍'), 6);
+assert.equal(nodeCounter.getStats().cache_misses, 1);

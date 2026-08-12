@@ -171,6 +171,20 @@ export type { TraceEvent, TraceLoggerOptions, TraceStats } from './observability
 export { SkillLoader } from './skills/loader.js';
 export type { Skill, SkillLoaderOptions, SkillMetadata, SkillResources } from './skills/loader.js';
 export { SkillTool } from './tools/skill.js';
+export { CustomFilter, FullAccessFilter, ReadOnlyFilter } from './tools/tool-filter.js';
+export type { CustomFilterOptions, ToolFilter, ToolFilterMode } from './tools/tool-filter.js';
+export { TaskTool } from './tools/task.js';
+export type { TaskToolOptions } from './tools/task.js';
+export { createAgentFactory, IsolatedSubagent } from './agents/subagent.js';
+export type {
+  AgentFactory,
+  AgentFactoryOptions,
+  AgentType,
+  SubagentMetadata,
+  SubagentResult,
+  SubagentRunOptions,
+  SubagentRunner
+} from './agents/subagent.js';
 
 export const version = '0.0.0-development';
 

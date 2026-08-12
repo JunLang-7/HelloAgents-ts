@@ -1,0 +1,30 @@
+{
+  "message": {
+    "role": "tool",
+    "content": "5",
+    "timestamp": "2026-08-12T12:34:56.123456",
+    "metadata": {
+      "tool_call_id": "call_1"
+    }
+  },
+  "response": {
+    "content": "calculated",
+    "model": "gpt-test",
+    "usage": {
+      "prompt_tokens": 3,
+      "completion_tokens": 2,
+      "total_tokens": 5
+    },
+    "latency_ms": 9,
+    "reasoning_content": "2 + 3 = 5"
+  },
+  "event": {
+    "type": "tool_result",
+    "timestamp": 1723466096.123456,
+    "agent_name": "assistant",
+    "data": {
+      "tool_call_id": "call_1",
+      "result": "5"
+    }
+  }
+}

@@ -89,6 +89,13 @@ export type {
   ToolParameter
 } from './tools/tool.js';
 export { ToolRegistry, globalRegistry } from './tools/registry.js';
+export { CircuitBreaker } from './tools/circuit-breaker.js';
+export type {
+  CircuitBreakerOptions,
+  CircuitState,
+  CircuitStatus
+} from './tools/circuit-breaker.js';
+export type { ToolRegistryOptions } from './tools/registry.js';
 
 export const version = '0.0.0-development';
 

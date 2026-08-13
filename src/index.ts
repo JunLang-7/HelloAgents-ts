@@ -180,16 +180,23 @@ export type {
   DevLogEntry,
   DevLogToolOptions
 } from './tools/builtin/dev-log-tool.js';
-export { createAgentFactory, IsolatedSubagent } from './agents/subagent.js';
+export {
+  createAgent,
+  createAgentFactory,
+  defaultSubagentFactory,
+  IsolatedSubagent
+} from './agents/factory.js';
 export type {
   AgentFactory,
   AgentFactoryOptions,
   AgentType,
+  CreatedAgent,
+  CreateAgentOptions,
   SubagentMetadata,
   SubagentResult,
   SubagentRunOptions,
   SubagentRunner
-} from './agents/subagent.js';
+} from './agents/factory.js';
 
 export const version = '0.0.0-development';
 

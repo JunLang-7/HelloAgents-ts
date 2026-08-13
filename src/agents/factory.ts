@@ -1,10 +1,74 @@
 import type { HelloAgentsLLM } from '../core/llm.js';
+import type { ResolvedConfig } from '../core/config.js';
 import { PlanSolveAgent } from './plan-solve-agent.js';
 import { ReActAgent } from './react-agent.js';
 import { ReflectionAgent } from './reflection-agent.js';
 import { SimpleAgent } from './simple-agent.js';
 import { ToolRegistry } from '../tools/registry.js';
 import type { ToolFilter } from '../tools/tool-filter.js';
+
+export interface CreateAgentOptions {
+  readonly agentType: string;
+  readonly name: string;
+  readonly llm: HelloAgentsLLM;
+  readonly toolRegistry?: ToolRegistry;
+  readonly config?: Pick<ResolvedConfig, 'skillsEnabled' | 'skillsDir' | 'skillsAutoRegister'>;
+  readonly systemPrompt?: string;
+}
+
+export type CreatedAgent = SimpleAgent | ReActAgent | ReflectionAgent | PlanSolveAgent;
+
+/** Creates one of the four public agent paradigms by its contract name. */
+export function createAgent(
+  agentType: string,
+  name: string,
+  llm: HelloAgentsLLM,
+  toolRegistry?: ToolRegistry,
+  config?: CreateAgentOptions['config'],
+  systemPrompt?: string
+): CreatedAgent;
+export function createAgent(options: CreateAgentOptions): CreatedAgent;
+export function createAgent(
+  input: string | CreateAgentOptions,
+  name?: string,
+  llm?: HelloAgentsLLM,
+  toolRegistry?: ToolRegistry,
+  config?: CreateAgentOptions['config'],
+  systemPrompt?: string
+): CreatedAgent {
+  const options: CreateAgentOptions =
+    typeof input === 'string'
+      ? {
+          agentType: input,
+          name: name ?? `${input}-agent`,
+          llm: llm as HelloAgentsLLM,
+          ...(toolRegistry === undefined ? {} : { toolRegistry }),
+          ...(config === undefined ? {} : { config }),
+          ...(systemPrompt === undefined ? {} : { systemPrompt })
+        }
+      : input;
+  const type = options.agentType.toLowerCase();
+  const shared = {
+    name: options.name,
+    llm: options.llm,
+    ...(options.systemPrompt === undefined ? {} : { systemPrompt: options.systemPrompt }),
+    ...(options.toolRegistry === undefined ? {} : { toolRegistry: options.toolRegistry })
+  };
+  switch (type) {
+    case 'react':
+      return new ReActAgent(shared);
+    case 'reflection':
+      return new ReflectionAgent(shared);
+    case 'plan':
+      return new PlanSolveAgent(shared);
+    case 'simple':
+      return new SimpleAgent(shared);
+    default:
+      throw new Error(
+        `不支持的 agent_type: ${options.agentType}。支持的类型: react, reflection, plan, simple`
+      );
+  }
+}
 
 export interface SubagentRunOptions {
   readonly toolFilter?: ToolFilter;
@@ -128,4 +192,9 @@ export function createAgentFactory(options: AgentFactoryOptions): AgentFactory {
     // The shared subagent protocol is intentionally independent of parent history.
     return new IsolatedSubagent(options, type as AgentType);
   };
+}
+
+/** Default factory used by TaskTool when a caller wants isolated child agents. */
+export function defaultSubagentFactory(options: AgentFactoryOptions): AgentFactory {
+  return createAgentFactory(options);
 }

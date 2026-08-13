@@ -8,10 +8,15 @@ import {
   HelloAgentsLLM,
   MockAdapter,
   IsolatedSubagent,
+  PlanSolveAgent,
   ReadOnlyFilter,
+  ReActAgent,
+  ReflectionAgent,
+  SimpleAgent,
   TaskTool,
   ToolErrorCode,
   ToolRegistry,
+  createAgent,
   createAgentFactory
 } from '../src/index.js';
 import type { SubagentRunner } from '../src/index.js';
@@ -108,6 +113,14 @@ describe('TaskTool', () => {
 });
 
 describe('default subagent factory', () => {
+  test('creates each public agent paradigm and rejects unsupported types', () => {
+    const llm = new HelloAgentsLLM({ ...config, adapter: new MockAdapter() });
+    expect(createAgent('simple', 'simple', llm)).toBeInstanceOf(SimpleAgent);
+    expect(createAgent('react', 'react', llm)).toBeInstanceOf(ReActAgent);
+    expect(createAgent('reflection', 'reflection', llm)).toBeInstanceOf(ReflectionAgent);
+    expect(createAgent({ agentType: 'plan', name: 'plan', llm })).toBeInstanceOf(PlanSolveAgent);
+    expect(() => createAgent('invalid', 'invalid', llm)).toThrow('不支持的 agent_type');
+  });
   test('uses an isolated filtered registry and reports tools used without polluting the parent', async () => {
     const source = registry();
     const adapter = new MockAdapter({

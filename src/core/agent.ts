@@ -7,7 +7,7 @@ import type { SessionStore } from './session-store.js';
 import { ToolRegistry } from '../tools/registry.js';
 import type { ToolResponse } from '../tools/response.js';
 import { SkillLoader } from '../skills/loader.js';
-import { SkillTool } from '../tools/skill.js';
+import { SkillTool } from '../tools/builtin/skill-tool.js';
 
 export interface AgentOptions {
   readonly name: string;

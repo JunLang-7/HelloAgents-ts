@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-import type { AgentFactory, SubagentRunner } from '../agents/subagent.js';
-import { ToolErrorCode } from './errors.js';
-import { ToolResponse } from './response.js';
-import { FullAccessFilter, ReadOnlyFilter } from './tool-filter.js';
-import type { ToolFilter } from './tool-filter.js';
-import { Tool } from './tool.js';
+import type { AgentFactory, SubagentRunner } from '../../agents/subagent.js';
+import { ToolErrorCode } from '../errors.js';
+import { ToolResponse } from '../response.js';
+import { FullAccessFilter, ReadOnlyFilter } from '../tool-filter.js';
+import type { ToolFilter } from '../tool-filter.js';
+import { Tool } from '../tool.js';
 
 export interface TaskToolOptions {
   readonly agentFactory: AgentFactory;

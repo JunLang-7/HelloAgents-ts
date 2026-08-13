@@ -97,16 +97,9 @@ export type {
   ToolParameter
 } from './tools/tool.js';
 export { ToolRegistry, globalRegistry } from './tools/registry.js';
-export {
-  CalculatorTool,
-  EditTool,
-  GlobTool,
-  GrepTool,
-  ReadTool,
-  WriteTool,
-  calculate
-} from './tools/builtin.js';
-export type { FileToolOptions } from './tools/builtin.js';
+export { CalculatorTool, calculate } from './tools/builtin/calculator.js';
+export { EditTool, GlobTool, GrepTool, ReadTool, WriteTool } from './tools/builtin/file-tools.js';
+export type { FileToolOptions } from './tools/builtin/file-tools.js';
 export { CircuitBreaker } from './tools/circuit-breaker.js';
 export type {
   CircuitBreakerOptions,
@@ -170,20 +163,23 @@ export {
 export type { TraceEvent, TraceLoggerOptions, TraceStats } from './observability/trace-logger.js';
 export { SkillLoader } from './skills/loader.js';
 export type { Skill, SkillLoaderOptions, SkillMetadata, SkillResources } from './skills/loader.js';
-export { SkillTool } from './tools/skill.js';
+export { SkillTool } from './tools/builtin/skill-tool.js';
 export { CustomFilter, FullAccessFilter, ReadOnlyFilter } from './tools/tool-filter.js';
 export type { CustomFilterOptions, ToolFilter, ToolFilterMode } from './tools/tool-filter.js';
-export { TaskTool } from './tools/task.js';
-export type { TaskToolOptions } from './tools/task.js';
-export { DEV_LOG_CATEGORIES, DevLogTool, TodoWriteTool } from './tools/todo-devlog.js';
+export { TaskTool } from './tools/builtin/task-tool.js';
+export type { TaskToolOptions } from './tools/builtin/task-tool.js';
+export { TodoWriteTool } from './tools/builtin/todo-write-tool.js';
 export type {
-  DevLogCategory,
-  DevLogEntry,
-  DevLogToolOptions,
   TodoItem,
   TodoStatus,
   TodoWriteToolOptions
-} from './tools/todo-devlog.js';
+} from './tools/builtin/todo-write-tool.js';
+export { DEV_LOG_CATEGORIES, DevLogTool } from './tools/builtin/dev-log-tool.js';
+export type {
+  DevLogCategory,
+  DevLogEntry,
+  DevLogToolOptions
+} from './tools/builtin/dev-log-tool.js';
 export { createAgentFactory, IsolatedSubagent } from './agents/subagent.js';
 export type {
   AgentFactory,

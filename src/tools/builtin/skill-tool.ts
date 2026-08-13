@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import type { SkillLoader, SkillResources } from '../skills/loader.js';
-import { ToolErrorCode } from './errors.js';
-import { ToolResponse } from './response.js';
-import { Tool } from './tool.js';
+import type { SkillLoader, SkillResources } from '../../skills/loader.js';
+import { ToolErrorCode } from '../errors.js';
+import { ToolResponse } from '../response.js';
+import { Tool } from '../tool.js';
 
 /** Function Calling entry point for progressive skill loading. */
 export class SkillTool extends Tool<typeof SkillTool.inputSchema> {

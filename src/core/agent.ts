@@ -1,8 +1,8 @@
 import type { HelloAgentsLLM } from './llm.js';
 import type { ResolvedConfig } from './config.js';
 import { Message } from './message.js';
-import { HistoryManager } from '../context/history-manager.js';
-import type { HistoryManagerOptions } from '../context/history-manager.js';
+import { HistoryManager } from '../context/history.js';
+import type { HistoryManagerOptions } from '../context/history.js';
 import type { SessionStore } from './session-store.js';
 import { ToolRegistry } from '../tools/registry.js';
 import type { ToolResponse } from '../tools/response.js';

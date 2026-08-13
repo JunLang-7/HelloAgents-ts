@@ -225,6 +225,12 @@ Any new conflict must be added to this table in the same PR that introduces
 the affected behaviour. A Go implementation detail cannot expand or narrow
 the Python V1 contract without an explicit TypeScript design decision.
 
+The TypeScript usage guides are indexed from the README and cover the upstream
+topics that map to implemented public APIs: async agents, circuit breakers,
+context engineering, development logs, file tools, Function Calling, logging,
+observability, sessions, skills, streaming/SSE, subagents, TodoWrite, and the
+ToolResponse protocol.
+
 ## 8. Behavioural invariants
 
 These invariants are review gates for all later implementation PRs:

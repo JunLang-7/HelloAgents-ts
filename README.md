@@ -50,6 +50,19 @@ See [configuration](docs/configuration.md), [architecture](docs/architecture.md)
 [custom tools](docs/custom-tools.md). Runnable minimal programs are in
 [`examples/`](examples/).
 
+Topic guides: [async agents](docs/async-agent-guide.md),
+[circuit breakers](docs/circuit-breaker-guide.md),
+[context engineering](docs/context-engineering-guide.md),
+[development logs](docs/devlog-guide.md), [file tools](docs/file-tools.md),
+[Function Calling](docs/function-calling-architecture.md),
+[logging](docs/logging-system-guide.md), [observability](docs/observability-guide.md),
+[session persistence](docs/session-persistence-guide.md),
+[skills quickstart](docs/skills-quickstart.md) and
+[skills usage](docs/skills-usage-guide.md),
+[streaming/SSE](docs/streaming-sse-guide.md),
+[subagents](docs/subagent-guide.md), [TodoWrite](docs/todowrite-usage-guide.md),
+and the [ToolResponse protocol](docs/tool-response-protocol.md).
+
 ## Development and release checks
 
 ```sh

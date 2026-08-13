@@ -4,7 +4,14 @@ import { z } from 'zod';
 
 import { SkillError, parseOrThrow } from '../core/errors.js';
 
-const metadataSchema = z.object({ name: z.string(), description: z.string() }).strict();
+const metadataSchema = z
+  .object({
+    name: z.string(),
+    description: z.string(),
+    license: z.string().optional(),
+    version: z.string().optional()
+  })
+  .strict();
 export type SkillMetadata = z.output<typeof metadataSchema>;
 
 export interface SkillResources {
@@ -56,12 +63,13 @@ function parseFrontmatter(content: string): SkillMetadata {
     if (!match) throw new SkillError('Invalid SKILL.md frontmatter');
     const key = match[1] ?? '';
     const value = parseScalar(match[2] ?? '');
-    if (value === undefined || (key !== 'name' && key !== 'description')) {
+    if (value === undefined || !['name', 'description', 'license', 'version'].includes(key)) {
       throw new SkillError('Invalid SKILL.md frontmatter');
     }
     values[key] = value;
   }
-  return parseOrThrow(metadataSchema, values, 'Skill frontmatter', SkillError);
+  const parsed = parseOrThrow(metadataSchema, values, 'Skill frontmatter', SkillError);
+  return { name: parsed.name, description: parsed.description };
 }
 
 async function collectFiles(directory: string): Promise<string[]> {

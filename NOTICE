@@ -4,4 +4,10 @@ Upstream project: https://github.com/jjyaoao/HelloAgents
 Upstream license: Creative Commons Attribution-NonCommercial-ShareAlike 4.0
 
 HelloAgents-go (https://github.com/chaojixinren/HelloAgents-go) is consulted
-only as a cross-language implementation reference.
+as a cross-language implementation reference. The top-level `skills/` content
+is synchronized from its skill repository:
+https://github.com/chaojixinren/HelloAgents-go/tree/main/skills
+
+The synchronized skill content is part of the HelloAgents upstream project
+and remains available under the Creative Commons Attribution-NonCommercial-
+ShareAlike 4.0 International License.

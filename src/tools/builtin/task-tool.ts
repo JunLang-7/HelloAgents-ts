@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { AgentFactory, SubagentRunner } from '../../agents/subagent.js';
+import type { AgentFactory, SubagentRunner } from '../../agents/factory.js';
 import { ToolErrorCode } from '../errors.js';
 import { ToolResponse } from '../response.js';
 import { FullAccessFilter, ReadOnlyFilter } from '../tool-filter.js';

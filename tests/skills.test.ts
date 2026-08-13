@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import {
   Agent,
@@ -31,6 +31,21 @@ async function writeSkill(
 }
 
 describe('SkillLoader', () => {
+  test('scans the synchronized repository skills when present', async () => {
+    const skillsDir = join(dirname(import.meta.dir), 'skills');
+    try {
+      await access(join(skillsDir, 'web-search', 'SKILL.md'));
+    } catch {
+      return;
+    }
+    const loader = await SkillLoader.create({ skillsDir });
+    expect(loader.listSkills()).toHaveLength(17);
+    expect(loader.listSkills()).toContain('web-search');
+    const skill = await loader.getSkill('web-search');
+    expect(skill?.name).toBe('web-search');
+    expect(skill?.body.length).toBeGreaterThan(0);
+  });
+
   test('scans only frontmatter, then lazily loads content and resource metadata', async () => {
     const root = await mkdtemp(join(tmpdir(), 'helloagents-skills-'));
     try {

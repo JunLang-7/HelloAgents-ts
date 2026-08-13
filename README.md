@@ -63,6 +63,17 @@ Topic guides: [async agents](docs/async-agent-guide.md),
 [subagents](docs/subagent-guide.md), [TodoWrite](docs/todowrite-usage-guide.md),
 and the [ToolResponse protocol](docs/tool-response-protocol.md).
 
+Runnable examples include [async agents](examples/async-agent-demo.ts),
+[circuit breakers](examples/circuit-breaker-demo.ts),
+[context engineering](examples/context-engineering-demo.ts),
+[file tools](examples/file-tools-demo.ts), [observability](examples/observability-demo.ts),
+[parallel tools](examples/parallel-tools-demo.ts), [sessions](examples/session-persistence-demo.ts),
+[skills](examples/skills-demo.ts), [SSE client/server](examples/sse-client-demo.ts),
+[subagents](examples/subagent-demo.ts), [TodoWrite](examples/todowrite-demo.ts),
+[ToolResponse](examples/tool-response-demo.ts), and [custom tool templates](examples/custom-tools/).
+All new demos use a local mock adapter or temporary directories, so they run
+without provider credentials.
+
 ## Development and release checks
 
 ```sh

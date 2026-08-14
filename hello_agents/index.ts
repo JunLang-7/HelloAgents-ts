@@ -3,6 +3,8 @@
  *
  * 具体导出由对应的兼容性 Issue 维护。保留统一入口可以持续验证包契约。
  */
+import pkg from '../package.json' with { type: 'json' };
+
 export {
   AgentError,
   ConfigError,
@@ -197,7 +199,7 @@ export type {
   SubagentRunner
 } from './agents/factory.js';
 
-export const version = '0.0.0-development';
+export const version = pkg.version;
 
 export const metadata = Object.freeze({
   name: '@junlang-7/helloagents',

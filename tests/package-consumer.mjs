@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'helloagents-package-'));
-const packageName = '@junlang-7/helloagents';
-const expectedVersion = '0.0.0-development';
+const packageJson = JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8'));
+const packageName = packageJson.name;
+const expectedVersion = packageJson.version;
 const importCheck = `import { AgentEvent, DevLogTool, FunctionTool, HelloAgentsLLM, Message, MockAdapter, ReActAgent, SessionStore, SimpleAgent, TodoWriteTool, TokenCounter, ToolRegistry, createConfig, metadata, streamToJsonLines, version } from '${packageName}';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { z } from 'zod';

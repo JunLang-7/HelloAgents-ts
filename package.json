@@ -1,6 +1,6 @@
 {
   "name": "@junlang-7/helloagents",
-  "version": "0.0.0-development",
+  "version": "1.0.0",
   "description": "Bun-first, Node.js-compatible TypeScript implementation of HelloAgents.",
   "keywords": [
     "agents",
@@ -42,7 +42,8 @@
     "NOTICE"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
   },
   "sideEffects": false,
   "scripts": {

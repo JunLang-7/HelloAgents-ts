@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 
 const packageEntry = await import('../dist/index.js');
 
-assert.equal(packageEntry.version, '0.0.0-development');
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+assert.equal(packageEntry.version, pkg.version);
 assert.equal(packageEntry.metadata.name, '@junlang-7/helloagents');
 assert.equal(packageEntry.createConfig().contextWindow, 128_000);
 assert.equal(

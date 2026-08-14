@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -56,6 +56,10 @@ describe('workspace file tools', () => {
       const cached = registry.getReadMetadata('note.txt');
       expect(cached).toMatchObject({ file_size_bytes: 11, file_hash: expect.any(String) });
       await writeFile(join(root, 'note.txt'), 'changed\n', 'utf8');
+      // Give the direct write a distinct mtime so the optimistic-lock check is
+      // deterministic even when both writes land within the same mtime tick.
+      const staleTime = new Date(Date.now() - 60_000);
+      await utimes(join(root, 'note.txt'), staleTime, staleTime);
       const conflict = await edit.execute({
         path: 'note.txt',
         old_string: 'changed',

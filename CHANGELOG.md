@@ -5,6 +5,8 @@ All notable changes are documented here. This project follows
 
 ## Unreleased
 
+## [1.0.0] - 2026-08-14
+
 ### Added
 
 - Bun-first, Node.js 22/24-compatible TypeScript implementation of the

@@ -1,16 +1,16 @@
 export interface TokenCounterOptions {
-  /** Model-specific tokenizer. The default uses a lightweight character estimate. */
+  /** 模型专用 tokenizer；默认使用轻量的字符估算。 */
   readonly tokenize?: (text: string) => number;
 }
 
-/** Cache effectiveness and size reported by `TokenCounter.getStats`. */
+/** `TokenCounter.getStats` 返回的缓存命中和大小统计。 */
 export interface TokenCounterStats {
   readonly cache_hits: number;
   readonly cache_misses: number;
   readonly entries: number;
 }
 
-/** Cached token counter; callers may inject a model-specific tokenizer. */
+/** 带缓存的 token 计数器；调用方可以注入模型专用 tokenizer。 */
 export class TokenCounter {
   private readonly tokenize: (text: string) => number;
   private readonly cache = new Map<string, number>();
@@ -21,7 +21,7 @@ export class TokenCounter {
     this.tokenize = options.tokenize ?? ((text) => Math.floor([...text].length / 4));
   }
 
-  /** Counts tokens and memoizes the result for identical text. */
+  /** 统计 token，并缓存相同文本的结果。 */
   public count(text: string): number {
     const cached = this.cache.get(text);
     if (cached !== undefined) {
@@ -36,14 +36,14 @@ export class TokenCounter {
     return count;
   }
 
-  /** Clears cached counts and resets hit/miss statistics. */
+  /** 清空缓存计数并重置命中/未命中统计。 */
   public clear(): void {
     this.cache.clear();
     this.hits = 0;
     this.misses = 0;
   }
 
-  /** Returns cache statistics for monitoring or tests. */
+  /** 返回缓存统计，供监控或测试使用。 */
   public getStats(): TokenCounterStats {
     return { cache_hits: this.hits, cache_misses: this.misses, entries: this.cache.size };
   }

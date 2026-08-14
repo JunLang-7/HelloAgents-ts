@@ -7,26 +7,26 @@ import type { SessionData } from './session-data.js';
 import type { Message } from './message.js';
 
 export interface SessionStoreOptions {
-  /** Directory in which JSON session files are stored. */
+  /** 保存 JSON 会话文件的目录。 */
   readonly sessionDir?: string;
-  /** Clock injection for deterministic IDs and timestamps. */
+  /** 时钟注入，用于确定性的会话 ID 和时间戳。 */
   readonly now?: () => Date;
 }
 export interface SaveSessionOptions {
-  /** Serializable agent configuration saved for restore compatibility checks. */
+  /** 保存后用于恢复兼容性检查的可序列化 Agent 配置。 */
   readonly agentConfig: Record<string, unknown>;
-  /** Conversation history to serialize. */
+  /** 要序列化的对话历史。 */
   readonly history: readonly Message[];
-  /** Hash of the tool schemas active when the session was saved. */
+  /** 保存会话时生效的工具模式哈希。 */
   readonly toolSchemaHash: string;
-  /** Cached file-read metadata associated with the tool registry. */
+  /** 与工具注册表关联的文件读取元数据缓存。 */
   readonly readCache: Record<string, Record<string, unknown>>;
-  /** Caller-defined data that travels with the session. */
+  /** 随会话保存的调用方自定义数据。 */
   readonly metadata: Record<string, unknown>;
-  /** Optional filename stem; the store appends `.json`. */
+  /** 可选文件名；存储器会自动追加 `.json`。 */
   readonly sessionName?: string;
 }
-/** Lightweight session listing entry, without loading conversation history. */
+/** 轻量会话列表条目，不加载对话历史。 */
 export interface SessionSummary {
   readonly filename: string;
   readonly filepath: string;
@@ -45,7 +45,17 @@ function sessionId(now: Date): string {
   return `s-${timestamp}-${randomUUID().replaceAll('-', '').slice(0, 8)}`;
 }
 
-/** Node standard-FS SessionStore; Bun supports the same promises API. */
+/**
+ * 会话存储器。
+ *
+ * 功能：
+ * - 保存会话到 JSON 文件
+ * - 从文件恢复会话
+ * - 环境一致性检查
+ * - 原子写入保证数据完整性
+ *
+ * 基于 Node 标准文件系统；Bun 兼容同一套 promises API。
+ */
 export class SessionStore {
   public readonly sessionDir: string;
   private readonly now: () => Date;
@@ -53,7 +63,12 @@ export class SessionStore {
     this.sessionDir = options.sessionDir ?? 'memory/sessions';
     this.now = options.now ?? (() => new Date());
   }
-  /** Writes a complete session atomically and returns its filesystem path. */
+  /**
+   * 原子写入完整会话。
+   *
+   * @param options 会话配置、历史、工具模式哈希、读取缓存和元数据。
+   * @returns 保存的文件路径。
+   */
   public async save(options: SaveSessionOptions): Promise<string> {
     await mkdir(this.sessionDir, { recursive: true });
     const now = this.now();
@@ -78,11 +93,16 @@ export class SessionStore {
     await rename(temporary, filepath);
     return filepath;
   }
-  /** Loads and validates one persisted session file. */
+  /**
+   * 加载并校验一个持久化会话文件。
+   *
+   * @param filepath 会话文件路径。
+   * @returns 校验后的会话数据。
+   */
   public async load(filepath: string): Promise<SessionData> {
     return parseSessionData(JSON.parse(await readFile(filepath, 'utf8')));
   }
-  /** Lists saved sessions newest-first; a missing session directory is empty. */
+  /** 按最新保存时间列出会话；会话目录不存在时返回空列表。 */
   public async listSessions(): Promise<SessionSummary[]> {
     try {
       const names = (await readdir(this.sessionDir)).filter((name) => name.endsWith('.json'));
@@ -107,7 +127,12 @@ export class SessionStore {
       throw error;
     }
   }
-  /** Deletes a session by filename or filename stem; returns false when absent. */
+  /**
+   * 根据文件名或文件名主体删除会话。
+   *
+   * @param sessionName 会话文件名或文件名主体。
+   * @returns 是否成功删除；文件不存在时返回 false。
+   */
   public async delete(sessionName: string): Promise<boolean> {
     const filename = basename(sessionName).endsWith('.json')
       ? basename(sessionName)
@@ -120,7 +145,7 @@ export class SessionStore {
       throw error;
     }
   }
-  /** Compares saved agent settings with current settings and returns warnings. */
+  /** 比较保存的 Agent 设置与当前设置，并返回警告。 */
   public checkConfigConsistency(
     saved: Record<string, unknown>,
     current: Record<string, unknown>
@@ -136,7 +161,7 @@ export class SessionStore {
       warnings.push(`最大步数变化: ${String(saved.max_steps)} → ${String(current.max_steps)}`);
     return { consistent: warnings.length === 0, warnings };
   }
-  /** Compares saved and current tool-schema hashes for restore compatibility. */
+  /** 比较保存和当前工具模式哈希，判断恢复兼容性。 */
   public checkToolSchemaConsistency(
     savedHash: string,
     currentHash: string

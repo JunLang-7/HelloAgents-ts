@@ -1,6 +1,6 @@
-/** Limit that caused an observation preview to be truncated. */
+/** 导致观测预览被截断的限制类型。 */
 export type TruncationReason = 'line_limit' | 'byte_limit';
-/** Preview plus a stable reference to the full in-memory observation. */
+/** 预览内容，以及指向内存中完整观测结果的稳定引用。 */
 export interface TruncationResult {
   readonly preview: string;
   readonly truncated: boolean;
@@ -8,13 +8,13 @@ export interface TruncationResult {
   readonly reason?: TruncationReason;
 }
 export interface ObservationTruncatorOptions {
-  /** Maximum source lines exposed in a preview. */
+  /** 预览中最多暴露的源文本行数。 */
   readonly maxLines?: number;
-  /** Maximum UTF-8 bytes exposed in a preview. */
+  /** 预览中最多暴露的 UTF-8 字节数。 */
   readonly maxBytes?: number;
-  /** Lines retained from the start of a line-truncated preview. */
+  /** 按行截断时从开头保留的行数。 */
   readonly headLines?: number;
-  /** Lines retained from the end of a line-truncated preview. */
+  /** 按行截断时从结尾保留的行数。 */
   readonly tailLines?: number;
 }
 
@@ -44,7 +44,7 @@ function markerForBudget(outputId: string, maxBytes: number): string {
   return utf8Prefix(`…[${outputId}]…`, maxBytes);
 }
 
-/** Stores full observations in memory while exposing bounded LLM previews. */
+/** 在内存中保存完整观测，同时向 LLM 暴露有界预览。 */
 export class ObservationTruncator {
   private readonly maxLines: number;
   private readonly maxBytes: number;
@@ -59,7 +59,13 @@ export class ObservationTruncator {
     this.tailLines = options.tailLines ?? 20;
   }
 
-  /** Stores full output and returns an LLM-safe preview bounded by lines and UTF-8 bytes. */
+  /**
+   * 保存完整输出，并返回受行数和 UTF-8 字节数限制的 LLM 预览。
+   *
+   * @param output 原始输出。
+   * @param outputId 完整输出的稳定 ID。
+   * @returns 截断结果，包含预览和完整输出引用。
+   */
   public truncate(output: string, outputId: string): TruncationResult {
     this.outputs.set(outputId, output);
     const bytes = new TextEncoder().encode(output).length;
@@ -84,7 +90,7 @@ export class ObservationTruncator {
     return { preview, truncated: true, full_output_id: outputId, reason };
   }
 
-  /** Retrieves a previously stored full observation by its output ID. */
+  /** 根据输出 ID 获取之前保存的完整观测。 */
   public getFullOutput(outputId: string): string | undefined {
     return this.outputs.get(outputId);
   }

@@ -56,11 +56,11 @@ const configFields = {
   streamIncludeToolCalls: z.boolean().default(true)
 } as const;
 
-/** Validates the camelCase runtime configuration accepted by the TypeScript API. */
+/** 配置校验模式，接受 TypeScript API 使用的 camelCase 字段。 */
 export const configSchema = z.object(configFields).strict();
-/** Input configuration; omitted fields receive the documented runtime defaults. */
+/** 配置输入；未提供的字段会使用默认值。 */
 export type ConfigInput = z.input<typeof configSchema>;
-/** Fully resolved configuration with defaults applied. */
+/** 应用默认值后的完整配置。 */
 export type ConfigValues = z.output<typeof configSchema>;
 
 const wireNameMap = {
@@ -130,9 +130,9 @@ const configWireSchema = z
   .strict();
 
 export class Config {
-  /** Wraps already-resolved configuration values for wire serialization. */
+  /** 包装已经解析完成的配置值，用于线格式序列化。 */
   public constructor(private readonly values: ConfigValues) {}
-  /** Serializes camelCase settings to the snake_case session/config wire format. */
+  /** 将 camelCase 配置序列化为 snake_case 的会话/配置线格式。 */
   public toJSON(): Record<string, ConfigValues[keyof ConfigValues]> {
     return Object.fromEntries(
       Object.entries(wireNameMap).map(([key, wire]) => [
@@ -144,7 +144,7 @@ export class Config {
 }
 export type ResolvedConfig = Config & ConfigValues;
 
-/** Validates camelCase input and returns a frozen configuration with defaults. */
+/** 校验 camelCase 输入，应用默认值并返回冻结的配置对象。 */
 export function createConfig(input: ConfigInput = {}): ResolvedConfig {
   const values = parseOrThrow(configSchema, input, 'Config');
   const config = new Config(values) as ResolvedConfig;
@@ -153,7 +153,7 @@ export function createConfig(input: ConfigInput = {}): ResolvedConfig {
   return config;
 }
 
-/** Parses the snake_case wire representation used by Python-compatible data files. */
+/** 解析 Python 兼容数据文件使用的 snake_case 线格式。 */
 export function parseConfig(input: unknown): ResolvedConfig {
   const wire = parseOrThrow(configWireSchema, input, 'Config');
   const camelCaseInput = Object.fromEntries(
@@ -165,7 +165,7 @@ export function parseConfig(input: unknown): ResolvedConfig {
   return createConfig(camelCaseInput);
 }
 
-/** Builds configuration from the supported environment variables and defaults. */
+/** 从支持的环境变量创建配置，未提供的值使用默认值。 */
 export function createConfigFromEnv(env: Record<string, string | undefined>): ResolvedConfig {
   const input: ConfigInput = {
     debug: (env.DEBUG ?? 'false').toLowerCase() === 'true',

@@ -1,10 +1,10 @@
 import { ToolStatus } from './response.js';
 import type { ToolResponse } from './response.js';
 
-/** Per-tool circuit state. `half-open` permits one recovery probe. */
+/** 单个工具的熔断状态；`half-open` 允许一次恢复探测。 */
 export type CircuitState = 'closed' | 'open' | 'half-open';
 
-/** Snapshot of failures and recovery timing for one tool. */
+/** 单个工具的失败次数和恢复时间快照。 */
 export interface CircuitStatus {
   readonly state: CircuitState;
   readonly failure_count: number;
@@ -13,13 +13,13 @@ export interface CircuitStatus {
 }
 
 export interface CircuitBreakerOptions {
-  /** Consecutive failures required to open the circuit. */
+  /** 触发熔断所需的连续失败次数。 */
   readonly failureThreshold?: number;
-  /** Seconds an open circuit remains blocked before a probe. */
+  /** 熔断后保持阻断、等待恢复探测的秒数。 */
   readonly recoveryTimeoutSeconds?: number;
-  /** Disables blocking while retaining the same recording API. */
+  /** 是否启用熔断；禁用时仍保留记录 API。 */
   readonly enabled?: boolean;
-  /** Monotonic millisecond clock; injectable for deterministic tests. */
+  /** 单调毫秒时钟；可注入以支持确定性测试。 */
   readonly now?: () => number;
 }
 
@@ -31,9 +31,8 @@ function validateNonNegativeInteger(value: number, label: string): number {
 }
 
 /**
- * Per-tool circuit breaker. The upstream Python/Go implementations recover
- * directly to closed; TypeScript makes the recovery probe explicit as
- * `half-open` so only one call may test the recovered tool at a time.
+ * 单工具熔断器。上游 Python/Go 实现恢复后直接转为 closed；TypeScript 将恢复探测
+ * 显式表示为 `half-open`，确保同一时刻只有一次调用可以测试已恢复的工具。
  */
 export class CircuitBreaker {
   public readonly failureThreshold: number;
@@ -57,7 +56,7 @@ export class CircuitBreaker {
     this.now = options.now ?? Date.now;
   }
 
-  /** Returns whether a tool is currently blocked, without consuming a recovery probe. */
+  /** 返回工具当前是否被阻断，不会消耗恢复探测机会。 */
   public isOpen(toolName: string): boolean {
     if (!this.enabled) return false;
     const openAt = this.openTimestamps.get(toolName);
@@ -66,8 +65,8 @@ export class CircuitBreaker {
   }
 
   /**
-   * Returns whether one execution is allowed. After timeout, precisely one
-   * execution consumes the half-open probe; its result must be recorded.
+   * 返回是否允许一次执行。超时后，恰好一次执行会消耗 half-open 探测机会；
+   * 必须记录该执行结果。
    */
   public canExecute(toolName: string): boolean {
     if (!this.enabled) return true;
@@ -79,28 +78,28 @@ export class CircuitBreaker {
     return true;
   }
 
-  /** Records a response and updates failure/open state. */
+  /** 记录响应并更新失败和熔断状态。 */
   public recordResult(toolName: string, response: ToolResponse): void {
     if (!this.enabled) return;
     if (response.status === ToolStatus.ERROR) this.onFailure(toolName);
     else this.onSuccess(toolName);
   }
 
-  /** Opens a tool circuit immediately. */
+  /** 立即打开指定工具的熔断器。 */
   public open(toolName: string): void {
     if (!this.enabled) return;
     this.openTimestamps.set(toolName, this.now());
     this.halfOpenProbes.delete(toolName);
   }
 
-  /** Closes a tool circuit and resets its failure count. */
+  /** 关闭指定工具的熔断器并重置失败次数。 */
   public close(toolName: string): void {
     this.failureCounts.set(toolName, 0);
     this.openTimestamps.delete(toolName);
     this.halfOpenProbes.delete(toolName);
   }
 
-  /** Returns current state and remaining recovery time for one tool. */
+  /** 返回指定工具的当前状态和剩余恢复时间。 */
   public getStatus(toolName: string): CircuitStatus {
     const failures = this.failureCounts.get(toolName) ?? 0;
     const openAt = this.openTimestamps.get(toolName);
@@ -124,7 +123,7 @@ export class CircuitBreaker {
     };
   }
 
-  /** Returns status snapshots for every tool with recorded activity. */
+  /** 返回所有有记录活动的工具状态快照。 */
   public getAllStatus(): Record<string, CircuitStatus> {
     const names = new Set([...this.failureCounts.keys(), ...this.openTimestamps.keys()]);
     return Object.fromEntries([...names].map((name) => [name, this.getStatus(name)]));

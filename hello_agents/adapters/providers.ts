@@ -9,7 +9,7 @@ export type { FetchLike } from './fetch-adapter.js';
 export { GeminiAdapter } from './gemini.js';
 export { OpenAIAdapter } from './openai.js';
 
-/** Chooses an adapter from a provider base URL, or OpenAI-compatible fallback. */
+/** 根据提供商 base URL 选择适配器；其他端点回退到 OpenAI 兼容适配器。 */
 export function createAdapter(config: AdapterConfig, fetchImpl?: FetchLike): BaseLLMAdapter {
   const baseUrl = config.baseUrl.toLowerCase();
   if (baseUrl.includes('anthropic.com')) return new AnthropicAdapter(config, fetchImpl);

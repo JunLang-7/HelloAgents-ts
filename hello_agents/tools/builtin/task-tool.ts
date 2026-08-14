@@ -8,7 +8,7 @@ import type { ToolFilter } from '../tool-filter.js';
 import { Tool } from '../tool.js';
 
 export interface TaskToolOptions {
-  /** Factory that creates isolated child-agent runners. */
+  /** 创建隔离子 Agent 运行器的工厂函数。 */
   readonly agentFactory: AgentFactory;
 }
 
@@ -18,7 +18,7 @@ function filterFrom(value: string): ToolFilter | undefined {
   return undefined;
 }
 
-/** Starts a child agent with an isolated tool registry and bounded execution. */
+/** 使用隔离工具注册表和有界执行启动子 Agent。 */
 export class TaskTool extends Tool<typeof TaskTool.inputSchema> {
   static readonly inputSchema = z
     .object({

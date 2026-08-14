@@ -12,21 +12,21 @@ const metadataSchema = z
     version: z.string().optional()
   })
   .strict();
-/** Frontmatter metadata available without loading a skill body. */
+/** 无需加载技能正文即可获取的 frontmatter 元数据。 */
 export type SkillMetadata = z.output<typeof metadataSchema>;
 
 export interface SkillResources {
-  /** Files under the skill's scripts directory. */
+  /** 技能 scripts 目录下的文件。 */
   readonly scripts: readonly string[];
-  /** Files under the skill's examples directory. */
+  /** 技能 examples 目录下的文件。 */
   readonly examples: readonly string[];
-  /** Files under the skill's references directory. */
+  /** 技能 references 目录下的文件。 */
   readonly references: readonly string[];
-  /** Files under the skill's assets directory. */
+  /** 技能 assets 目录下的文件。 */
   readonly assets: readonly string[];
 }
 
-/** Fully loaded skill content, metadata, directory, and discovered resources. */
+/** 完整加载的技能正文、元数据、目录和发现的资源。 */
 export interface Skill extends SkillMetadata {
   readonly body: string;
   readonly path: string;
@@ -35,7 +35,7 @@ export interface Skill extends SkillMetadata {
 }
 
 export interface SkillLoaderOptions {
-  /** Root directory containing one subdirectory per skill. */
+  /** 技能根目录；每个技能占用一个子目录。 */
   readonly skillsDir?: string;
 }
 
@@ -104,7 +104,17 @@ async function resources(dir: string): Promise<SkillResources> {
   };
 }
 
-/** Progressive skill discovery: scan frontmatter first and load full bodies only on demand. */
+/**
+ * 技能加载器。
+ *
+ * 特性：
+ * - 启动时仅加载元数据
+ * - 按需加载完整技能
+ * - 扫描 skills/ 目录
+ * - 支持热重载
+ *
+ * 采用渐进式披露机制：先扫描 frontmatter，仅在需要时加载完整正文。
+ */
 export class SkillLoader {
   public readonly skillsDir: string;
   private metadata = new Map<string, CachedMetadata>();
@@ -115,19 +125,19 @@ export class SkillLoader {
     this.skillsDir = skillsDir;
   }
 
-  /** Creates a loader and scans skill frontmatter. */
+  /** 创建加载器并扫描技能 frontmatter。 */
   public static async create(options: SkillLoaderOptions = {}): Promise<SkillLoader> {
     const loader = new SkillLoader(options.skillsDir ?? '.');
     await loader.reload();
     return loader;
   }
 
-  /** Lists discovered skill names in stable directory order. */
+  /** 按稳定目录顺序列出已发现的技能名称。 */
   public listSkills(): readonly string[] {
     return [...this.order];
   }
 
-  /** Formats a compact model-facing description list. */
+  /** 格式化紧凑的面向模型的技能描述列表。 */
   public getDescriptions(): string {
     return this.order.length === 0
       ? '（暂无可用技能）'
@@ -136,12 +146,17 @@ export class SkillLoader {
           .join('\n');
   }
 
-  /** Returns a loaded skill without performing filesystem I/O. */
+  /** 返回已加载的技能，不进行文件系统 I/O。 */
   public getCachedSkill(name: string): Skill | undefined {
     return this.cache.get(name);
   }
 
-  /** Loads and caches one skill body and its resource paths on demand. */
+  /**
+   * 按需加载并缓存一个技能正文及其资源路径。
+   *
+   * @param name 技能名称。
+   * @returns 技能对象；技能不存在时返回 undefined。
+   */
   public async getSkill(name: string): Promise<Skill | undefined> {
     const cached = this.cache.get(name);
     if (cached) return cached;
@@ -166,7 +181,7 @@ export class SkillLoader {
     }
   }
 
-  /** Rescans frontmatter and clears the loaded-skill cache. */
+  /** 重新扫描 frontmatter 并清空已加载技能缓存。 */
   public async reload(): Promise<void> {
     const metadata = new Map<string, CachedMetadata>();
     const order: string[] = [];

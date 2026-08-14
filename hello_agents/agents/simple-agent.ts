@@ -8,33 +8,33 @@ import type { ExpandableTool, Tool } from '../tools/tool.js';
 import type { TraceLogger } from '../observability/trace-logger.js';
 
 export interface SimpleAgentOptions {
-  /** Stable agent name used in history and lifecycle events. */
+  /** Agent 名称，用于历史记录和生命周期事件。 */
   readonly name: string;
-  /** LLM client used to produce answers and tool calls. */
+  /** 用于生成回答和工具调用的 LLM 客户端。 */
   readonly llm: HelloAgentsLLM;
-  /** Optional system instruction prepended to every invocation. */
+  /** 每次调用前追加的可选系统提示词。 */
   readonly systemPrompt?: string;
-  /** Initial registry. Tool calling is disabled when no registry is available. */
+  /** 初始工具注册表；未提供时不启用工具调用。 */
   readonly toolRegistry?: ToolRegistry;
-  /** Enables native function calling when a registry contains tools. */
+  /** 注册表中存在工具时是否启用原生 Function Calling。 */
   readonly enableToolCalling?: boolean;
-  /** Maximum model tool-call rounds before falling back to a direct response. */
+  /** 模型工具调用的最大轮数，超出后回退到直接响应。 */
   readonly maxToolIterations?: number;
-  /** Optional session trace; a run always finalizes it, including on errors. */
+  /** 可选的会话 Trace；每次运行都会 finalize，包括发生异常时。 */
   readonly traceLogger?: TraceLogger;
 }
 
 export interface AgentLifecycleOptions {
-  /** Callback invoked before a run begins. */
+  /** 运行开始前调用的回调。 */
   readonly onStart?: LifecycleHook;
-  /** Callback invoked after a successful run. */
+  /** 运行成功后调用的回调。 */
   readonly onFinish?: LifecycleHook;
-  /** Callback invoked when a run fails. */
+  /** 运行失败时调用的回调。 */
   readonly onError?: LifecycleHook;
-  /** Maximum wait for each callback; timed-out callback errors are ignored. */
+  /** 每个回调的最大等待时间；超时和回调异常会被忽略。 */
   readonly hookTimeoutMs?: number;
 }
-/** LLM options plus optional lifecycle callbacks for `arun` and `arunStream`. */
+/** `arun` 和 `arunStream` 使用的 LLM 选项及可选生命周期回调。 */
 export interface AgentInvocationOptions extends LLMInvokeOptions {
   readonly lifecycle?: AgentLifecycleOptions;
 }
@@ -51,7 +51,14 @@ async function invokeHook(
   ]);
 }
 
-/** Python V1 SimpleAgent: direct conversation or a bounded function-calling loop. */
+/**
+ * 简单的对话 Agent，支持可选的工具调用。
+ *
+ * 特性：
+ * - 纯对话模式（无工具）
+ * - Function Calling 工具调用（可选）
+ * - 自动多轮工具调用
+ */
 export class SimpleAgent {
   public readonly name: string;
   public readonly llm: HelloAgentsLLM;
@@ -72,35 +79,41 @@ export class SimpleAgent {
     this.maxToolIterations = options.maxToolIterations ?? 3;
   }
 
-  /** Returns a snapshot of messages retained by this agent. */
+  /** 获取当前 Agent 保留的所有历史消息。 */
   public getHistory(): readonly Message[] {
     return [...this.history];
   }
-  /** Clears messages retained by this agent. */
+  /** 清空历史消息。 */
   public clearHistory(): void {
     this.history = [];
   }
 
-  /** Adds a tool, creating an isolated registry when necessary. */
+  /** 添加工具；必要时创建独立的工具注册表。 */
   public addTool(tool: Tool | ExpandableTool, autoExpand = true): void {
     this.toolRegistry ??= new ToolRegistry();
     this.toolRegistry.register(tool, autoExpand);
     this.enableToolCalling = true;
   }
-  /** Removes a tool by name and returns whether it was registered. */
+  /** 按名称移除工具，并返回工具是否已注册。 */
   public removeTool(name: string): boolean {
     return this.toolRegistry?.unregister(name) ?? false;
   }
-  /** Lists available tool names. */
+  /** 列出所有可用工具。 */
   public listTools(): string[] {
     return this.toolRegistry?.list() ?? [];
   }
-  /** Reports whether this instance will use function calling. */
+  /** 检查当前 Agent 是否有可用工具。 */
   public hasTools(): boolean {
     return this.enableToolCalling && (this.toolRegistry?.list().length ?? 0) > 0;
   }
 
-  /** Runs one turn and appends the completed user/assistant exchange to history. */
+  /**
+   * 运行 SimpleAgent（基于 Function Calling）。
+   *
+   * @param input 用户输入。
+   * @param options LLM 调用选项。
+   * @returns 最终回复。
+   */
   public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
     const messages = this.buildMessages(input);
     await this.traceLogger?.logEvent('session_start', {
@@ -128,7 +141,13 @@ export class SimpleAgent {
     }
   }
 
-  /** Streams one direct LLM turn and records the completed exchange after iteration. */
+  /**
+   * 流式运行 Agent。
+   *
+   * @param input 用户输入。
+   * @param options LLM 调用选项。
+   * @yields Agent 响应片段。
+   */
   public async *stream(input: string, options?: LLMInvokeOptions): AsyncIterable<string> {
     const messages = this.buildMessages(input);
     let complete = '';
@@ -139,7 +158,7 @@ export class SimpleAgent {
     this.history.push(new Message(input, 'user'), new Message(complete, 'assistant'));
   }
 
-  /** Runs a turn while emitting bounded lifecycle callbacks. */
+  /** 运行一轮对话，并触发生命周期回调。 */
   public async arun(input: string, options: AgentInvocationOptions = {}): Promise<string> {
     const { lifecycle, ...llmOptions } = options;
     const timeoutMs = lifecycle?.hookTimeoutMs ?? 5_000;
@@ -168,7 +187,13 @@ export class SimpleAgent {
     }
   }
 
-  /** Streams lifecycle events around a direct text stream. */
+  /**
+   * SimpleAgent 真正的流式执行，实时返回 LLM 输出的每个文本块。
+   *
+   * @param input 用户输入。
+   * @param options LLM 选项和生命周期回调。
+   * @yields 流式生命周期事件。
+   */
   public async *arunStream(
     input: string,
     options: AgentInvocationOptions = {}

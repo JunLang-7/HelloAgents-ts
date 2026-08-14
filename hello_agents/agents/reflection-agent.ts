@@ -4,7 +4,7 @@ import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
 import { Message } from '../core/message.js';
 import { ToolRegistry } from '../tools/registry.js';
 
-/** Default prompts for initial execution, critique, and refinement phases. */
+/** 初始执行、反思和改进阶段使用的默认提示词。 */
 export const DEFAULT_REFLECTION_PROMPTS = Object.freeze({
   initial: '请根据以下要求完成任务：\n\n任务: {task}\n\n请提供一个完整、准确的回答。',
   reflect:
@@ -14,32 +14,32 @@ export const DEFAULT_REFLECTION_PROMPTS = Object.freeze({
 });
 
 export interface ReflectionPrompts {
-  /** Prompt used to produce the first candidate answer. */
+  /** 生成第一版回答的提示词。 */
   readonly initial: string;
-  /** Prompt used to critique the current answer. */
+  /** 评审当前回答的提示词。 */
   readonly reflect: string;
-  /** Prompt used to refine an answer from feedback. */
+  /** 根据反馈改进回答的提示词。 */
   readonly refine: string;
 }
 
-/** One candidate answer or critique retained during a reflection run. */
+/** 反思运行中保留的一次回答或评审记录。 */
 export type ReflectionRecord = {
   readonly type: 'execution' | 'reflection';
   readonly content: string;
 };
 
-/** Ordered candidate and feedback store for a reflection run. */
+/** 按顺序保存回答和反馈的反思记忆。 */
 export class ReflectionMemory {
   public readonly records: ReflectionRecord[] = [];
-  /** Appends an execution candidate or reflection feedback record. */
+  /** 添加一次执行回答或反思反馈记录。 */
   public addRecord(type: ReflectionRecord['type'], content: string): void {
     this.records.push({ type, content });
   }
-  /** Returns the latest candidate answer, or an empty string when absent. */
+  /** 返回最近一次回答；不存在时返回空字符串。 */
   public getLastExecution(): string {
     return [...this.records].reverse().find((record) => record.type === 'execution')?.content ?? '';
   }
-  /** Formats the complete execution/reflection trajectory for inspection. */
+  /** 格式化完整的执行/反思轨迹，便于检查。 */
   public getTrajectory(): string {
     return this.records
       .map((record) =>
@@ -52,21 +52,21 @@ export class ReflectionMemory {
 }
 
 export interface ReflectionAgentOptions {
-  /** Stable agent name used in history and events. */
+  /** Agent 名称，用于历史记录和事件。 */
   readonly name: string;
-  /** LLM client used by all reflection phases. */
+  /** 所有反思阶段使用的 LLM 客户端。 */
   readonly llm: HelloAgentsLLM;
-  /** Optional instruction prepended to each phase. */
+  /** 每个阶段前追加的可选系统提示词。 */
   readonly systemPrompt?: string;
-  /** Optional tool registry for function calls during every phase. */
+  /** 每个阶段进行函数调用时使用的可选工具注册表。 */
   readonly toolRegistry?: ToolRegistry;
-  /** Enables tool calling when a registry is present. */
+  /** 存在工具注册表时是否启用工具调用。 */
   readonly enableToolCalling?: boolean;
-  /** Maximum function-calling rounds within one phase. */
+  /** 每个阶段允许的最大 Function Calling 轮数。 */
   readonly maxToolIterations?: number;
-  /** Maximum critique/refinement cycles after the initial answer. */
+  /** 初始回答之后允许的最大评审/改进轮数。 */
   readonly maxIterations?: number;
-  /** Partial override for default reflection prompts. */
+  /** 对默认反思提示词的部分覆盖。 */
   readonly customPrompts?: Partial<ReflectionPrompts>;
 }
 
@@ -81,7 +81,7 @@ function noImprovement(value: string): boolean {
   return value.includes('无需改进') || value.toLowerCase().includes('no need for improvement');
 }
 
-/** Python V1 reflection loop with bounded Function Calling for each LLM phase. */
+/** 反思型 Agent；每个 LLM 阶段都支持有界 Function Calling。 */
 export class ReflectionAgent {
   public readonly name: string;
   public readonly llm: HelloAgentsLLM;
@@ -106,12 +106,12 @@ export class ReflectionAgent {
     this.prompts = { ...DEFAULT_REFLECTION_PROMPTS, ...options.customPrompts };
   }
 
-  /** Returns a snapshot of completed user/assistant exchanges. */
+  /** 获取已完成用户/助手对话的副本。 */
   public getHistory(): readonly Message[] {
     return [...this.history];
   }
 
-  /** Generates, critiques, and refines an answer until no improvement is requested. */
+  /** 生成、评审并改进回答，直到评审认为无需改进。 */
   public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
     this.memory = new ReflectionMemory();
     const initial = await this.respond(render(this.prompts.initial, { task: input }), options);
@@ -133,7 +133,7 @@ export class ReflectionAgent {
     return this.complete(input);
   }
 
-  /** Emits lifecycle events for the initial, reflection, and refinement phases. */
+  /** 为初始、反思和改进阶段发送生命周期事件。 */
   public async *arunStream(input: string, options?: LLMInvokeOptions): AsyncIterable<AgentEvent> {
     yield AgentEvent.create('agent_start', this.name, { input_text: input });
     try {

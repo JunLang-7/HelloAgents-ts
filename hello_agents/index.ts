@@ -1,8 +1,7 @@
 /**
- * Public package entry point.
+ * HelloAgents TypeScript 公共包入口。
  *
- * Concrete exports are added by their owning compatibility Issues. Keeping the
- * entry point present from the first commit makes the package contract testable.
+ * 具体导出由对应的兼容性 Issue 维护。保留统一入口可以持续验证包契约。
  */
 export {
   AgentError,

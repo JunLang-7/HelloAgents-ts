@@ -1,6 +1,11 @@
 import type { AgentEvent, EventType } from './lifecycle.js';
 
-/** Bounded event buffer. Backpressure policy matches Python V1: drop oldest. */
+/**
+ * 流式输出缓冲区。
+ *
+ * 用于收集和管理流式事件，支持事件缓冲、背压控制和事件过滤。
+ * 背压策略与 Python V1 一致：超过最大缓冲区大小时丢弃旧事件。
+ */
 export class StreamBuffer {
   private events: AgentEvent[] = [];
 
@@ -10,20 +15,20 @@ export class StreamBuffer {
     }
   }
 
-  /** Adds an event, dropping the oldest event when the bound is exceeded. */
+  /** 添加事件；超过最大缓冲区大小时丢弃最旧事件。 */
   public add(event: AgentEvent): void {
     this.events.push(event);
     if (this.events.length > this.maxBufferSize) this.events.shift();
   }
-  /** Returns a snapshot that callers may mutate without changing the buffer. */
+  /** 获取所有事件的副本，调用方修改副本不会影响缓冲区。 */
   public getAll(): readonly AgentEvent[] {
     return [...this.events];
   }
-  /** Removes all buffered events. */
+  /** 清空缓冲区。 */
   public clear(): void {
     this.events = [];
   }
-  /** Returns buffered events matching a lifecycle type. */
+  /** 按类型过滤缓冲区中的事件。 */
   public filterByType(type: EventType): readonly AgentEvent[] {
     return this.events.filter((event) => event.type === type);
   }
@@ -33,7 +38,13 @@ function include(event: AgentEvent, types: readonly EventType[] | undefined): bo
   return types === undefined || types.includes(event.type);
 }
 
-/** Converts an event stream to Server-Sent Events records. */
+/**
+ * 将事件流转换为 SSE 格式。
+ *
+ * @param source 生命周期事件流。
+ * @param includeTypes 要包含的事件类型；不传表示全部。
+ * @yields SSE 格式的字符串。
+ */
 export async function* streamToSse(
   source: AsyncIterable<AgentEvent>,
   includeTypes?: readonly EventType[]
@@ -44,7 +55,13 @@ export async function* streamToSse(
   }
 }
 
-/** Converts an event stream to newline-delimited JSON records. */
+/**
+ * 将事件流转换为 JSON Lines 格式。
+ *
+ * @param source 生命周期事件流。
+ * @param includeTypes 要包含的事件类型；不传表示全部。
+ * @yields JSON Lines 格式的字符串。
+ */
 export async function* streamToJsonLines(
   source: AsyncIterable<AgentEvent>,
   includeTypes?: readonly EventType[]

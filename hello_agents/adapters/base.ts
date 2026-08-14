@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** Validates the provider-neutral chat message contract. */
+/** 校验与提供商无关的聊天消息契约。 */
 export const llmMessageSchema = z
   .object({
     role: z.enum(['user', 'assistant', 'system', 'tool', 'summary']),
@@ -10,10 +10,10 @@ export const llmMessageSchema = z
     tool_calls: z.array(z.unknown()).optional()
   })
   .passthrough();
-/** Provider-neutral chat message. */
+/** 与提供商无关的聊天消息。 */
 export type LLMMessage = z.output<typeof llmMessageSchema>;
 
-/** Validates accepted tool-choice policies. */
+/** 校验接受的工具选择策略。 */
 export const toolChoiceSchema = z.union([
   z.enum(['auto', 'none', 'required']),
   z
@@ -23,56 +23,56 @@ export const toolChoiceSchema = z.union([
     })
     .passthrough()
 ]);
-/** Tool-choice policy sent to a provider adapter. */
+/** 发送给提供商适配器的工具选择策略。 */
 export type ToolChoice = z.output<typeof toolChoiceSchema>;
 
 export interface AdapterConfig {
-  /** Model identifier sent to the provider. */
+  /** 发送给提供商的模型标识。 */
   readonly model: string;
-  /** Provider credential. */
+  /** 提供商凭证。 */
   readonly apiKey: string;
-  /** Provider endpoint. */
+  /** 提供商端点。 */
   readonly baseUrl: string;
-  /** Abort timeout in milliseconds. */
+  /** 超时时间（毫秒）。 */
   readonly timeoutMs: number;
 }
 
 export interface AdapterCallOptions {
-  /** Sampling temperature override. */
+  /** 采样温度覆盖值。 */
   readonly temperature?: number | undefined;
-  /** Maximum completion token override. */
+  /** 最大生成 token 数覆盖值。 */
   readonly maxTokens?: number | undefined;
-  /** Provider-specific request options. */
+  /** 提供商专用请求选项。 */
   readonly providerOptions?: Record<string, unknown> | undefined;
-  /** Caller cancellation signal. */
+  /** 调用方取消信号。 */
   readonly signal?: AbortSignal | undefined;
 }
 
-/** Normalized request shared by invoke and stream operations. */
+/** invoke 和 stream 操作共用的标准化请求。 */
 export interface AdapterRequest {
   readonly messages: readonly LLMMessage[];
   readonly options: AdapterCallOptions;
 }
 
-/** Normalized request carrying function-calling schemas. */
+/** 携带 Function Calling 模式的标准化请求。 */
 export interface AdapterToolRequest extends AdapterRequest {
   readonly tools: readonly Record<string, unknown>[];
   readonly toolChoice: ToolChoice;
 }
 
-/** Provider-neutral adapter contract. Provider implementations belong to #16. */
+/** 与提供商无关的适配器协议。 */
 export interface BaseLLMAdapter {
-  /** Provider configuration, when exposed by the implementation. */
+  /** 实现暴露时可读取的提供商配置。 */
   readonly config?: AdapterConfig;
-  /** Usage statistics captured by the latest completed stream. */
+  /** 最近一次完成流式调用的使用统计。 */
   readonly lastStats?: unknown;
-  /** Performs one text completion. */
+  /** 执行一次文本补全。 */
   invoke(request: AdapterRequest): Promise<unknown>;
-  /** Streams provider chunks for one request. */
+  /** 流式返回一次请求的提供商数据块。 */
   stream(request: AdapterRequest): AsyncIterable<unknown>;
-  /** Performs one completion with function-calling tools. */
+  /** 执行一次带 Function Calling 工具的补全。 */
   invokeWithTools(request: AdapterToolRequest): Promise<unknown>;
 }
 
-/** Constructs an adapter from normalized provider configuration. */
+/** 根据标准化提供商配置创建适配器。 */
 export type LLMAdapterFactory = (config: AdapterConfig) => BaseLLMAdapter;

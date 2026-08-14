@@ -38,21 +38,21 @@ const devLogPersistenceSchema = z
   })
   .strict();
 
-/** Category assigned to a development log entry. */
+/** 开发日志条目的分类。 */
 export type DevLogCategory = z.output<typeof devLogCategorySchema>;
-/** One durable development log entry. */
+/** 一个持久化开发日志条目。 */
 export type DevLogEntry = z.output<typeof devLogEntrySchema>;
-/** All valid development log categories. */
+/** 所有有效的开发日志分类。 */
 export const DEV_LOG_CATEGORIES = Object.freeze([...devLogCategorySchema.options]);
 
 export interface DevLogToolOptions {
-  /** Session ID recorded in the durable log file. */
+  /** 持久化日志文件中记录的会话 ID。 */
   readonly sessionId: string;
-  /** Agent name recorded in the durable log file. */
+  /** 持久化日志文件中记录的 Agent 名称。 */
   readonly agentName: string;
-  /** Base path for a relative persistence directory. */
+  /** 相对持久化目录的项目根路径。 */
   readonly projectRoot?: string | undefined;
-  /** Directory holding the durable development log. */
+  /** 保存持久化开发日志的目录。 */
   readonly persistenceDir?: string | undefined;
 }
 
@@ -88,7 +88,7 @@ function persistencePath(
   return resolve(resolve(projectRoot ?? process.cwd()), persistenceDir ?? '.helloagents', name);
 }
 
-/** Durable tool for recording and querying development decisions and progress. */
+/** 用于记录和查询开发决策、进度、问题与解决方案的持久化工具。 */
 export class DevLogTool extends Tool<typeof DevLogTool.inputSchema> {
   static readonly inputSchema = z
     .object({

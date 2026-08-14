@@ -29,27 +29,27 @@ const adapterCallOptionsSchema = z
   .strict();
 
 export interface HelloAgentsLLMOptions {
-  /** Model identifier passed to the provider. Falls back to `LLM_MODEL_ID`. */
+  /** 模型标识；未提供时使用 `LLM_MODEL_ID`。 */
   readonly model?: string;
-  /** Provider credential. Falls back to `LLM_API_KEY`. */
+  /** 提供商凭证；未提供时使用 `LLM_API_KEY`。 */
   readonly apiKey?: string;
-  /** Provider endpoint. Falls back to `LLM_BASE_URL`. */
+  /** 提供商端点；未提供时使用 `LLM_BASE_URL`。 */
   readonly baseUrl?: string;
-  /** Default sampling temperature for calls that do not override it. */
+  /** 调用未覆盖时使用的默认采样温度。 */
   readonly temperature?: number;
-  /** Default maximum completion tokens. */
+  /** 默认最大生成 token 数。 */
   readonly maxTokens?: number;
-  /** Per-request timeout in milliseconds. */
+  /** 单次请求超时时间（毫秒）。 */
   readonly timeoutMs?: number;
-  /** Fully custom adapter, useful for local providers and tests. */
+  /** 自定义适配器，可用于本地提供商和测试。 */
   readonly adapter?: BaseLLMAdapter;
-  /** Factory used to construct an adapter after environment values are resolved. */
+  /** 环境变量解析完成后用于创建适配器的工厂函数。 */
   readonly adapterFactory?: LLMAdapterFactory;
-  /** Environment map to read instead of the process environment. */
+  /** 要读取的环境变量映射；不传时读取进程环境。 */
   readonly env?: Record<string, string | undefined>;
 }
 
-/** Options shared by invoke, tool invocation, and streaming calls. */
+/** invoke、工具调用和流式调用共用的选项。 */
 export type LLMInvokeOptions = AdapterCallOptions;
 
 function runtimeEnvironment(): Record<string, string | undefined> {
@@ -105,7 +105,7 @@ export class HelloAgentsLLM {
   public readonly adapter: BaseLLMAdapter;
   public lastCallStats: StreamStats | undefined;
 
-  /** Creates a provider-neutral LLM client from explicit options or environment variables. */
+  /** 从显式选项或环境变量创建与提供商无关的 LLM 客户端。 */
   public constructor(options: HelloAgentsLLMOptions) {
     const env = parseOrThrow(
       environmentSchema,
@@ -178,7 +178,13 @@ export class HelloAgentsLLM {
     };
   }
 
-  /** Sends chat messages and validates the normalized provider response. */
+  /**
+   * 发送聊天消息，并校验标准化的提供商响应。
+   *
+   * @param messages 聊天消息列表。
+   * @param options 本次调用的 LLM 选项。
+   * @returns 标准化的 LLM 响应对象。
+   */
   public async invoke(
     messages: readonly LLMMessage[],
     options?: LLMInvokeOptions
@@ -195,7 +201,15 @@ export class HelloAgentsLLM {
     }
   }
 
-  /** Sends chat messages with tool schemas and returns validated tool calls. */
+  /**
+   * 携带工具模式发送聊天消息，并返回校验后的工具调用。
+   *
+   * @param messages 聊天消息列表。
+   * @param tools 可供模型调用的工具模式。
+   * @param toolChoice 工具选择策略。
+   * @param options 本次调用的 LLM 选项。
+   * @returns 包含工具调用的标准化响应对象。
+   */
   public async invokeWithTools(
     messages: readonly LLMMessage[],
     tools: readonly Record<string, unknown>[],
@@ -220,7 +234,13 @@ export class HelloAgentsLLM {
     }
   }
 
-  /** Streams text chunks and records provider usage statistics when available. */
+  /**
+   * 流式返回文本块；如果提供商返回统计信息则记录下来。
+   *
+   * @param messages 聊天消息列表。
+   * @param options 本次调用的 LLM 选项。
+   * @yields LLM 文本片段。
+   */
   public async *stream(
     messages: readonly LLMMessage[],
     options?: LLMInvokeOptions
@@ -241,12 +261,12 @@ export class HelloAgentsLLM {
     }
   }
 
-  /** Compatibility alias for `stream`. */
+  /** `stream` 的兼容别名。 */
   public think(messages: readonly LLMMessage[], options?: LLMInvokeOptions): AsyncIterable<string> {
     return this.stream(messages, options);
   }
 
-  /** Compatibility alias for `stream`. */
+  /** `stream` 的兼容别名。 */
   public streamInvoke(
     messages: readonly LLMMessage[],
     options?: LLMInvokeOptions

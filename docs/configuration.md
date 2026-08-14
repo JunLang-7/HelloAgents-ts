@@ -2,7 +2,8 @@
 
 `HelloAgentsLLM` takes explicit options first, then reads the Python-compatible
 environment names. It does not load `.env` itself; load it in your Bun or Node
-application before constructing the client.
+application before constructing the client. Start with the repository
+[`.env.example`](../.env.example); it is safe to commit, while `.env` is ignored.
 
 ```ts
 import { HelloAgentsLLM } from '@junlang-7/helloagents';

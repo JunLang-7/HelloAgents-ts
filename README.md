@@ -26,8 +26,8 @@ npm install @junlang-7/helloagents zod
 
 ## Quick start
 
-Set these variables in your shell (or load a `.env` file with your application
-runtime):
+Set these variables in your shell, or start from
+[`.env.example`](.env.example) and load a `.env` file with your application runtime:
 
 ```sh
 export LLM_MODEL_ID="your-model"

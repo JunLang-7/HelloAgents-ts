@@ -23,6 +23,24 @@ const ordinaryResponse = {
 };
 
 describe('HelloAgentsLLM', () => {
+  test('reads all required values from the process environment when options are omitted', () => {
+    const llm = new HelloAgentsLLM({
+      env: {
+        LLM_MODEL_ID: 'environment-model',
+        LLM_API_KEY: 'environment-key',
+        LLM_BASE_URL: 'https://environment.test',
+        LLM_TIMEOUT: '42'
+      }
+    });
+
+    expect(llm).toMatchObject({
+      model: 'environment-model',
+      apiKey: 'environment-key',
+      baseUrl: 'https://environment.test',
+      timeoutMs: 42_000
+    });
+  });
+
   test('uses explicit configuration before environment values and forwards merged call options', async () => {
     const adapter = new MockAdapter({ invoke: () => ordinaryResponse });
     const llm = new HelloAgentsLLM({

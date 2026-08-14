@@ -100,15 +100,62 @@ console.log(`检测到的provider: ${llm.provider}`);
 ## 🏗️ 项目结构
 
 ```text
-hello_agents/
-├── adapters/          # OpenAI 兼容、Anthropic、Gemini 和 Mock 适配器
-├── agents/            # Simple、ReAct、Reflection、Plan-and-Solve 与工厂
-├── context/           # 历史、Token 计数、截断、记忆和上下文构建
-├── core/              # LLM、Agent、配置、消息、响应、会话和流式输出
-├── observability/     # TraceLogger 和 Trace 钩子
-├── skills/            # 渐进式技能发现和加载
-└── tools/             # 工具协议、注册表、过滤器、熔断器和内置工具
+hello-agents/
+├── hello_agents/                  # 主包
+│   ├── adapters/                  # LLM 提供商适配器
+│   │   ├── openai.ts              # OpenAI 兼容适配器
+│   │   ├── anthropic.ts           # Anthropic 适配器
+│   │   ├── gemini.ts              # Gemini 适配器
+│   │   ├── providers.ts           # 适配器自动检测
+│   │   └── mock.ts                # 测试适配器
+│   ├── core/                      # 核心组件
+│   │   ├── llm.ts                 # LLM 客户端与配置
+│   │   ├── agent.ts               # Agent 基类和函数调用辅助方法
+│   │   ├── config.ts              # 配置管理
+│   │   ├── session-store.ts       # 会话持久化
+│   │   ├── lifecycle.ts           # 异步生命周期
+│   │   ├── streaming.ts           # SSE 流式输出
+│   │   └── message.ts             # 消息定义
+│   ├── agents/                    # Agent 实现
+│   │   ├── simple-agent.ts        # SimpleAgent
+│   │   ├── react-agent.ts         # ReActAgent
+│   │   ├── reflection-agent.ts    # ReflectionAgent
+│   │   ├── plan-solve-agent.ts    # PlanSolveAgent
+│   │   └── factory.ts             # Agent 工厂
+│   ├── tools/                     # 工具系统
+│   │   ├── registry.ts            # 工具注册表
+│   │   ├── response.ts            # ToolResponse 协议
+│   │   ├── circuit-breaker.ts     # 熔断器
+│   │   ├── tool-filter.ts         # 子代理工具过滤器
+│   │   └── builtin/               # 内置工具
+│   │       ├── file-tools.ts      # 文件工具和乐观锁
+│   │       ├── task-tool.ts       # 子代理工具
+│   │       ├── todo-write-tool.ts # 进度管理
+│   │       ├── dev-log-tool.ts    # 决策日志
+│   │       └── skill-tool.ts      # 技能知识外化
+│   ├── context/                   # 上下文工程
+│   │   ├── history.ts             # HistoryManager
+│   │   ├── token-counter.ts       # TokenCounter
+│   │   ├── truncator.ts           # ObservationTruncator
+│   │   └── builder.ts             # ContextBuilder
+│   ├── observability/             # 可观测性
+│   │   └── trace-logger.ts        # TraceLogger
+│   └── skills/                    # 技能系统
+│       └── loader.ts              # SkillLoader
+├── docs/                          # 文档
+├── examples/                      # 可运行示例
+└── tests/                         # 测试用例
 ```
+
+## 🤝 贡献
+
+欢迎贡献代码！请遵循以下步骤：
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
 
 ## 📄 许可证
 

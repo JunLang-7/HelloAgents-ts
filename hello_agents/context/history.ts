@@ -2,9 +2,13 @@ import { Message } from '../core/message.js';
 import { TokenCounter } from './token-counter.js';
 
 export interface HistoryManagerOptions {
+  /** Maximum aggregate token count before compaction is attempted. */
   readonly maxTokens: number;
+  /** Number of complete recent user turns to preserve verbatim. */
   readonly retainRecentTurns?: number;
+  /** Counter used to estimate message token usage. */
   readonly tokenCounter?: TokenCounter;
+  /** Optional async summarizer for compacted older turns. */
   readonly summarize?: (messages: readonly Message[]) => string | Promise<string>;
 }
 
@@ -33,22 +37,27 @@ export class HistoryManager {
       options.summarize ?? ((items) => items.map((item) => item.toText()).join('\n'));
   }
 
+  /** Appends a message without automatically compacting history. */
   public add(message: Message): void {
     this.messages.push(message);
   }
 
+  /** Returns a mutable-safe snapshot of all retained messages. */
   public getAll(): readonly Message[] {
     return [...this.messages];
   }
 
+  /** Removes all retained messages. */
   public clear(): void {
     this.messages = [];
   }
 
+  /** Estimates total content tokens across retained messages. */
   public tokenCount(): number {
     return this.messages.reduce((sum, message) => sum + this.counter.count(message.content), 0);
   }
 
+  /** Summarizes complete older turns when the configured token budget is exceeded. */
   public async compact(): Promise<readonly Message[]> {
     if (this.tokenCount() <= this.maxTokens) return this.getAll();
     const grouped = turns(this.messages);

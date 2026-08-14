@@ -56,8 +56,11 @@ const configFields = {
   streamIncludeToolCalls: z.boolean().default(true)
 } as const;
 
+/** Validates the camelCase runtime configuration accepted by the TypeScript API. */
 export const configSchema = z.object(configFields).strict();
+/** Input configuration; omitted fields receive the documented runtime defaults. */
 export type ConfigInput = z.input<typeof configSchema>;
+/** Fully resolved configuration with defaults applied. */
 export type ConfigValues = z.output<typeof configSchema>;
 
 const wireNameMap = {
@@ -127,7 +130,9 @@ const configWireSchema = z
   .strict();
 
 export class Config {
+  /** Wraps already-resolved configuration values for wire serialization. */
   public constructor(private readonly values: ConfigValues) {}
+  /** Serializes camelCase settings to the snake_case session/config wire format. */
   public toJSON(): Record<string, ConfigValues[keyof ConfigValues]> {
     return Object.fromEntries(
       Object.entries(wireNameMap).map(([key, wire]) => [
@@ -139,6 +144,7 @@ export class Config {
 }
 export type ResolvedConfig = Config & ConfigValues;
 
+/** Validates camelCase input and returns a frozen configuration with defaults. */
 export function createConfig(input: ConfigInput = {}): ResolvedConfig {
   const values = parseOrThrow(configSchema, input, 'Config');
   const config = new Config(values) as ResolvedConfig;
@@ -147,6 +153,7 @@ export function createConfig(input: ConfigInput = {}): ResolvedConfig {
   return config;
 }
 
+/** Parses the snake_case wire representation used by Python-compatible data files. */
 export function parseConfig(input: unknown): ResolvedConfig {
   const wire = parseOrThrow(configWireSchema, input, 'Config');
   const camelCaseInput = Object.fromEntries(
@@ -158,6 +165,7 @@ export function parseConfig(input: unknown): ResolvedConfig {
   return createConfig(camelCaseInput);
 }
 
+/** Builds configuration from the supported environment variables and defaults. */
 export function createConfigFromEnv(env: Record<string, string | undefined>): ResolvedConfig {
   const input: ConfigInput = {
     debug: (env.DEBUG ?? 'false').toLowerCase() === 'true',

@@ -21,7 +21,9 @@ const todoPersistenceSchema = z
   .object({ schema_version: z.literal(1), summary: z.string(), todos: z.array(todoItemSchema) })
   .strict();
 
+/** Durable todo state. */
 export type TodoStatus = z.output<typeof todoStatusSchema>;
+/** One durable todo entry. */
 export type TodoItem = z.output<typeof todoItemSchema>;
 
 interface TodoWriteInputItem {
@@ -113,6 +115,7 @@ export class TodoWriteTool extends Tool<typeof TodoWriteTool.inputSchema> {
     this.items = todos;
   }
 
+  /** Opens or creates the durable todo list configured by the supplied paths. */
   public static async create(options: TodoWriteToolOptions = {}): Promise<TodoWriteTool> {
     const path = persistencePath(options.projectRoot, options.persistenceDir, 'todo-list.json');
     const saved = await readJsonIfPresent(path);
@@ -122,10 +125,12 @@ export class TodoWriteTool extends Tool<typeof TodoWriteTool.inputSchema> {
     return new TodoWriteTool(path, parsed.data.summary, parsed.data.todos);
   }
 
+  /** Snapshot of the current durable todo entries. */
   public get todos(): readonly TodoItem[] {
     return this.items.map((item) => ({ ...item }));
   }
 
+  /** Current task-list summary. */
   public get summary(): string {
     return this.currentSummary;
   }

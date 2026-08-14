@@ -4,19 +4,29 @@ import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
 import { Message } from '../core/message.js';
 import { ToolRegistry } from '../tools/registry.js';
 
+/** Default prompt that asks the model for a literal list of executable steps. */
 export const DEFAULT_PLANNER_PROMPT =
   '你是一个顶级的AI规划专家。请将问题拆成独立、可执行的步骤，并以 Python 字符串列表输出。\n\n问题: {question}';
+/** Default prompt used to execute each planned step with prior results. */
 export const DEFAULT_EXECUTOR_PROMPT =
   '请严格执行当前步骤并只输出该步骤的最终答案。\n\n# 原始问题:\n{question}\n\n# 完整计划:\n{plan}\n\n# 历史步骤与结果:\n{history}\n\n# 当前步骤:\n{current_step}';
+/** Returned when the planner response cannot be safely parsed into steps. */
 export const INVALID_PLAN_ANSWER = '无法生成有效的行动计划，任务终止。';
 
 export interface PlanSolveAgentOptions {
+  /** Stable agent name used in history and lifecycle events. */
   readonly name: string;
+  /** LLM client used for planning and execution. */
   readonly llm: HelloAgentsLLM;
+  /** Optional instruction prepended to both planning and execution calls. */
   readonly systemPrompt?: string;
+  /** Optional tool registry available while planning and executing. */
   readonly toolRegistry?: ToolRegistry;
+  /** Enables function calling when a registry is supplied. */
   readonly enableToolCalling?: boolean;
+  /** Maximum function-calling rounds per planning or execution request. */
   readonly maxToolIterations?: number;
+  /** Partial override for the planner and executor prompts. */
   readonly customPrompts?: { readonly planner?: string; readonly executor?: string };
 }
 
@@ -99,10 +109,12 @@ export class PlanSolveAgent {
     this.executorPrompt = options.customPrompts?.executor ?? DEFAULT_EXECUTOR_PROMPT;
   }
 
+  /** Returns a snapshot of completed user/assistant exchanges. */
   public getHistory(): readonly Message[] {
     return [...this.history];
   }
 
+  /** Creates a plan, executes its steps in order, and returns the final step result. */
   public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
     const plan = await this.createPlan(input, options);
     if (plan.length === 0) return this.complete(input, INVALID_PLAN_ANSWER);
@@ -110,6 +122,7 @@ export class PlanSolveAgent {
     return this.complete(input, results.at(-1) ?? '');
   }
 
+  /** Emits planning and per-step execution events for one plan-and-solve run. */
   public async *arunStream(input: string, options?: LLMInvokeOptions): AsyncIterable<AgentEvent> {
     yield AgentEvent.create('agent_start', this.name, { input_text: input });
     try {
@@ -239,4 +252,5 @@ export class PlanSolveAgent {
   }
 }
 
+/** Compatibility alias for Python's `PlanAndSolveAgent` name. */
 export { PlanSolveAgent as PlanAndSolveAgent };

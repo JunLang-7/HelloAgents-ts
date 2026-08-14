@@ -10,17 +10,25 @@ import { SkillLoader } from '../skills/loader.js';
 import { SkillTool } from '../tools/builtin/skill-tool.js';
 
 export interface AgentOptions {
+  /** Stable agent name used in events and persisted sessions. */
   readonly name: string;
+  /** LLM client used by the concrete execution loop. */
   readonly llm: HelloAgentsLLM;
+  /** Optional system instruction prepended by concrete agents. */
   readonly systemPrompt?: string;
+  /** Isolated tool registry; a new registry is created when omitted. */
   readonly toolRegistry?: ToolRegistry;
+  /** Optional durable session store. Saving/loading requires this option. */
   readonly sessionStore?: SessionStore;
+  /** History retention and compaction policy. */
   readonly history?: HistoryManagerOptions;
   /** Opt-in configuration-driven Skill discovery and registration. */
   readonly config?: Pick<ResolvedConfig, 'skillsEnabled' | 'skillsDir' | 'skillsAutoRegister'>;
 }
 export interface LoadedSessionResult {
+  /** Agent-setting comparison between the saved and active configurations. */
   readonly config: { consistent: boolean; warnings: string[] };
+  /** Tool-schema comparison indicating whether restored tool state may be stale. */
   readonly toolSchema: {
     changed: boolean;
     saved_hash: string;
@@ -48,6 +56,7 @@ export abstract class Agent {
     this.config = options.config;
     this.historyManager = new HistoryManager(options.history ?? { maxTokens: 128_000 });
   }
+  /** Discovers configured skills and optionally registers their progressive loader tool. */
   public async registerConfiguredSkills(): Promise<SkillLoader | undefined> {
     const config = this.config;
     if (!config?.skillsEnabled) return undefined;
@@ -55,23 +64,30 @@ export abstract class Agent {
     if (config.skillsAutoRegister) this.toolRegistry.register(new SkillTool(loader));
     return loader;
   }
+  /** Executes an input according to the concrete agent loop. */
   public abstract run(input: string): Promise<string>;
+  /** Returns a snapshot of conversation history. */
   public getHistory(): readonly Message[] {
     return this.historyManager.getAll();
   }
+  /** Adds a message and compacts history when it exceeds its configured budget. */
   public async addMessage(content: string, role: Message['role']): Promise<void> {
     this.historyManager.add(new Message(content, role));
     await this.historyManager.compact();
   }
+  /** Removes all retained conversation history. */
   public clearHistory(): void {
     this.historyManager.clear();
   }
+  /** Builds provider function-calling schemas for the current registry. */
   public buildToolSchemas(): ReturnType<ToolRegistry['toOpenAISchemas']> {
     return this.toolRegistry.toOpenAISchemas();
   }
+  /** Executes one registered tool using protocol error normalization. */
   public executeToolCall(name: string, input: unknown): Promise<ToolResponse> {
     return this.toolRegistry.execute(name, input);
   }
+  /** Persists the agent's history and tool cache. Requires a `SessionStore`. */
   public async saveSession(sessionName?: string): Promise<string> {
     if (!this.sessionStore) throw new Error('SessionStore is not configured');
     return this.sessionStore.save({
@@ -83,6 +99,7 @@ export abstract class Agent {
       metadata: {}
     });
   }
+  /** Restores history and read metadata, then reports configuration compatibility. */
   public async loadSession(filepath: string): Promise<LoadedSessionResult> {
     if (!this.sessionStore) throw new Error('SessionStore is not configured');
     const data = await this.sessionStore.load(filepath);

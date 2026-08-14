@@ -6,6 +6,7 @@ import type { ExpandableTool, Tool } from '../tools/tool.js';
 
 const maxStepAnswer = '抱歉，我无法在限定步数内完成这个任务。';
 
+/** Default system prompt defining the Thought/Finish function-calling loop. */
 export const DEFAULT_REACT_SYSTEM_PROMPT = `你是一个具备推理和行动能力的 AI 助手。
 
 ## 工作流程
@@ -21,13 +22,19 @@ export const DEFAULT_REACT_SYSTEM_PROMPT = `你是一个具备推理和行动能
 - 只有在确信有足够信息时才调用 Finish`;
 
 export interface ReActAgentOptions {
+  /** Stable agent name used in history. */
   readonly name: string;
+  /** LLM client used for the ReAct loop. */
   readonly llm: HelloAgentsLLM;
+  /** Registry of user tools exposed alongside Thought and Finish. */
   readonly toolRegistry?: ToolRegistry;
+  /** Overrides the built-in ReAct system prompt. */
   readonly systemPrompt?: string;
+  /** Maximum Thought/tool-call rounds before returning a bounded failure response. */
   readonly maxSteps?: number;
 }
 
+/** Aggregate steps and model token usage from the most recent run. */
 export interface ReActSessionMetadata {
   readonly total_steps: number;
   readonly total_tokens: number;
@@ -89,22 +96,28 @@ export class ReActAgent {
     this.toolRegistry = options.toolRegistry ?? new ToolRegistry();
   }
 
+  /** Aggregate steps and token usage from the most recent run. */
   public get sessionMetadata(): ReActSessionMetadata {
     return this.metadata;
   }
+  /** Returns a snapshot of completed user/assistant exchanges. */
   public getHistory(): readonly Message[] {
     return [...this.history];
   }
+  /** Registers a user tool or expandable tool group. */
   public addTool(tool: Tool | ExpandableTool, autoExpand = true): void {
     this.toolRegistry.register(tool, autoExpand);
   }
+  /** Unregisters a user tool by name. */
   public removeTool(name: string): boolean {
     return this.toolRegistry.unregister(name);
   }
+  /** Lists user tool names; built-in Thought and Finish are implicit. */
   public listTools(): string[] {
     return this.toolRegistry.list();
   }
 
+  /** Runs a bounded Thought/tool/Finish loop and records the completed exchange. */
   public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
     const messages: LLMMessage[] = [
       { role: 'system', content: this.systemPrompt },

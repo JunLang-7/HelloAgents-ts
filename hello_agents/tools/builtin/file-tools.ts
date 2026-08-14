@@ -9,7 +9,9 @@ import { Tool } from '../tool.js';
 import type { ToolRegistry } from '../registry.js';
 
 export interface FileToolOptions {
+  /** Absolute or relative root beyond which all file operations are denied. */
   readonly workspaceRoot: string;
+  /** Optional registry used to retain read versions for write/edit conflict checks. */
   readonly registry?: ToolRegistry;
   /** Maximum number of bytes returned by Read before it yields a partial response. */
   readonly maxReadBytes?: number;
@@ -139,6 +141,7 @@ abstract class WorkspaceTool<TSchema extends z.ZodType> extends Tool<TSchema> {
     return metadata;
   }
 }
+/** Reads files or directory listings while retaining metadata for conflict detection. */
 export class ReadTool extends WorkspaceTool<typeof ReadTool.inputSchema> {
   static readonly inputSchema = z
     .object({
@@ -209,6 +212,7 @@ export class ReadTool extends WorkspaceTool<typeof ReadTool.inputSchema> {
     }
   }
 }
+/** Creates or replaces workspace files with optional optimistic conflict checks. */
 export class WriteTool extends WorkspaceTool<typeof WriteTool.inputSchema> {
   static readonly inputSchema = z
     .object({
@@ -249,6 +253,7 @@ export class WriteTool extends WorkspaceTool<typeof WriteTool.inputSchema> {
     }
   }
 }
+/** Replaces one unique text occurrence in a workspace file atomically. */
 export class EditTool extends WorkspaceTool<typeof EditTool.inputSchema> {
   static readonly inputSchema = z
     .object({
@@ -333,6 +338,7 @@ function globRegex(pattern: string): RegExp {
   }
   return new RegExp(`${source}$`);
 }
+/** Finds workspace files matching a glob pattern. */
 export class GlobTool extends WorkspaceTool<typeof GlobTool.inputSchema> {
   static readonly inputSchema = z.object({ pattern: z.string().min(1) }).strict();
   public constructor(options: FileToolOptions) {
@@ -350,6 +356,7 @@ export class GlobTool extends WorkspaceTool<typeof GlobTool.inputSchema> {
     return ToolResponse.success(`找到 ${matches.length} 个匹配文件`, { matches });
   }
 }
+/** Finds literal text matches in workspace files. */
 export class GrepTool extends WorkspaceTool<typeof GrepTool.inputSchema> {
   static readonly inputSchema = z
     .object({ pattern: z.string().min(1), path: z.string().default('.') })

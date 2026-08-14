@@ -1,8 +1,10 @@
 import { ToolStatus } from './response.js';
 import type { ToolResponse } from './response.js';
 
+/** Per-tool circuit state. `half-open` permits one recovery probe. */
 export type CircuitState = 'closed' | 'open' | 'half-open';
 
+/** Snapshot of failures and recovery timing for one tool. */
 export interface CircuitStatus {
   readonly state: CircuitState;
   readonly failure_count: number;
@@ -11,8 +13,11 @@ export interface CircuitStatus {
 }
 
 export interface CircuitBreakerOptions {
+  /** Consecutive failures required to open the circuit. */
   readonly failureThreshold?: number;
+  /** Seconds an open circuit remains blocked before a probe. */
   readonly recoveryTimeoutSeconds?: number;
+  /** Disables blocking while retaining the same recording API. */
   readonly enabled?: boolean;
   /** Monotonic millisecond clock; injectable for deterministic tests. */
   readonly now?: () => number;
@@ -74,24 +79,28 @@ export class CircuitBreaker {
     return true;
   }
 
+  /** Records a response and updates failure/open state. */
   public recordResult(toolName: string, response: ToolResponse): void {
     if (!this.enabled) return;
     if (response.status === ToolStatus.ERROR) this.onFailure(toolName);
     else this.onSuccess(toolName);
   }
 
+  /** Opens a tool circuit immediately. */
   public open(toolName: string): void {
     if (!this.enabled) return;
     this.openTimestamps.set(toolName, this.now());
     this.halfOpenProbes.delete(toolName);
   }
 
+  /** Closes a tool circuit and resets its failure count. */
   public close(toolName: string): void {
     this.failureCounts.set(toolName, 0);
     this.openTimestamps.delete(toolName);
     this.halfOpenProbes.delete(toolName);
   }
 
+  /** Returns current state and remaining recovery time for one tool. */
   public getStatus(toolName: string): CircuitStatus {
     const failures = this.failureCounts.get(toolName) ?? 0;
     const openAt = this.openTimestamps.get(toolName);
@@ -115,6 +124,7 @@ export class CircuitBreaker {
     };
   }
 
+  /** Returns status snapshots for every tool with recorded activity. */
   public getAllStatus(): Record<string, CircuitStatus> {
     const names = new Set([...this.failureCounts.keys(), ...this.openTimestamps.keys()]);
     return Object.fromEntries([...names].map((name) => [name, this.getStatus(name)]));

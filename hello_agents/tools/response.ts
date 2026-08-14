@@ -4,15 +4,18 @@ import { ToolError } from '../core/errors.js';
 import { parseOrThrow } from '../core/errors.js';
 import type { ToolErrorCode } from './errors.js';
 
+/** Standard success and error states in the tool response protocol. */
 export const ToolStatus = Object.freeze({
   SUCCESS: 'success',
   PARTIAL: 'partial',
   ERROR: 'error'
 } as const);
+/** Tool response status value. */
 export type ToolStatus = (typeof ToolStatus)[keyof typeof ToolStatus];
 
 const recordSchema = z.record(z.string(), z.unknown());
 const errorInfoSchema = z.object({ code: z.string(), message: z.string() }).strict();
+/** Validates the serialized tool response protocol. */
 export const toolResponseSchema = z
   .object({
     status: z.enum(['success', 'partial', 'error']).default(ToolStatus.SUCCESS),
@@ -24,7 +27,9 @@ export const toolResponseSchema = z
   })
   .strict();
 
+/** Structured error payload carried by unsuccessful tool responses. */
 export type ToolErrorInfo = z.output<typeof errorInfoSchema>;
+/** JSON-compatible tool response. */
 export type ToolResponseJSON = z.output<typeof toolResponseSchema>;
 
 function nonEmpty(
@@ -52,6 +57,7 @@ export class ToolResponse {
     this.context = parsed.context;
   }
 
+  /** Serializes the response for tool messages, logs, or persistence. */
   public toJSON(): ToolResponseJSON {
     return {
       status: this.status,
@@ -67,6 +73,7 @@ export class ToolResponse {
     return this.text;
   }
 
+  /** Parses a JSON string into a validated tool response. */
   public static fromJSON(input: string): ToolResponse {
     let value: unknown;
     try {
@@ -77,10 +84,12 @@ export class ToolResponse {
     return new ToolResponse(parseOrThrow(toolResponseSchema, value, 'ToolResponse', ToolError));
   }
 
+  /** Validates a JSON-compatible object as a tool response. */
   public static fromObject(input: unknown): ToolResponse {
     return new ToolResponse(parseOrThrow(toolResponseSchema, input, 'ToolResponse', ToolError));
   }
 
+  /** Creates a successful protocol response with optional stats and context. */
   public static success(
     text: string,
     data: Record<string, unknown> = {},
@@ -96,6 +105,7 @@ export class ToolResponse {
     });
   }
 
+  /** Creates a partial protocol response when work completed incompletely. */
   public static partial(
     text: string,
     data: Record<string, unknown> = {},
@@ -111,6 +121,7 @@ export class ToolResponse {
     });
   }
 
+  /** Creates a failed protocol response with a standard error code. */
   public static error(
     code: ToolErrorCode | string,
     message: string,

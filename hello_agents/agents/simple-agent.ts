@@ -8,22 +8,33 @@ import type { ExpandableTool, Tool } from '../tools/tool.js';
 import type { TraceLogger } from '../observability/trace-logger.js';
 
 export interface SimpleAgentOptions {
+  /** Stable agent name used in history and lifecycle events. */
   readonly name: string;
+  /** LLM client used to produce answers and tool calls. */
   readonly llm: HelloAgentsLLM;
+  /** Optional system instruction prepended to every invocation. */
   readonly systemPrompt?: string;
+  /** Initial registry. Tool calling is disabled when no registry is available. */
   readonly toolRegistry?: ToolRegistry;
+  /** Enables native function calling when a registry contains tools. */
   readonly enableToolCalling?: boolean;
+  /** Maximum model tool-call rounds before falling back to a direct response. */
   readonly maxToolIterations?: number;
   /** Optional session trace; a run always finalizes it, including on errors. */
   readonly traceLogger?: TraceLogger;
 }
 
 export interface AgentLifecycleOptions {
+  /** Callback invoked before a run begins. */
   readonly onStart?: LifecycleHook;
+  /** Callback invoked after a successful run. */
   readonly onFinish?: LifecycleHook;
+  /** Callback invoked when a run fails. */
   readonly onError?: LifecycleHook;
+  /** Maximum wait for each callback; timed-out callback errors are ignored. */
   readonly hookTimeoutMs?: number;
 }
+/** LLM options plus optional lifecycle callbacks for `arun` and `arunStream`. */
 export interface AgentInvocationOptions extends LLMInvokeOptions {
   readonly lifecycle?: AgentLifecycleOptions;
 }
@@ -61,28 +72,35 @@ export class SimpleAgent {
     this.maxToolIterations = options.maxToolIterations ?? 3;
   }
 
+  /** Returns a snapshot of messages retained by this agent. */
   public getHistory(): readonly Message[] {
     return [...this.history];
   }
+  /** Clears messages retained by this agent. */
   public clearHistory(): void {
     this.history = [];
   }
 
+  /** Adds a tool, creating an isolated registry when necessary. */
   public addTool(tool: Tool | ExpandableTool, autoExpand = true): void {
     this.toolRegistry ??= new ToolRegistry();
     this.toolRegistry.register(tool, autoExpand);
     this.enableToolCalling = true;
   }
+  /** Removes a tool by name and returns whether it was registered. */
   public removeTool(name: string): boolean {
     return this.toolRegistry?.unregister(name) ?? false;
   }
+  /** Lists available tool names. */
   public listTools(): string[] {
     return this.toolRegistry?.list() ?? [];
   }
+  /** Reports whether this instance will use function calling. */
   public hasTools(): boolean {
     return this.enableToolCalling && (this.toolRegistry?.list().length ?? 0) > 0;
   }
 
+  /** Runs one turn and appends the completed user/assistant exchange to history. */
   public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
     const messages = this.buildMessages(input);
     await this.traceLogger?.logEvent('session_start', {
@@ -110,6 +128,7 @@ export class SimpleAgent {
     }
   }
 
+  /** Streams one direct LLM turn and records the completed exchange after iteration. */
   public async *stream(input: string, options?: LLMInvokeOptions): AsyncIterable<string> {
     const messages = this.buildMessages(input);
     let complete = '';
@@ -120,6 +139,7 @@ export class SimpleAgent {
     this.history.push(new Message(input, 'user'), new Message(complete, 'assistant'));
   }
 
+  /** Runs a turn while emitting bounded lifecycle callbacks. */
   public async arun(input: string, options: AgentInvocationOptions = {}): Promise<string> {
     const { lifecycle, ...llmOptions } = options;
     const timeoutMs = lifecycle?.hookTimeoutMs ?? 5_000;
@@ -148,6 +168,7 @@ export class SimpleAgent {
     }
   }
 
+  /** Streams lifecycle events around a direct text stream. */
   public async *arunStream(
     input: string,
     options: AgentInvocationOptions = {}

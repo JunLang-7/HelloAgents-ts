@@ -1,4 +1,6 @@
+/** Limit that caused an observation preview to be truncated. */
 export type TruncationReason = 'line_limit' | 'byte_limit';
+/** Preview plus a stable reference to the full in-memory observation. */
 export interface TruncationResult {
   readonly preview: string;
   readonly truncated: boolean;
@@ -6,9 +8,13 @@ export interface TruncationResult {
   readonly reason?: TruncationReason;
 }
 export interface ObservationTruncatorOptions {
+  /** Maximum source lines exposed in a preview. */
   readonly maxLines?: number;
+  /** Maximum UTF-8 bytes exposed in a preview. */
   readonly maxBytes?: number;
+  /** Lines retained from the start of a line-truncated preview. */
   readonly headLines?: number;
+  /** Lines retained from the end of a line-truncated preview. */
   readonly tailLines?: number;
 }
 
@@ -53,6 +59,7 @@ export class ObservationTruncator {
     this.tailLines = options.tailLines ?? 20;
   }
 
+  /** Stores full output and returns an LLM-safe preview bounded by lines and UTF-8 bytes. */
   public truncate(output: string, outputId: string): TruncationResult {
     this.outputs.set(outputId, output);
     const bytes = new TextEncoder().encode(output).length;
@@ -77,6 +84,7 @@ export class ObservationTruncator {
     return { preview, truncated: true, full_output_id: outputId, reason };
   }
 
+  /** Retrieves a previously stored full observation by its output ID. */
   public getFullOutput(outputId: string): string | undefined {
     return this.outputs.get(outputId);
   }

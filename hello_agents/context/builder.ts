@@ -2,23 +2,37 @@ import type { Message } from '../core/message.js';
 import { TokenCounter } from './token-counter.js';
 
 export interface ContextPacket {
+  /** Text made available to the context builder. */
   readonly content: string;
+  /** Optional classification and source metadata. */
   readonly metadata?: Record<string, unknown>;
+  /** Optional source timestamp for callers that apply their own ordering. */
   readonly timestamp?: number;
+  /** Optional precomputed token count. */
   readonly tokenCount?: number;
+  /** Optional relevance score in the range expected by `minRelevance`. */
   readonly relevanceScore?: number;
 }
 export interface ContextBuilderOptions {
+  /** Maximum context budget before reserving response tokens. */
   readonly maxTokens?: number;
+  /** Fraction of the budget reserved for the model response. */
   readonly reserveRatio?: number;
+  /** Minimum lexical relevance for non-instruction packets. */
   readonly minRelevance?: number;
+  /** Whether over-budget contexts are truncated to the available budget. */
   readonly enableCompression?: boolean;
+  /** Counter used to enforce the budget. */
   readonly tokenCounter?: TokenCounter;
 }
 export interface BuildContextOptions {
+  /** The current user request, always included in the task section. */
   readonly userQuery: string;
+  /** Recent messages considered for the context section. */
   readonly conversationHistory?: readonly Message[];
+  /** High-priority instructions always included when present. */
   readonly systemInstructions?: string;
+  /** Retrieved facts, state, and other context packets. */
   readonly additionalPackets?: readonly ContextPacket[];
 }
 
@@ -36,6 +50,7 @@ export class ContextBuilder {
     this.enableCompression = options.enableCompression ?? true;
     this.tokenCounter = options.tokenCounter ?? new TokenCounter();
   }
+  /** Gathers, selects, structures, and budgets a prompt-ready context string. */
   public build(options: BuildContextOptions): string {
     const packets: ContextPacket[] = [
       ...(options.systemInstructions

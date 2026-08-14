@@ -7,17 +7,26 @@ import type { SessionData } from './session-data.js';
 import type { Message } from './message.js';
 
 export interface SessionStoreOptions {
+  /** Directory in which JSON session files are stored. */
   readonly sessionDir?: string;
+  /** Clock injection for deterministic IDs and timestamps. */
   readonly now?: () => Date;
 }
 export interface SaveSessionOptions {
+  /** Serializable agent configuration saved for restore compatibility checks. */
   readonly agentConfig: Record<string, unknown>;
+  /** Conversation history to serialize. */
   readonly history: readonly Message[];
+  /** Hash of the tool schemas active when the session was saved. */
   readonly toolSchemaHash: string;
+  /** Cached file-read metadata associated with the tool registry. */
   readonly readCache: Record<string, Record<string, unknown>>;
+  /** Caller-defined data that travels with the session. */
   readonly metadata: Record<string, unknown>;
+  /** Optional filename stem; the store appends `.json`. */
   readonly sessionName?: string;
 }
+/** Lightweight session listing entry, without loading conversation history. */
 export interface SessionSummary {
   readonly filename: string;
   readonly filepath: string;
@@ -44,6 +53,7 @@ export class SessionStore {
     this.sessionDir = options.sessionDir ?? 'memory/sessions';
     this.now = options.now ?? (() => new Date());
   }
+  /** Writes a complete session atomically and returns its filesystem path. */
   public async save(options: SaveSessionOptions): Promise<string> {
     await mkdir(this.sessionDir, { recursive: true });
     const now = this.now();
@@ -68,9 +78,11 @@ export class SessionStore {
     await rename(temporary, filepath);
     return filepath;
   }
+  /** Loads and validates one persisted session file. */
   public async load(filepath: string): Promise<SessionData> {
     return parseSessionData(JSON.parse(await readFile(filepath, 'utf8')));
   }
+  /** Lists saved sessions newest-first; a missing session directory is empty. */
   public async listSessions(): Promise<SessionSummary[]> {
     try {
       const names = (await readdir(this.sessionDir)).filter((name) => name.endsWith('.json'));
@@ -95,6 +107,7 @@ export class SessionStore {
       throw error;
     }
   }
+  /** Deletes a session by filename or filename stem; returns false when absent. */
   public async delete(sessionName: string): Promise<boolean> {
     const filename = basename(sessionName).endsWith('.json')
       ? basename(sessionName)
@@ -107,6 +120,7 @@ export class SessionStore {
       throw error;
     }
   }
+  /** Compares saved agent settings with current settings and returns warnings. */
   public checkConfigConsistency(
     saved: Record<string, unknown>,
     current: Record<string, unknown>
@@ -122,6 +136,7 @@ export class SessionStore {
       warnings.push(`最大步数变化: ${String(saved.max_steps)} → ${String(current.max_steps)}`);
     return { consistent: warnings.length === 0, warnings };
   }
+  /** Compares saved and current tool-schema hashes for restore compatibility. */
   public checkToolSchemaConsistency(
     savedHash: string,
     currentHash: string

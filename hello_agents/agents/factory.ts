@@ -8,14 +8,21 @@ import { ToolRegistry } from '../tools/registry.js';
 import type { ToolFilter } from '../tools/tool-filter.js';
 
 export interface CreateAgentOptions {
+  /** Case-insensitive agent strategy: react, reflection, plan, or simple. */
   readonly agentType: string;
+  /** Stable name assigned to the created agent. */
   readonly name: string;
+  /** LLM client shared with the created agent. */
   readonly llm: HelloAgentsLLM;
+  /** Optional tool registry passed to the created agent. */
   readonly toolRegistry?: ToolRegistry;
+  /** Skill-discovery settings supported by agent types that extend `Agent`. */
   readonly config?: Pick<ResolvedConfig, 'skillsEnabled' | 'skillsDir' | 'skillsAutoRegister'>;
+  /** Optional system instruction passed to the created agent. */
   readonly systemPrompt?: string;
 }
 
+/** Union of the four concrete public agent classes. */
 export type CreatedAgent = SimpleAgent | ReActAgent | ReflectionAgent | PlanSolveAgent;
 
 /** Creates one of the four public agent paradigms by its contract name. */
@@ -71,10 +78,13 @@ export function createAgent(
 }
 
 export interface SubagentRunOptions {
+  /** Optional allow/deny filter applied while cloning the parent registry. */
   readonly toolFilter?: ToolFilter;
+  /** Per-run override for the child's maximum tool iterations. */
   readonly maxSteps?: number;
 }
 
+/** Usage and failure details returned from a delegated task. */
 export interface SubagentMetadata {
   readonly steps: number;
   readonly tokens: number;
@@ -83,22 +93,30 @@ export interface SubagentMetadata {
   readonly error?: string;
 }
 
+/** Normalized result returned by a subagent runner. */
 export interface SubagentResult {
   readonly success: boolean;
   readonly summary: string;
   readonly metadata: SubagentMetadata;
 }
 
+/** Contract used by `TaskTool` to execute delegated work. */
 export interface SubagentRunner {
+  /** Runs a task in an isolated child agent. */
   runAsSubagent(task: string, options: SubagentRunOptions): Promise<SubagentResult>;
 }
 
+/** Supported child-agent strategy names. */
 export type AgentType = 'react' | 'reflection' | 'plan' | 'simple';
+/** Produces an isolated runner for a requested strategy. */
 export type AgentFactory = (agentType: string) => Promise<SubagentRunner> | SubagentRunner;
 
 export interface AgentFactoryOptions {
+  /** LLM client used by all generated child agents. */
   readonly llm: HelloAgentsLLM;
+  /** Parent registry copied into isolated child registries. */
   readonly toolRegistry: ToolRegistry;
+  /** Default maximum tool iterations for generated child agents. */
   readonly maxToolIterations?: number;
 }
 
@@ -130,9 +148,11 @@ export class IsolatedSubagent implements SubagentRunner {
     private readonly options: AgentFactoryOptions,
     private readonly type: AgentType
   ) {}
+  /** Strategy used by this child runner. */
   public get agentType(): AgentType {
     return this.type;
   }
+  /** Runs a child with a filtered registry without mutating parent agent state. */
   public async runAsSubagent(task: string, options: SubagentRunOptions): Promise<SubagentResult> {
     const started = performance.now();
     const registry = cloneFilteredRegistry(this.options.toolRegistry, options.toolFilter);

@@ -163,6 +163,7 @@ function evaluate(expression: string): number {
   if (index !== tokens.length) throw new SyntaxError('表达式包含多余内容');
   return result;
 }
+/** Safely evaluates a whitelisted subset of Python-compatible arithmetic expressions. */
 export class CalculatorTool extends Tool<typeof CalculatorTool.inputSchema> {
   static readonly inputSchema = z
     .object({ input: z.string().optional(), expression: z.string().optional() })
@@ -197,5 +198,6 @@ export class CalculatorTool extends Tool<typeof CalculatorTool.inputSchema> {
     }
   }
 }
+/** Convenience helper that evaluates one expression through `CalculatorTool`. */
 export const calculate = async (expression: string) =>
   new CalculatorTool().execute({ input: expression });

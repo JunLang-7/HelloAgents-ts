@@ -38,14 +38,21 @@ const devLogPersistenceSchema = z
   })
   .strict();
 
+/** Category assigned to a development log entry. */
 export type DevLogCategory = z.output<typeof devLogCategorySchema>;
+/** One durable development log entry. */
 export type DevLogEntry = z.output<typeof devLogEntrySchema>;
+/** All valid development log categories. */
 export const DEV_LOG_CATEGORIES = Object.freeze([...devLogCategorySchema.options]);
 
 export interface DevLogToolOptions {
+  /** Session ID recorded in the durable log file. */
   readonly sessionId: string;
+  /** Agent name recorded in the durable log file. */
   readonly agentName: string;
+  /** Base path for a relative persistence directory. */
   readonly projectRoot?: string | undefined;
+  /** Directory holding the durable development log. */
   readonly persistenceDir?: string | undefined;
 }
 
@@ -81,6 +88,7 @@ function persistencePath(
   return resolve(resolve(projectRoot ?? process.cwd()), persistenceDir ?? '.helloagents', name);
 }
 
+/** Durable tool for recording and querying development decisions and progress. */
 export class DevLogTool extends Tool<typeof DevLogTool.inputSchema> {
   static readonly inputSchema = z
     .object({

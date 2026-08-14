@@ -29,17 +29,27 @@ const adapterCallOptionsSchema = z
   .strict();
 
 export interface HelloAgentsLLMOptions {
+  /** Model identifier passed to the provider. Falls back to `LLM_MODEL_ID`. */
   readonly model?: string;
+  /** Provider credential. Falls back to `LLM_API_KEY`. */
   readonly apiKey?: string;
+  /** Provider endpoint. Falls back to `LLM_BASE_URL`. */
   readonly baseUrl?: string;
+  /** Default sampling temperature for calls that do not override it. */
   readonly temperature?: number;
+  /** Default maximum completion tokens. */
   readonly maxTokens?: number;
+  /** Per-request timeout in milliseconds. */
   readonly timeoutMs?: number;
+  /** Fully custom adapter, useful for local providers and tests. */
   readonly adapter?: BaseLLMAdapter;
+  /** Factory used to construct an adapter after environment values are resolved. */
   readonly adapterFactory?: LLMAdapterFactory;
+  /** Environment map to read instead of the process environment. */
   readonly env?: Record<string, string | undefined>;
 }
 
+/** Options shared by invoke, tool invocation, and streaming calls. */
 export type LLMInvokeOptions = AdapterCallOptions;
 
 function runtimeEnvironment(): Record<string, string | undefined> {
@@ -95,6 +105,7 @@ export class HelloAgentsLLM {
   public readonly adapter: BaseLLMAdapter;
   public lastCallStats: StreamStats | undefined;
 
+  /** Creates a provider-neutral LLM client from explicit options or environment variables. */
   public constructor(options: HelloAgentsLLMOptions) {
     const env = parseOrThrow(
       environmentSchema,
@@ -167,6 +178,7 @@ export class HelloAgentsLLM {
     };
   }
 
+  /** Sends chat messages and validates the normalized provider response. */
   public async invoke(
     messages: readonly LLMMessage[],
     options?: LLMInvokeOptions
@@ -183,6 +195,7 @@ export class HelloAgentsLLM {
     }
   }
 
+  /** Sends chat messages with tool schemas and returns validated tool calls. */
   public async invokeWithTools(
     messages: readonly LLMMessage[],
     tools: readonly Record<string, unknown>[],
@@ -207,6 +220,7 @@ export class HelloAgentsLLM {
     }
   }
 
+  /** Streams text chunks and records provider usage statistics when available. */
   public async *stream(
     messages: readonly LLMMessage[],
     options?: LLMInvokeOptions
@@ -227,10 +241,12 @@ export class HelloAgentsLLM {
     }
   }
 
+  /** Compatibility alias for `stream`. */
   public think(messages: readonly LLMMessage[], options?: LLMInvokeOptions): AsyncIterable<string> {
     return this.stream(messages, options);
   }
 
+  /** Compatibility alias for `stream`. */
   public streamInvoke(
     messages: readonly LLMMessage[],
     options?: LLMInvokeOptions

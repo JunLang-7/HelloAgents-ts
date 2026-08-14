@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { AgentError, parseOrThrow } from '../core/errors.js';
 
 const tracePayloadSchema = z.record(z.string(), z.unknown());
+/** Validates a durable trace event written to JSONL and HTML outputs. */
 export const traceEventSchema = z
   .object({
     ts: z.string().datetime({ offset: true }),
@@ -15,8 +16,10 @@ export const traceEventSchema = z
     payload: tracePayloadSchema
   })
   .strict();
+/** Serialized trace event. */
 export type TraceEvent = z.output<typeof traceEventSchema>;
 
+/** Aggregate metrics calculated from events logged in a trace session. */
 export interface TraceStats {
   readonly total_steps: number;
   readonly total_tokens: number;
@@ -32,9 +35,13 @@ export interface TraceStats {
 }
 
 export interface TraceLoggerOptions {
+  /** Directory where JSONL and HTML trace files are created. */
   readonly outputDir?: string;
+  /** Redacts common credential values and local paths from logged payloads. */
   readonly sanitize?: boolean;
+  /** Preserves raw provider responses when sanitization is enabled. */
   readonly includeRawResponse?: boolean;
+  /** Optional stable session ID; a unique ID is generated otherwise. */
   readonly sessionId?: string;
 }
 
@@ -121,6 +128,7 @@ export class TraceLogger {
     this.htmlPath = join(options.outputDir, `trace-${this.sessionId}.html`);
   }
 
+  /** Creates JSONL/HTML files and returns a logger for one trace session. */
   public static async create(options: TraceLoggerOptions = {}): Promise<TraceLogger> {
     const resolved: Required<TraceLoggerOptions> = {
       outputDir: options.outputDir ?? '.',
@@ -137,6 +145,7 @@ export class TraceLogger {
     return logger;
   }
 
+  /** Appends a sanitized event to memory and the session JSONL file. */
   public async logEvent(
     event: string,
     payload: Record<string, unknown> = {},
@@ -157,6 +166,7 @@ export class TraceLogger {
     await this.writeQueue;
   }
 
+  /** Flushes pending writes, renders the HTML report, and returns aggregate statistics. */
   public async finalize(): Promise<TraceStats> {
     if (this.finalized) return this.computeStats();
     this.finalizing ??= this.finalizeInternal();
@@ -178,6 +188,7 @@ export class TraceLogger {
     return stats;
   }
 
+  /** Computes aggregate statistics from in-memory events without writing files. */
   public computeStats(): TraceStats {
     let totalSteps = 0;
     let totalTokens = 0;
@@ -227,6 +238,7 @@ export class TraceLogger {
   }
 }
 
+/** Creates common lifecycle-to-trace adapters bound to a logger. */
 export function createTraceHooks(logger: TraceLogger) {
   return {
     session: (payload: Record<string, unknown>, step?: number) =>
@@ -244,6 +256,7 @@ export function createTraceHooks(logger: TraceLogger) {
   };
 }
 
+/** Runs an async operation and finalizes its trace whether it succeeds or fails. */
 export async function withTraceFinalization<T>(
   logger: TraceLogger,
   operation: () => Promise<T>

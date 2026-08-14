@@ -4,6 +4,7 @@ import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
 import { Message } from '../core/message.js';
 import { ToolRegistry } from '../tools/registry.js';
 
+/** Default prompts for initial execution, critique, and refinement phases. */
 export const DEFAULT_REFLECTION_PROMPTS = Object.freeze({
   initial: '请根据以下要求完成任务：\n\n任务: {task}\n\n请提供一个完整、准确的回答。',
   reflect:
@@ -13,24 +14,32 @@ export const DEFAULT_REFLECTION_PROMPTS = Object.freeze({
 });
 
 export interface ReflectionPrompts {
+  /** Prompt used to produce the first candidate answer. */
   readonly initial: string;
+  /** Prompt used to critique the current answer. */
   readonly reflect: string;
+  /** Prompt used to refine an answer from feedback. */
   readonly refine: string;
 }
 
+/** One candidate answer or critique retained during a reflection run. */
 export type ReflectionRecord = {
   readonly type: 'execution' | 'reflection';
   readonly content: string;
 };
 
+/** Ordered candidate and feedback store for a reflection run. */
 export class ReflectionMemory {
   public readonly records: ReflectionRecord[] = [];
+  /** Appends an execution candidate or reflection feedback record. */
   public addRecord(type: ReflectionRecord['type'], content: string): void {
     this.records.push({ type, content });
   }
+  /** Returns the latest candidate answer, or an empty string when absent. */
   public getLastExecution(): string {
     return [...this.records].reverse().find((record) => record.type === 'execution')?.content ?? '';
   }
+  /** Formats the complete execution/reflection trajectory for inspection. */
   public getTrajectory(): string {
     return this.records
       .map((record) =>
@@ -43,13 +52,21 @@ export class ReflectionMemory {
 }
 
 export interface ReflectionAgentOptions {
+  /** Stable agent name used in history and events. */
   readonly name: string;
+  /** LLM client used by all reflection phases. */
   readonly llm: HelloAgentsLLM;
+  /** Optional instruction prepended to each phase. */
   readonly systemPrompt?: string;
+  /** Optional tool registry for function calls during every phase. */
   readonly toolRegistry?: ToolRegistry;
+  /** Enables tool calling when a registry is present. */
   readonly enableToolCalling?: boolean;
+  /** Maximum function-calling rounds within one phase. */
   readonly maxToolIterations?: number;
+  /** Maximum critique/refinement cycles after the initial answer. */
   readonly maxIterations?: number;
+  /** Partial override for default reflection prompts. */
   readonly customPrompts?: Partial<ReflectionPrompts>;
 }
 
@@ -89,10 +106,12 @@ export class ReflectionAgent {
     this.prompts = { ...DEFAULT_REFLECTION_PROMPTS, ...options.customPrompts };
   }
 
+  /** Returns a snapshot of completed user/assistant exchanges. */
   public getHistory(): readonly Message[] {
     return [...this.history];
   }
 
+  /** Generates, critiques, and refines an answer until no improvement is requested. */
   public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
     this.memory = new ReflectionMemory();
     const initial = await this.respond(render(this.prompts.initial, { task: input }), options);
@@ -114,6 +133,7 @@ export class ReflectionAgent {
     return this.complete(input);
   }
 
+  /** Emits lifecycle events for the initial, reflection, and refinement phases. */
   public async *arunStream(input: string, options?: LLMInvokeOptions): AsyncIterable<AgentEvent> {
     yield AgentEvent.create('agent_start', this.name, { input_text: input });
     try {

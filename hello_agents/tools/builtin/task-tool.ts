@@ -8,6 +8,7 @@ import type { ToolFilter } from '../tool-filter.js';
 import { Tool } from '../tool.js';
 
 export interface TaskToolOptions {
+  /** Factory that creates isolated child-agent runners. */
   readonly agentFactory: AgentFactory;
 }
 

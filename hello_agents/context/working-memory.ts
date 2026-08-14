@@ -1,17 +1,27 @@
 import { TokenCounter } from './token-counter.js';
 
 export interface WorkingMemoryItem {
+  /** Caller-provided stable identifier. */
   readonly id: string;
+  /** Prompt-ready memory content. */
   readonly content: string;
+  /** Eviction priority; lower-priority entries are evicted first. */
   readonly importance?: number;
+  /** Caller-defined metadata. */
   readonly metadata?: Record<string, unknown>;
+  /** Creation time in Unix milliseconds; defaults to the configured clock. */
   readonly timestamp?: number;
 }
 export interface WorkingMemoryOptions {
+  /** Maximum number of retained entries. */
   readonly capacity?: number;
+  /** Maximum aggregate token estimate for retained entries. */
   readonly maxTokens?: number;
+  /** Expiration period applied before reads and writes. */
   readonly ttlMinutes?: number;
+  /** Clock injection for deterministic expiry behavior. */
   readonly now?: () => number;
+  /** Counter used to enforce the token budget. */
   readonly tokenCounter?: TokenCounter;
 }
 
@@ -36,6 +46,7 @@ export class WorkingMemory {
     this.counter = options.tokenCounter ?? new TokenCounter();
   }
 
+  /** Adds a memory, applies expiry/budgets, and returns its ID. */
   public add(item: WorkingMemoryItem): string {
     this.expire();
     this.items.push({
@@ -48,11 +59,13 @@ export class WorkingMemory {
     return item.id;
   }
 
+  /** Returns unexpired memory entries. */
   public getAll(): readonly WorkingMemoryItem[] {
     this.expire();
     return [...this.items];
   }
 
+  /** Removes all working memory entries. */
   public clear(): void {
     this.items = [];
   }

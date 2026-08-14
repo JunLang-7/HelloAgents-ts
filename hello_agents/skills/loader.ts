@@ -12,15 +12,21 @@ const metadataSchema = z
     version: z.string().optional()
   })
   .strict();
+/** Frontmatter metadata available without loading a skill body. */
 export type SkillMetadata = z.output<typeof metadataSchema>;
 
 export interface SkillResources {
+  /** Files under the skill's scripts directory. */
   readonly scripts: readonly string[];
+  /** Files under the skill's examples directory. */
   readonly examples: readonly string[];
+  /** Files under the skill's references directory. */
   readonly references: readonly string[];
+  /** Files under the skill's assets directory. */
   readonly assets: readonly string[];
 }
 
+/** Fully loaded skill content, metadata, directory, and discovered resources. */
 export interface Skill extends SkillMetadata {
   readonly body: string;
   readonly path: string;
@@ -29,6 +35,7 @@ export interface Skill extends SkillMetadata {
 }
 
 export interface SkillLoaderOptions {
+  /** Root directory containing one subdirectory per skill. */
   readonly skillsDir?: string;
 }
 
@@ -108,16 +115,19 @@ export class SkillLoader {
     this.skillsDir = skillsDir;
   }
 
+  /** Creates a loader and scans skill frontmatter. */
   public static async create(options: SkillLoaderOptions = {}): Promise<SkillLoader> {
     const loader = new SkillLoader(options.skillsDir ?? '.');
     await loader.reload();
     return loader;
   }
 
+  /** Lists discovered skill names in stable directory order. */
   public listSkills(): readonly string[] {
     return [...this.order];
   }
 
+  /** Formats a compact model-facing description list. */
   public getDescriptions(): string {
     return this.order.length === 0
       ? '（暂无可用技能）'
@@ -126,10 +136,12 @@ export class SkillLoader {
           .join('\n');
   }
 
+  /** Returns a loaded skill without performing filesystem I/O. */
   public getCachedSkill(name: string): Skill | undefined {
     return this.cache.get(name);
   }
 
+  /** Loads and caches one skill body and its resource paths on demand. */
   public async getSkill(name: string): Promise<Skill | undefined> {
     const cached = this.cache.get(name);
     if (cached) return cached;
@@ -154,6 +166,7 @@ export class SkillLoader {
     }
   }
 
+  /** Rescans frontmatter and clears the loaded-skill cache. */
   public async reload(): Promise<void> {
     const metadata = new Map<string, CachedMetadata>();
     const order: string[] = [];

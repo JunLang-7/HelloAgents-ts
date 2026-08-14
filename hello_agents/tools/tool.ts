@@ -4,6 +4,7 @@ import { ToolError } from '../core/errors.js';
 import { ToolErrorCode } from './errors.js';
 import { ToolResponse } from './response.js';
 
+/** Validates legacy parameter metadata retained for Python protocol compatibility. */
 export const toolParameterSchema = z
   .object({
     name: z.string().min(1),
@@ -13,8 +14,10 @@ export const toolParameterSchema = z
     default: z.unknown().optional()
   })
   .strict();
+/** Legacy parameter metadata. Execution validation is defined by `inputSchema`. */
 export type ToolParameter = z.output<typeof toolParameterSchema>;
 
+/** OpenAI function-calling schema emitted by a registered tool. */
 export interface OpenAIToolSchema {
   readonly type: 'function';
   readonly function: {
@@ -25,8 +28,11 @@ export interface OpenAIToolSchema {
 }
 
 export interface ToolOptions<TSchema extends z.ZodType> {
+  /** Unique function-call name exposed to the model. */
   readonly name: string;
+  /** Model-facing explanation of when to call the tool. */
   readonly description: string;
+  /** Zod schema used to validate execution input and derive JSON Schema. */
   readonly inputSchema: TSchema;
   /** Compatibility metadata only. Zod remains the execution-schema authority. */
   readonly parameters?: readonly ToolParameter[];
@@ -34,10 +40,12 @@ export interface ToolOptions<TSchema extends z.ZodType> {
   readonly jsonSchema?: Record<string, unknown>;
 }
 
+/** A named group that expands into concrete tools when registered. */
 export interface ExpandableTool {
   readonly name: string;
   readonly description: string;
   readonly expandable: true;
+  /** Returns the concrete tools exposed by this group. */
   getExpandedTools(): readonly Tool[];
 }
 
@@ -91,6 +99,7 @@ export abstract class Tool<TSchema extends z.ZodType = z.ZodType> {
     return `工具执行时发生未处理的异常: ${error instanceof Error ? error.message : String(error)}`;
   }
 
+  /** Validates input, executes the tool, and normalizes failures to a protocol response. */
   public async execute(
     input: unknown,
     invocationContext: Record<string, unknown> = {}
@@ -119,6 +128,7 @@ export abstract class Tool<TSchema extends z.ZodType = z.ZodType> {
     }
   }
 
+  /** Async compatibility alias for `execute`. */
   public async arun(
     input: unknown,
     invocationContext?: Record<string, unknown>
@@ -126,6 +136,7 @@ export abstract class Tool<TSchema extends z.ZodType = z.ZodType> {
     return this.execute(input, invocationContext);
   }
 
+  /** Converts the Zod input contract into an OpenAI function-calling schema. */
   public toOpenAISchema(): OpenAIToolSchema {
     const parameters = this.jsonSchema ?? this.jsonSchemaFromZod();
     if (parameters.type !== 'object') {
@@ -174,6 +185,7 @@ export abstract class Tool<TSchema extends z.ZodType = z.ZodType> {
 }
 
 export interface FunctionToolOptions<TSchema extends z.ZodType> extends ToolOptions<TSchema> {
+  /** Function invoked after input validation. Its output becomes the response text. */
   readonly handler: (input: z.output<TSchema>) => unknown | Promise<unknown>;
 }
 

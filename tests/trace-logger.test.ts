@@ -11,7 +11,7 @@ import {
   createTraceHooks,
   traceEventSchema,
   withTraceFinalization
-} from '../src/index.js';
+} from '../hello_agents/index.js';
 
 describe('TraceLogger', () => {
   test('writes validated JSONL events and an HTML report with Go-compatible statistics', async () => {

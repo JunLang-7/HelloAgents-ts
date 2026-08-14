@@ -14,9 +14,9 @@
     "types": ["bun-types", "node"],
     "baseUrl": ".",
     "paths": {
-      "@junlang-7/helloagents": ["./src/index.ts"]
+      "@junlang-7/helloagents": ["./hello_agents/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "examples/**/*.ts"],
+  "include": ["hello_agents/**/*.ts", "tests/**/*.ts", "examples/**/*.ts"],
   "exclude": ["dist", "node_modules", "coverage"]
 }

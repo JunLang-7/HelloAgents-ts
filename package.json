@@ -51,7 +51,7 @@
     "format:check": "prettier --check .",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "build:js": "bun build ./src/index.ts --outdir ./dist --target node --format esm --sourcemap=external",
+    "build:js": "bun build ./hello_agents/index.ts --outdir ./dist --target node --format esm --sourcemap=external",
     "build:types": "tsc -p tsconfig.build.json",
     "build": "bun run build:js && bun run build:types",
     "test:node": "node ./tests/node-smoke.mjs && node ./tests/node-todo-devlog-smoke.mjs",

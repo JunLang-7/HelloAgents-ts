@@ -18,8 +18,8 @@ import {
   ToolRegistry,
   createAgent,
   createAgentFactory
-} from '../src/index.js';
-import type { SubagentRunner } from '../src/index.js';
+} from '../hello_agents/index.js';
+import type { SubagentRunner } from '../hello_agents/index.js';
 
 const config = { model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test' };
 

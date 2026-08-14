@@ -7,8 +7,8 @@ import {
   LLMError,
   OpenAIAdapter,
   createAdapter
-} from '../src/index.js';
-import type { FetchLike } from '../src/adapters/providers.js';
+} from '../hello_agents/index.js';
+import type { FetchLike } from '../hello_agents/adapters/providers.js';
 
 const config = {
   model: 'test-model',

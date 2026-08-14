@@ -14,7 +14,7 @@ const log = await DevLogTool.create({
 await log.execute({
   action: 'append',
   category: 'decision',
-  content: 'Keep src/ as the source root.'
+  content: 'Keep hello_agents/ as the source root.'
 });
 ```
 

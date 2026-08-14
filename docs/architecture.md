@@ -4,11 +4,11 @@ The package maps Python V1 concepts into a portable TypeScript ESM design.
 All public asynchronous work uses `Promise`, `AsyncIterable`, and
 `AbortSignal`, so the built package runs unchanged on Bun and Node.js 22/24.
 
-The repository keeps `src/` as its TypeScript source root. Python and Go place
-their modules under `hello_agents/`, but the compatibility contract maps those
-conceptual modules to `src/` and the published package exposes the same `dist`
-entry point either way. Keeping `src/` avoids a mechanical path migration with
-no observable API or runtime benefit.
+The repository uses `hello_agents/` as its TypeScript source root, matching the
+top-level package directory in both upstream implementations. Internal TypeScript
+filenames retain kebab-case where appropriate, while the package hierarchy now
+aligns one-to-one with Python and Go. The published `dist` entry point and npm
+exports remain unchanged.
 
 ```mermaid
 flowchart LR

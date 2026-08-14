@@ -12,7 +12,7 @@ import {
   SkillTool,
   ToolErrorCode,
   ToolRegistry
-} from '../src/index.js';
+} from '../hello_agents/index.js';
 
 async function writeSkill(
   root: string,

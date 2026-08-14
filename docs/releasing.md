@@ -13,7 +13,7 @@ npm pack --dry-run
 
 Review the generated archive: it must include `dist/index.js`,
 `dist/index.d.ts`, `dist/index.js.map`, `README.md`, `LICENSE`, `NOTICE`, and
-`package.json`, but no `src/` or `tests/` files. `test:package` enforces this
+`package.json`, but no `hello_agents/` or `tests/` files. `test:package` enforces this
 and installs the archive through both `bun add` and `npm install`.
 
 Optionally run a real provider smoke test with a disposable credential:

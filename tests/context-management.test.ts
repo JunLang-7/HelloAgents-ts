@@ -6,8 +6,8 @@ import {
   ObservationTruncator,
   TokenCounter,
   WorkingMemory
-} from '../src/index.js';
-import { Message } from '../src/core/message.js';
+} from '../hello_agents/index.js';
+import { Message } from '../hello_agents/core/message.js';
 
 describe('TokenCounter', () => {
   test('caches a replaceable tokenizer and handles Unicode without byte corruption', () => {

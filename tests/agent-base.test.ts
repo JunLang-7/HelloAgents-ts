@@ -11,7 +11,7 @@ import {
   MockAdapter,
   SessionStore,
   ToolRegistry
-} from '../src/index.js';
+} from '../hello_agents/index.js';
 
 class TestAgent extends Agent {
   public async run(input: string): Promise<string> {

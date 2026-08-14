@@ -6,7 +6,7 @@ import {
   LLMError,
   LLMTimeoutError,
   MockAdapter
-} from '../src/index.js';
+} from '../hello_agents/index.js';
 
 const credentials = {
   model: 'test-model',

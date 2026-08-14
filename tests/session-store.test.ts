@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { Message, SessionStore } from '../src/index.js';
+import { Message, SessionStore } from '../hello_agents/index.js';
 
 describe('SessionStore', () => {
   test('atomically persists validated snake_case session data and restores it in a new store', async () => {

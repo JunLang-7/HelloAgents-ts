@@ -7,7 +7,7 @@ import {
   ToolRegistry,
   ToolResponse,
   CircuitBreaker
-} from '../src/index.js';
+} from '../hello_agents/index.js';
 
 function mutableClock(initialMs = 0): {
   now: () => number;

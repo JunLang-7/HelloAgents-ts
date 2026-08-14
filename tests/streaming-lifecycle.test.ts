@@ -8,7 +8,7 @@ import {
   StreamBuffer,
   streamToJsonLines,
   streamToSse
-} from '../src/index.js';
+} from '../hello_agents/index.js';
 
 const config = { model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test' };
 

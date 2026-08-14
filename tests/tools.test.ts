@@ -13,7 +13,7 @@ import {
   expandableTool,
   toolAction,
   toolParameterSchema
-} from '../src/index.js';
+} from '../hello_agents/index.js';
 
 class AddTool extends Tool<typeof AddTool.inputSchema> {
   public static readonly inputSchema = z.object({ left: z.number(), right: z.number() }).strict();

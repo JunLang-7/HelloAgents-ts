@@ -13,7 +13,7 @@ import {
   ToolErrorCode,
   ToolRegistry,
   WriteTool
-} from '../src/index.js';
+} from '../hello_agents/index.js';
 
 describe('CalculatorTool', () => {
   test('matches Python V1 arithmetic/functions and rejects non-whitelisted syntax', async () => {

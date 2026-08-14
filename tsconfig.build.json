@@ -1,13 +1,13 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": "./src",
+    "rootDir": "./hello_agents",
     "outDir": "./dist",
     "declaration": true,
     "declarationMap": true,
     "emitDeclarationOnly": true,
     "noEmit": false
   },
-  "include": ["src/**/*.ts"],
+  "include": ["hello_agents/**/*.ts"],
   "exclude": ["tests", "examples", "dist", "node_modules", "coverage"]
 }

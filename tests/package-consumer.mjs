@@ -55,7 +55,7 @@ try {
     assert.equal(packedPaths.has(requiredPath), true, `package must include ${requiredPath}`);
   }
   assert.equal(
-    [...packedPaths].some((path) => path.startsWith('src/') || path.startsWith('tests/')),
+    [...packedPaths].some((path) => path.startsWith('hello_agents/') || path.startsWith('tests/')),
     false,
     'package must not include development source or tests'
   );

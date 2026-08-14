@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { metadata, version } from '../src/index.js';
+import { metadata, version } from '../hello_agents/index.js';
 
 describe('package entry point', () => {
   test('exposes development metadata without a Bun-specific public type', () => {

@@ -1,4 +1,4 @@
-/** Standard error codes carried by the Python V1 tool protocol. */
+/** Python V1 工具协议携带的标准错误码。 */
 export const ToolErrorCode = Object.freeze({
   NOT_FOUND: 'NOT_FOUND',
   ACCESS_DENIED: 'ACCESS_DENIED',

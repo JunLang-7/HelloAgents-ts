@@ -5,7 +5,7 @@ import { ToolErrorCode } from '../errors.js';
 import { ToolResponse } from '../response.js';
 import { Tool } from '../tool.js';
 
-/** Function Calling entry point for progressive skill loading. */
+/** 渐进式技能加载的 Function Calling 入口。 */
 export class SkillTool extends Tool<typeof SkillTool.inputSchema> {
   static readonly inputSchema = z
     .object({ skill: z.string().min(1), args: z.string().optional() })

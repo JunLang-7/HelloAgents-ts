@@ -10,25 +10,25 @@ import { SkillLoader } from '../skills/loader.js';
 import { SkillTool } from '../tools/builtin/skill-tool.js';
 
 export interface AgentOptions {
-  /** Stable agent name used in events and persisted sessions. */
+  /** Agent 名称，用于事件和持久化会话。 */
   readonly name: string;
-  /** LLM client used by the concrete execution loop. */
+  /** 具体执行循环使用的 LLM 客户端。 */
   readonly llm: HelloAgentsLLM;
-  /** Optional system instruction prepended by concrete agents. */
+  /** 具体 Agent 调用前追加的可选系统提示词。 */
   readonly systemPrompt?: string;
-  /** Isolated tool registry; a new registry is created when omitted. */
+  /** 隔离的工具注册表；未提供时创建新的注册表。 */
   readonly toolRegistry?: ToolRegistry;
-  /** Optional durable session store. Saving/loading requires this option. */
+  /** 可选的持久化会话存储；保存/加载会话需要提供此项。 */
   readonly sessionStore?: SessionStore;
-  /** History retention and compaction policy. */
+  /** 历史消息保留和压缩策略。 */
   readonly history?: HistoryManagerOptions;
-  /** Opt-in configuration-driven Skill discovery and registration. */
+  /** 可选的配置驱动 Skill 发现和注册。 */
   readonly config?: Pick<ResolvedConfig, 'skillsEnabled' | 'skillsDir' | 'skillsAutoRegister'>;
 }
 export interface LoadedSessionResult {
-  /** Agent-setting comparison between the saved and active configurations. */
+  /** 保存配置和当前 Agent 配置的比较结果。 */
   readonly config: { consistent: boolean; warnings: string[] };
-  /** Tool-schema comparison indicating whether restored tool state may be stale. */
+  /** 工具模式比较结果，用于判断恢复的工具状态是否可能过期。 */
   readonly toolSchema: {
     changed: boolean;
     saved_hash: string;
@@ -37,7 +37,7 @@ export interface LoadedSessionResult {
   };
 }
 
-/** Abstract shared Agent infrastructure; concrete execution loops remain subclasses' responsibility. */
+/** Agent 抽象基类，提供共享基础设施；具体执行循环由子类负责。 */
 export abstract class Agent {
   public readonly name: string;
   public readonly llm: HelloAgentsLLM;
@@ -56,7 +56,11 @@ export abstract class Agent {
     this.config = options.config;
     this.historyManager = new HistoryManager(options.history ?? { maxTokens: 128_000 });
   }
-  /** Discovers configured skills and optionally registers their progressive loader tool. */
+  /**
+   * 发现已配置的技能，并可选注册其渐进式加载工具。
+   *
+   * @returns 技能加载器；未启用技能时返回 undefined。
+   */
   public async registerConfiguredSkills(): Promise<SkillLoader | undefined> {
     const config = this.config;
     if (!config?.skillsEnabled) return undefined;
@@ -64,30 +68,41 @@ export abstract class Agent {
     if (config.skillsAutoRegister) this.toolRegistry.register(new SkillTool(loader));
     return loader;
   }
-  /** Executes an input according to the concrete agent loop. */
+  /** 按具体 Agent 的执行循环处理输入。 */
   public abstract run(input: string): Promise<string>;
-  /** Returns a snapshot of conversation history. */
+  /** 获取对话历史副本。 */
   public getHistory(): readonly Message[] {
     return this.historyManager.getAll();
   }
-  /** Adds a message and compacts history when it exceeds its configured budget. */
+  /**
+   * 添加消息；超过配置的 token 预算时压缩历史。
+   *
+   * @param content 消息内容。
+   * @param role 消息角色。
+   */
   public async addMessage(content: string, role: Message['role']): Promise<void> {
     this.historyManager.add(new Message(content, role));
     await this.historyManager.compact();
   }
-  /** Removes all retained conversation history. */
+  /** 清空所有保留的对话历史。 */
   public clearHistory(): void {
     this.historyManager.clear();
   }
-  /** Builds provider function-calling schemas for the current registry. */
+  /** 为当前注册表构建提供商 Function Calling 模式。 */
   public buildToolSchemas(): ReturnType<ToolRegistry['toOpenAISchemas']> {
     return this.toolRegistry.toOpenAISchemas();
   }
-  /** Executes one registered tool using protocol error normalization. */
+  /**
+   * 使用协议错误标准化执行一个已注册工具。
+   *
+   * @param name 工具名称。
+   * @param input 工具输入。
+   * @returns 标准化的工具响应。
+   */
   public executeToolCall(name: string, input: unknown): Promise<ToolResponse> {
     return this.toolRegistry.execute(name, input);
   }
-  /** Persists the agent's history and tool cache. Requires a `SessionStore`. */
+  /** 持久化 Agent 的历史和工具缓存；需要配置 `SessionStore`。 */
   public async saveSession(sessionName?: string): Promise<string> {
     if (!this.sessionStore) throw new Error('SessionStore is not configured');
     return this.sessionStore.save({
@@ -99,7 +114,7 @@ export abstract class Agent {
       metadata: {}
     });
   }
-  /** Restores history and read metadata, then reports configuration compatibility. */
+  /** 恢复历史和读取元数据，并报告配置兼容性。 */
   public async loadSession(filepath: string): Promise<LoadedSessionResult> {
     if (!this.sessionStore) throw new Error('SessionStore is not configured');
     const data = await this.sessionStore.load(filepath);

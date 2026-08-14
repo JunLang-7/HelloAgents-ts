@@ -1,27 +1,27 @@
 import { TokenCounter } from './token-counter.js';
 
 export interface WorkingMemoryItem {
-  /** Caller-provided stable identifier. */
+  /** 调用方提供的稳定标识。 */
   readonly id: string;
-  /** Prompt-ready memory content. */
+  /** 可直接加入提示词的记忆内容。 */
   readonly content: string;
-  /** Eviction priority; lower-priority entries are evicted first. */
+  /** 淘汰优先级；优先淘汰较低优先级的条目。 */
   readonly importance?: number;
-  /** Caller-defined metadata. */
+  /** 调用方定义的元数据。 */
   readonly metadata?: Record<string, unknown>;
-  /** Creation time in Unix milliseconds; defaults to the configured clock. */
+  /** Unix 毫秒时间戳；默认使用配置的时钟。 */
   readonly timestamp?: number;
 }
 export interface WorkingMemoryOptions {
-  /** Maximum number of retained entries. */
+  /** 最多保留的条目数。 */
   readonly capacity?: number;
-  /** Maximum aggregate token estimate for retained entries. */
+  /** 保留条目的最大 token 估算总数。 */
   readonly maxTokens?: number;
-  /** Expiration period applied before reads and writes. */
+  /** 读取和写入前应用的过期时间。 */
   readonly ttlMinutes?: number;
-  /** Clock injection for deterministic expiry behavior. */
+  /** 时钟注入，用于确定性过期测试。 */
   readonly now?: () => number;
-  /** Counter used to enforce the token budget. */
+  /** 用于执行 token 预算的计数器。 */
   readonly tokenCounter?: TokenCounter;
 }
 
@@ -29,7 +29,7 @@ interface StoredMemory extends Required<Omit<WorkingMemoryItem, 'metadata'>> {
   metadata: Record<string, unknown>;
 }
 
-/** Session-scoped, bounded working memory matching Python's priority/TTL intent. */
+/** 会话范围内的有界工作记忆，实现 Python 版本的优先级和 TTL 语义。 */
 export class WorkingMemory {
   private readonly capacity: number;
   private readonly maxTokens: number;
@@ -46,7 +46,7 @@ export class WorkingMemory {
     this.counter = options.tokenCounter ?? new TokenCounter();
   }
 
-  /** Adds a memory, applies expiry/budgets, and returns its ID. */
+  /** 添加记忆，应用过期和容量限制，并返回其 ID。 */
   public add(item: WorkingMemoryItem): string {
     this.expire();
     this.items.push({
@@ -59,13 +59,13 @@ export class WorkingMemory {
     return item.id;
   }
 
-  /** Returns unexpired memory entries. */
+  /** 返回尚未过期的记忆条目。 */
   public getAll(): readonly WorkingMemoryItem[] {
     this.expire();
     return [...this.items];
   }
 
-  /** Removes all working memory entries. */
+  /** 清空所有工作记忆条目。 */
   public clear(): void {
     this.items = [];
   }

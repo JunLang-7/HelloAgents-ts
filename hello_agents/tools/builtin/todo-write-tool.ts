@@ -21,9 +21,9 @@ const todoPersistenceSchema = z
   .object({ schema_version: z.literal(1), summary: z.string(), todos: z.array(todoItemSchema) })
   .strict();
 
-/** Durable todo state. */
+/** 持久化任务状态。 */
 export type TodoStatus = z.output<typeof todoStatusSchema>;
-/** One durable todo entry. */
+/** 一个持久化任务条目。 */
 export type TodoItem = z.output<typeof todoItemSchema>;
 
 interface TodoWriteInputItem {
@@ -33,9 +33,9 @@ interface TodoWriteInputItem {
 }
 
 export interface TodoWriteToolOptions {
-  /** Root that relative persistence directories are resolved from. Defaults to cwd. */
+  /** 解析相对持久化目录的根路径，默认为当前工作目录。 */
   readonly projectRoot?: string | undefined;
-  /** Directory holding the durable todo file. Defaults to .helloagents. */
+  /** 保存持久化任务文件的目录，默认为 `.helloagents`。 */
   readonly persistenceDir?: string | undefined;
 }
 
@@ -77,8 +77,8 @@ function persistencePath(
 }
 
 /**
- * Durable, model-facing task list compatible with Python V1 TodoWrite semantics.
- * A single operation queue protects both in-memory snapshots and atomic file writes.
+ * 面向模型的持久化任务列表，兼容 Python V1 TodoWrite 语义。
+ * 单一操作队列同时保护内存快照和原子文件写入。
  */
 export class TodoWriteTool extends Tool<typeof TodoWriteTool.inputSchema> {
   static readonly inputSchema = z
@@ -115,7 +115,7 @@ export class TodoWriteTool extends Tool<typeof TodoWriteTool.inputSchema> {
     this.items = todos;
   }
 
-  /** Opens or creates the durable todo list configured by the supplied paths. */
+  /** 根据路径配置打开或创建持久化任务列表。 */
   public static async create(options: TodoWriteToolOptions = {}): Promise<TodoWriteTool> {
     const path = persistencePath(options.projectRoot, options.persistenceDir, 'todo-list.json');
     const saved = await readJsonIfPresent(path);
@@ -125,12 +125,12 @@ export class TodoWriteTool extends Tool<typeof TodoWriteTool.inputSchema> {
     return new TodoWriteTool(path, parsed.data.summary, parsed.data.todos);
   }
 
-  /** Snapshot of the current durable todo entries. */
+  /** 当前持久化任务条目的快照。 */
   public get todos(): readonly TodoItem[] {
     return this.items.map((item) => ({ ...item }));
   }
 
-  /** Current task-list summary. */
+  /** 当前任务列表摘要。 */
   public get summary(): string {
     return this.currentSummary;
   }
@@ -232,7 +232,6 @@ export class TodoWriteTool extends Tool<typeof TodoWriteTool.inputSchema> {
 }
 
 /**
- * A compact, durable development journal. It intentionally remains separate
- * from TraceLogger: TraceLogger records runtime events, while DevLog stores
- * human/model decisions and handoff context.
+ * 紧凑的持久化开发日志。它有意与 TraceLogger 分离：TraceLogger 记录运行时事件，
+ * DevLog 则保存人工/模型决策和交接上下文。
  */

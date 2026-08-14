@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { AgentError, parseOrThrow } from '../core/errors.js';
 
 const tracePayloadSchema = z.record(z.string(), z.unknown());
-/** Validates a durable trace event written to JSONL and HTML outputs. */
+/** 校验写入 JSONL 和 HTML 输出的持久 Trace 事件。 */
 export const traceEventSchema = z
   .object({
     ts: z.string().datetime({ offset: true }),
@@ -16,10 +16,10 @@ export const traceEventSchema = z
     payload: tracePayloadSchema
   })
   .strict();
-/** Serialized trace event. */
+/** 序列化的 Trace 事件。 */
 export type TraceEvent = z.output<typeof traceEventSchema>;
 
-/** Aggregate metrics calculated from events logged in a trace session. */
+/** 根据一个 Trace 会话中记录的事件计算出的聚合统计。 */
 export interface TraceStats {
   readonly total_steps: number;
   readonly total_tokens: number;
@@ -35,13 +35,13 @@ export interface TraceStats {
 }
 
 export interface TraceLoggerOptions {
-  /** Directory where JSONL and HTML trace files are created. */
+  /** 创建 JSONL 和 HTML Trace 文件的目录。 */
   readonly outputDir?: string;
-  /** Redacts common credential values and local paths from logged payloads. */
+  /** 从记录的载荷中脱敏常见凭证值和本地路径。 */
   readonly sanitize?: boolean;
-  /** Preserves raw provider responses when sanitization is enabled. */
+  /** 启用脱敏时是否保留原始提供商响应。 */
   readonly includeRawResponse?: boolean;
-  /** Optional stable session ID; a unique ID is generated otherwise. */
+  /** 可选的稳定会话 ID；未提供时自动生成唯一 ID。 */
   readonly sessionId?: string;
 }
 
@@ -106,7 +106,16 @@ function htmlHeader(id: string): string {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Trace: ${escapeHtml(id)}</title><style>body{font-family:ui-monospace,monospace;background:#121417;color:#eceff4;padding:24px}.panel,.event{background:#1b2028;border:1px solid #2f3743;border-radius:8px;padding:16px;margin-bottom:12px}.event{white-space:pre-wrap;word-break:break-word}pre{margin:0}</style></head><body><div class="panel"><h1>Trace Session</h1><div>session_id: ${escapeHtml(id)}</div></div><div class="panel"><h2>Events</h2>`;
 }
 
-/** Dual JSONL/HTML audit trace that uses only Node/Bun-compatible async I/O. */
+/**
+ * 双格式 Trace Logger。
+ *
+ * 特性：
+ * - JSONL 流式写入（实时追加）
+ * - HTML 人类可读报告（包含统计面板）
+ * - 敏感信息自动脱敏
+ *
+ * 输出 JSONL 和 HTML，使用 Node/Bun 兼容的异步 I/O。
+ */
 export class TraceLogger {
   public readonly outputDir: string;
   public readonly sanitize: boolean;
@@ -128,7 +137,7 @@ export class TraceLogger {
     this.htmlPath = join(options.outputDir, `trace-${this.sessionId}.html`);
   }
 
-  /** Creates JSONL/HTML files and returns a logger for one trace session. */
+  /** 创建 JSONL/HTML 文件，并返回用于一个 Trace 会话的记录器。 */
   public static async create(options: TraceLoggerOptions = {}): Promise<TraceLogger> {
     const resolved: Required<TraceLoggerOptions> = {
       outputDir: options.outputDir ?? '.',
@@ -145,7 +154,13 @@ export class TraceLogger {
     return logger;
   }
 
-  /** Appends a sanitized event to memory and the session JSONL file. */
+  /**
+   * 将脱敏后的事件追加到内存和会话 JSONL 文件。
+   *
+   * @param event 事件名称。
+   * @param payload 事件载荷。
+   * @param step 可选的执行步骤。
+   */
   public async logEvent(
     event: string,
     payload: Record<string, unknown> = {},
@@ -166,7 +181,7 @@ export class TraceLogger {
     await this.writeQueue;
   }
 
-  /** Flushes pending writes, renders the HTML report, and returns aggregate statistics. */
+  /** 刷新待写入数据，生成 HTML 报告，并返回聚合统计。 */
   public async finalize(): Promise<TraceStats> {
     if (this.finalized) return this.computeStats();
     this.finalizing ??= this.finalizeInternal();
@@ -188,7 +203,7 @@ export class TraceLogger {
     return stats;
   }
 
-  /** Computes aggregate statistics from in-memory events without writing files. */
+  /** 根据内存事件计算聚合统计，不写入文件。 */
   public computeStats(): TraceStats {
     let totalSteps = 0;
     let totalTokens = 0;
@@ -238,7 +253,7 @@ export class TraceLogger {
   }
 }
 
-/** Creates common lifecycle-to-trace adapters bound to a logger. */
+/** 创建绑定到记录器的常用生命周期到 Trace 适配器。 */
 export function createTraceHooks(logger: TraceLogger) {
   return {
     session: (payload: Record<string, unknown>, step?: number) =>
@@ -256,7 +271,7 @@ export function createTraceHooks(logger: TraceLogger) {
   };
 }
 
-/** Runs an async operation and finalizes its trace whether it succeeds or fails. */
+/** 运行异步操作；无论成功或失败都会 finalize Trace。 */
 export async function withTraceFinalization<T>(
   logger: TraceLogger,
   operation: () => Promise<T>

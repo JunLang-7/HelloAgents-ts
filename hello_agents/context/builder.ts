@@ -2,41 +2,41 @@ import type { Message } from '../core/message.js';
 import { TokenCounter } from './token-counter.js';
 
 export interface ContextPacket {
-  /** Text made available to the context builder. */
+  /** 提供给上下文构建器的文本内容。 */
   readonly content: string;
-  /** Optional classification and source metadata. */
+  /** 可选的分类和来源元数据。 */
   readonly metadata?: Record<string, unknown>;
-  /** Optional source timestamp for callers that apply their own ordering. */
+  /** 可选的来源时间戳，供调用方自行排序。 */
   readonly timestamp?: number;
-  /** Optional precomputed token count. */
+  /** 可选的预计算 token 数。 */
   readonly tokenCount?: number;
-  /** Optional relevance score in the range expected by `minRelevance`. */
+  /** 可选的相关性分数，用于和 `minRelevance` 比较。 */
   readonly relevanceScore?: number;
 }
 export interface ContextBuilderOptions {
-  /** Maximum context budget before reserving response tokens. */
+  /** 为响应预留 token 后的最大上下文预算。 */
   readonly maxTokens?: number;
-  /** Fraction of the budget reserved for the model response. */
+  /** 为模型响应预留的预算比例。 */
   readonly reserveRatio?: number;
-  /** Minimum lexical relevance for non-instruction packets. */
+  /** 非指令数据包的最低词法相关性。 */
   readonly minRelevance?: number;
-  /** Whether over-budget contexts are truncated to the available budget. */
+  /** 超出预算时是否压缩到可用预算。 */
   readonly enableCompression?: boolean;
-  /** Counter used to enforce the budget. */
+  /** 用于执行预算限制的 token 计数器。 */
   readonly tokenCounter?: TokenCounter;
 }
 export interface BuildContextOptions {
-  /** The current user request, always included in the task section. */
+  /** 当前用户请求，始终包含在任务部分。 */
   readonly userQuery: string;
-  /** Recent messages considered for the context section. */
+  /** 用于构建上下文部分的最近消息。 */
   readonly conversationHistory?: readonly Message[];
-  /** High-priority instructions always included when present. */
+  /** 高优先级指令，存在时始终包含。 */
   readonly systemInstructions?: string;
-  /** Retrieved facts, state, and other context packets. */
+  /** 检索事实、任务状态和其他上下文数据包。 */
   readonly additionalPackets?: readonly ContextPacket[];
 }
 
-/** Python V1 ContextBuilder's Gather-Select-Structure-Compress pipeline. */
+/** Python V1 ContextBuilder 的 Gather-Select-Structure-Compress 流程。 */
 export class ContextBuilder {
   public readonly tokenCounter: TokenCounter;
   private readonly maxTokens: number;
@@ -50,7 +50,7 @@ export class ContextBuilder {
     this.enableCompression = options.enableCompression ?? true;
     this.tokenCounter = options.tokenCounter ?? new TokenCounter();
   }
-  /** Gathers, selects, structures, and budgets a prompt-ready context string. */
+  /** 收集、筛选、组织并限制上下文，生成可直接用于提示词的字符串。 */
   public build(options: BuildContextOptions): string {
     const packets: ContextPacket[] = [
       ...(options.systemInstructions

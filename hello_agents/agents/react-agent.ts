@@ -6,7 +6,7 @@ import type { ExpandableTool, Tool } from '../tools/tool.js';
 
 const maxStepAnswer = '抱歉，我无法在限定步数内完成这个任务。';
 
-/** Default system prompt defining the Thought/Finish function-calling loop. */
+/** ReAct Agent 默认系统提示词，定义 Thought/Finish Function Calling 流程。 */
 export const DEFAULT_REACT_SYSTEM_PROMPT = `你是一个具备推理和行动能力的 AI 助手。
 
 ## 工作流程
@@ -22,19 +22,19 @@ export const DEFAULT_REACT_SYSTEM_PROMPT = `你是一个具备推理和行动能
 - 只有在确信有足够信息时才调用 Finish`;
 
 export interface ReActAgentOptions {
-  /** Stable agent name used in history. */
+  /** Agent 名称，用于历史记录。 */
   readonly name: string;
-  /** LLM client used for the ReAct loop. */
+  /** 用于 ReAct 循环的 LLM 客户端。 */
   readonly llm: HelloAgentsLLM;
-  /** Registry of user tools exposed alongside Thought and Finish. */
+  /** 与 Thought、Finish 一起暴露给模型的用户工具注册表。 */
   readonly toolRegistry?: ToolRegistry;
-  /** Overrides the built-in ReAct system prompt. */
+  /** 覆盖内置的 ReAct 系统提示词。 */
   readonly systemPrompt?: string;
-  /** Maximum Thought/tool-call rounds before returning a bounded failure response. */
+  /** Thought/工具调用的最大轮数，超出后返回限定步数失败响应。 */
   readonly maxSteps?: number;
 }
 
-/** Aggregate steps and model token usage from the most recent run. */
+/** 最近一次运行的总步骤数和模型 token 使用量。 */
 export interface ReActSessionMetadata {
   readonly total_steps: number;
   readonly total_tokens: number;
@@ -78,7 +78,7 @@ function parseArguments(argumentsText: string): Record<string, unknown> {
   }
 }
 
-/** Python V1 ReAct loop with native Function Calling rather than text parsing. */
+/** ReAct Agent，使用原生 Function Calling 而不是文本解析。 */
 export class ReActAgent {
   public readonly name: string;
   public readonly llm: HelloAgentsLLM;
@@ -96,28 +96,28 @@ export class ReActAgent {
     this.toolRegistry = options.toolRegistry ?? new ToolRegistry();
   }
 
-  /** Aggregate steps and token usage from the most recent run. */
+  /** 最近一次运行的总步骤数和 token 使用量。 */
   public get sessionMetadata(): ReActSessionMetadata {
     return this.metadata;
   }
-  /** Returns a snapshot of completed user/assistant exchanges. */
+  /** 获取已完成用户/助手对话的副本。 */
   public getHistory(): readonly Message[] {
     return [...this.history];
   }
-  /** Registers a user tool or expandable tool group. */
+  /** 注册用户工具或可展开工具组。 */
   public addTool(tool: Tool | ExpandableTool, autoExpand = true): void {
     this.toolRegistry.register(tool, autoExpand);
   }
-  /** Unregisters a user tool by name. */
+  /** 按名称注销用户工具。 */
   public removeTool(name: string): boolean {
     return this.toolRegistry.unregister(name);
   }
-  /** Lists user tool names; built-in Thought and Finish are implicit. */
+  /** 列出用户工具名称；内置 Thought 和 Finish 不在此列表中。 */
   public listTools(): string[] {
     return this.toolRegistry.list();
   }
 
-  /** Runs a bounded Thought/tool/Finish loop and records the completed exchange. */
+  /** 运行有界的 Thought/工具/Finish 循环，并保存完整对话。 */
   public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
     const messages: LLMMessage[] = [
       { role: 'system', content: this.systemPrompt },

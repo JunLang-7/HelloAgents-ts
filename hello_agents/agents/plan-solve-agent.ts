@@ -4,29 +4,29 @@ import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
 import { Message } from '../core/message.js';
 import { ToolRegistry } from '../tools/registry.js';
 
-/** Default prompt that asks the model for a literal list of executable steps. */
+/** 默认规划提示词，要求模型输出可执行步骤组成的字符串列表。 */
 export const DEFAULT_PLANNER_PROMPT =
   '你是一个顶级的AI规划专家。请将问题拆成独立、可执行的步骤，并以 Python 字符串列表输出。\n\n问题: {question}';
-/** Default prompt used to execute each planned step with prior results. */
+/** 默认执行提示词，携带历史结果执行当前计划步骤。 */
 export const DEFAULT_EXECUTOR_PROMPT =
   '请严格执行当前步骤并只输出该步骤的最终答案。\n\n# 原始问题:\n{question}\n\n# 完整计划:\n{plan}\n\n# 历史步骤与结果:\n{history}\n\n# 当前步骤:\n{current_step}';
-/** Returned when the planner response cannot be safely parsed into steps. */
+/** 规划响应无法安全解析为步骤时返回的结果。 */
 export const INVALID_PLAN_ANSWER = '无法生成有效的行动计划，任务终止。';
 
 export interface PlanSolveAgentOptions {
-  /** Stable agent name used in history and lifecycle events. */
+  /** Agent 名称，用于历史记录和生命周期事件。 */
   readonly name: string;
-  /** LLM client used for planning and execution. */
+  /** 用于规划和执行的 LLM 客户端。 */
   readonly llm: HelloAgentsLLM;
-  /** Optional instruction prepended to both planning and execution calls. */
+  /** 规划和执行调用前追加的可选系统提示词。 */
   readonly systemPrompt?: string;
-  /** Optional tool registry available while planning and executing. */
+  /** 规划和执行阶段可用的可选工具注册表。 */
   readonly toolRegistry?: ToolRegistry;
-  /** Enables function calling when a registry is supplied. */
+  /** 提供工具注册表时是否启用 Function Calling。 */
   readonly enableToolCalling?: boolean;
-  /** Maximum function-calling rounds per planning or execution request. */
+  /** 每次规划或执行请求允许的最大 Function Calling 轮数。 */
   readonly maxToolIterations?: number;
-  /** Partial override for the planner and executor prompts. */
+  /** 对规划器和执行器提示词的部分覆盖。 */
   readonly customPrompts?: { readonly planner?: string; readonly executor?: string };
 }
 
@@ -35,7 +35,7 @@ function extractPlanText(response: string): string {
   return (block ?? response).trim();
 }
 
-/** Parses only a literal list of quoted strings; it never executes model output. */
+/** 仅解析由引号字符串组成的字面量列表，绝不执行模型输出。 */
 export function parsePlan(response: string): string[] {
   const text = extractPlanText(response);
   try {
@@ -83,7 +83,7 @@ function render(template: string, values: Record<string, string>): string {
   );
 }
 
-/** Python V1 PlanAndSolveAgent, named PlanSolveAgent for the public TypeScript API. */
+/** PlanAndSolveAgent 的 TypeScript 实现，公共 API 使用 PlanSolveAgent 名称。 */
 export class PlanSolveAgent {
   public readonly name: string;
   public readonly llm: HelloAgentsLLM;
@@ -109,12 +109,12 @@ export class PlanSolveAgent {
     this.executorPrompt = options.customPrompts?.executor ?? DEFAULT_EXECUTOR_PROMPT;
   }
 
-  /** Returns a snapshot of completed user/assistant exchanges. */
+  /** 获取已完成用户/助手对话的副本。 */
   public getHistory(): readonly Message[] {
     return [...this.history];
   }
 
-  /** Creates a plan, executes its steps in order, and returns the final step result. */
+  /** 生成计划，按顺序执行每个步骤，并返回最后一步结果。 */
   public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
     const plan = await this.createPlan(input, options);
     if (plan.length === 0) return this.complete(input, INVALID_PLAN_ANSWER);
@@ -122,7 +122,7 @@ export class PlanSolveAgent {
     return this.complete(input, results.at(-1) ?? '');
   }
 
-  /** Emits planning and per-step execution events for one plan-and-solve run. */
+  /** 为一次计划和执行运行发送规划及逐步执行事件。 */
   public async *arunStream(input: string, options?: LLMInvokeOptions): AsyncIterable<AgentEvent> {
     yield AgentEvent.create('agent_start', this.name, { input_text: input });
     try {
@@ -252,5 +252,5 @@ export class PlanSolveAgent {
   }
 }
 
-/** Compatibility alias for Python's `PlanAndSolveAgent` name. */
+/** Python `PlanAndSolveAgent` 名称的兼容别名。 */
 export { PlanSolveAgent as PlanAndSolveAgent };

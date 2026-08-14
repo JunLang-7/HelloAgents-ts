@@ -4,7 +4,7 @@ import { ToolError } from '../core/errors.js';
 import { ToolErrorCode } from './errors.js';
 import { ToolResponse } from './response.js';
 
-/** Validates legacy parameter metadata retained for Python protocol compatibility. */
+/** 校验为 Python 协议兼容而保留的旧版参数元数据。 */
 export const toolParameterSchema = z
   .object({
     name: z.string().min(1),
@@ -14,10 +14,10 @@ export const toolParameterSchema = z
     default: z.unknown().optional()
   })
   .strict();
-/** Legacy parameter metadata. Execution validation is defined by `inputSchema`. */
+/** 旧版参数元数据；实际执行校验由 `inputSchema` 定义。 */
 export type ToolParameter = z.output<typeof toolParameterSchema>;
 
-/** OpenAI function-calling schema emitted by a registered tool. */
+/** 注册工具输出的 OpenAI Function Calling 模式。 */
 export interface OpenAIToolSchema {
   readonly type: 'function';
   readonly function: {
@@ -28,24 +28,24 @@ export interface OpenAIToolSchema {
 }
 
 export interface ToolOptions<TSchema extends z.ZodType> {
-  /** Unique function-call name exposed to the model. */
+  /** 暴露给模型的唯一函数调用名称。 */
   readonly name: string;
-  /** Model-facing explanation of when to call the tool. */
+  /** 面向模型说明何时调用此工具。 */
   readonly description: string;
-  /** Zod schema used to validate execution input and derive JSON Schema. */
+  /** 用于校验执行输入并生成 JSON Schema 的 Zod 模式。 */
   readonly inputSchema: TSchema;
-  /** Compatibility metadata only. Zod remains the execution-schema authority. */
+  /** 仅用于兼容的元数据；Zod 仍是执行模式的权威来源。 */
   readonly parameters?: readonly ToolParameter[];
-  /** Explicit compatibility escape hatch for schemas Zod cannot represent in JSON Schema. */
+  /** Zod 无法表示为 JSON Schema 时使用的显式兼容出口。 */
   readonly jsonSchema?: Record<string, unknown>;
 }
 
-/** A named group that expands into concrete tools when registered. */
+/** 注册时可展开为多个具体工具的命名工具组。 */
 export interface ExpandableTool {
   readonly name: string;
   readonly description: string;
   readonly expandable: true;
-  /** Returns the concrete tools exposed by this group. */
+  /** 返回此工具组暴露的具体工具。 */
   getExpandedTools(): readonly Tool[];
 }
 
@@ -68,8 +68,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Zod-validated tool base class. `execute` is the TypeScript equivalent of
- * Python's `run_with_timing`, including exception wrapping and protocol context.
+ * 工具基类 - 新协议版本。
+ *
+ * 支持两种使用模式：
+ * 1. 普通模式：工具作为单一实体使用
+ * 2. 可展开模式：工具可以展开为多个独立的子工具
+ *
+ * 新协议特性：
+ * - `run()` 返回 ToolResponse 对象，而不是字符串
+ * - `execute()` 自动添加时间统计
+ * - 支持结构化的状态、数据和错误信息
+ *
+ * `execute` 是 Python `run_with_timing` 的 TypeScript 对应实现，包含异常包装和协议上下文。
  */
 export abstract class Tool<TSchema extends z.ZodType = z.ZodType> {
   public readonly name: string;
@@ -99,7 +109,13 @@ export abstract class Tool<TSchema extends z.ZodType = z.ZodType> {
     return `工具执行时发生未处理的异常: ${error instanceof Error ? error.message : String(error)}`;
   }
 
-  /** Validates input, executes the tool, and normalizes failures to a protocol response. */
+  /**
+   * 校验输入、执行工具，并将异常标准化为协议响应。
+   *
+   * @param input 工具参数。
+   * @param invocationContext 调用上下文，会写入响应 context。
+   * @returns 标准化的工具响应对象。
+   */
   public async execute(
     input: unknown,
     invocationContext: Record<string, unknown> = {}
@@ -128,7 +144,7 @@ export abstract class Tool<TSchema extends z.ZodType = z.ZodType> {
     }
   }
 
-  /** Async compatibility alias for `execute`. */
+  /** `execute` 的异步兼容别名。 */
   public async arun(
     input: unknown,
     invocationContext?: Record<string, unknown>
@@ -136,7 +152,12 @@ export abstract class Tool<TSchema extends z.ZodType = z.ZodType> {
     return this.execute(input, invocationContext);
   }
 
-  /** Converts the Zod input contract into an OpenAI function-calling schema. */
+  /**
+   * 将 Zod 输入契约转换为 OpenAI Function Calling 模式。
+   *
+   * @returns OpenAI 函数调用模式。
+   * @throws ToolError 当输入模式无法表示为 JSON Schema 时抛出。
+   */
   public toOpenAISchema(): OpenAIToolSchema {
     const parameters = this.jsonSchema ?? this.jsonSchemaFromZod();
     if (parameters.type !== 'object') {
@@ -185,11 +206,11 @@ export abstract class Tool<TSchema extends z.ZodType = z.ZodType> {
 }
 
 export interface FunctionToolOptions<TSchema extends z.ZodType> extends ToolOptions<TSchema> {
-  /** Function invoked after input validation. Its output becomes the response text. */
+  /** 输入校验后调用的函数；其返回值会成为响应文本。 */
   readonly handler: (input: z.output<TSchema>) => unknown | Promise<unknown>;
 }
 
-/** Wraps a regular function with the Tool protocol. */
+/** 使用标准 Tool 协议包装普通函数。 */
 export class FunctionTool<TSchema extends z.ZodType = z.ZodType> extends Tool<TSchema> {
   private readonly handler: (input: z.output<TSchema>) => unknown | Promise<unknown>;
 
@@ -212,7 +233,7 @@ export class FunctionTool<TSchema extends z.ZodType = z.ZodType> extends Tool<TS
   }
 }
 
-/** Create a named tool action for composition in an expandable tool group. */
+/** 创建可在可展开工具组中组合的命名工具 action。 */
 export function toolAction<TSchema extends z.ZodType>(
   options: FunctionToolOptions<TSchema>
 ): FunctionTool<TSchema> {

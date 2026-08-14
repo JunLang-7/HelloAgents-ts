@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { parseOrThrow } from './errors.js';
 import { Message, messageSchema } from './message.js';
-/** Validates the Python-compatible serialized session payload. */
+/** 校验 Python 兼容的序列化会话载荷。 */
 export const sessionDataSchema = z
   .object({
     session_id: z.string().min(1),
@@ -18,9 +18,9 @@ export const sessionDataSchema = z
     metadata: z.record(z.string(), z.unknown())
   })
   .strict();
-/** JSON-compatible session content persisted by `SessionStore`. */
+/** `SessionStore` 持久化的 JSON 兼容会话格式。 */
 export type SessionDataJSON = z.output<typeof sessionDataSchema>;
-/** Validated persisted session with convenient message reconstruction. */
+/** 校验后的持久化会话，提供消息重建能力。 */
 export class SessionData {
   public constructor(private readonly value: SessionDataJSON) {}
   get sessionId() {
@@ -29,11 +29,11 @@ export class SessionData {
   get history() {
     return this.value.history.map((message) => Message.fromJSON(message));
   }
-  /** Serializes the session using snake_case protocol fields. */
+  /** 使用 snake_case 协议字段序列化会话。 */
   public toJSON() {
     return this.value;
   }
 }
-/** Validates an unknown persisted payload and wraps it as session data. */
+/** 校验未知持久化载荷并包装为会话数据。 */
 export const parseSessionData = (input: unknown) =>
   new SessionData(parseOrThrow(sessionDataSchema, input, 'SessionData'));

@@ -2,13 +2,13 @@ import { Message } from '../core/message.js';
 import { TokenCounter } from './token-counter.js';
 
 export interface HistoryManagerOptions {
-  /** Maximum aggregate token count before compaction is attempted. */
+  /** 尝试压缩前允许的最大 token 总数。 */
   readonly maxTokens: number;
-  /** Number of complete recent user turns to preserve verbatim. */
+  /** 原样保留的最近完整用户轮数。 */
   readonly retainRecentTurns?: number;
-  /** Counter used to estimate message token usage. */
+  /** 用于估计消息 token 使用量的计数器。 */
   readonly tokenCounter?: TokenCounter;
-  /** Optional async summarizer for compacted older turns. */
+  /** 用于压缩较早轮次的可选异步摘要函数。 */
   readonly summarize?: (messages: readonly Message[]) => string | Promise<string>;
 }
 
@@ -21,7 +21,7 @@ function turns(messages: readonly Message[]): Message[][] {
   return result;
 }
 
-/** Conversation history that only compacts complete older user turns. */
+/** 对话历史管理器，只压缩较早的完整用户轮次。 */
 export class HistoryManager {
   private messages: Message[] = [];
   private readonly maxTokens: number;
@@ -37,27 +37,35 @@ export class HistoryManager {
       options.summarize ?? ((items) => items.map((item) => item.toText()).join('\n'));
   }
 
-  /** Appends a message without automatically compacting history. */
+  /**
+   * 添加消息，但不会自动压缩历史。
+   *
+   * @param message 要追加的消息。
+   */
   public add(message: Message): void {
     this.messages.push(message);
   }
 
-  /** Returns a mutable-safe snapshot of all retained messages. */
+  /** 返回所有保留消息的副本。 */
   public getAll(): readonly Message[] {
     return [...this.messages];
   }
 
-  /** Removes all retained messages. */
+  /** 清空所有保留消息。 */
   public clear(): void {
     this.messages = [];
   }
 
-  /** Estimates total content tokens across retained messages. */
+  /** 估算所有保留消息的内容 token 总数。 */
   public tokenCount(): number {
     return this.messages.reduce((sum, message) => sum + this.counter.count(message.content), 0);
   }
 
-  /** Summarizes complete older turns when the configured token budget is exceeded. */
+  /**
+   * 超出 token 预算时，摘要较早的完整轮次。
+   *
+   * @returns 压缩后的历史消息副本。
+   */
   public async compact(): Promise<readonly Message[]> {
     if (this.tokenCount() <= this.maxTokens) return this.getAll();
     const grouped = turns(this.messages);

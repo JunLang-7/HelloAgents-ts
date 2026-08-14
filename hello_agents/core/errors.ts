@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod';
 
-/** Base error for all normalized HelloAgents failures. */
+/** HelloAgents 所有标准化异常的基类。 */
 export class HelloAgentsError extends Error {
   public constructor(
     message: string,
@@ -11,24 +11,24 @@ export class HelloAgentsError extends Error {
   }
 }
 
-/** Provider or LLM client failure. */
+/** 提供商或 LLM 客户端错误。 */
 export class LLMError extends HelloAgentsError {}
-/** Caller cancellation of an LLM operation. */
+/** 调用方取消 LLM 操作。 */
 export class LLMAbortError extends LLMError {}
-/** Timeout-triggered LLM cancellation. */
+/** 因超时触发的 LLM 取消。 */
 export class LLMTimeoutError extends LLMAbortError {}
-/** Agent execution or lifecycle failure. */
+/** Agent 执行或生命周期错误。 */
 export class AgentError extends HelloAgentsError {}
-/** Invalid configuration or configuration source. */
+/** 配置或配置来源无效。 */
 export class ConfigError extends HelloAgentsError {}
-/** Tool validation, execution, or protocol failure. */
+/** 工具校验、执行或协议错误。 */
 export class ToolError extends HelloAgentsError {}
-/** Skill discovery, parsing, or loading failure. */
+/** 技能发现、解析或加载错误。 */
 export class SkillError extends HelloAgentsError {}
 
 type ErrorConstructor = new (message: string, cause?: unknown) => HelloAgentsError;
 
-/** Validates unknown input and raises the selected normalized error on failure. */
+/** 校验未知输入，失败时抛出指定的标准化异常。 */
 export function parseOrThrow<T>(
   schema: ZodType<T>,
   input: unknown,

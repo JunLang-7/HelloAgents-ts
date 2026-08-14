@@ -8,24 +8,24 @@ import { ToolRegistry } from '../tools/registry.js';
 import type { ToolFilter } from '../tools/tool-filter.js';
 
 export interface CreateAgentOptions {
-  /** Case-insensitive agent strategy: react, reflection, plan, or simple. */
+  /** Agent 类型，支持 react、reflection、plan、simple，不区分大小写。 */
   readonly agentType: string;
-  /** Stable name assigned to the created agent. */
+  /** 创建的 Agent 名称。 */
   readonly name: string;
-  /** LLM client shared with the created agent. */
+  /** 创建的 Agent 使用的 LLM 客户端。 */
   readonly llm: HelloAgentsLLM;
-  /** Optional tool registry passed to the created agent. */
+  /** 传递给创建的 Agent 的可选工具注册表。 */
   readonly toolRegistry?: ToolRegistry;
-  /** Skill-discovery settings supported by agent types that extend `Agent`. */
+  /** Agent 使用的技能发现配置。 */
   readonly config?: Pick<ResolvedConfig, 'skillsEnabled' | 'skillsDir' | 'skillsAutoRegister'>;
-  /** Optional system instruction passed to the created agent. */
+  /** 传递给创建的 Agent 的可选系统提示词。 */
   readonly systemPrompt?: string;
 }
 
-/** Union of the four concrete public agent classes. */
+/** 四种公共 Agent 实现的联合类型。 */
 export type CreatedAgent = SimpleAgent | ReActAgent | ReflectionAgent | PlanSolveAgent;
 
-/** Creates one of the four public agent paradigms by its contract name. */
+/** 根据类型名称创建四种公共 Agent 范式之一。 */
 export function createAgent(
   agentType: string,
   name: string,
@@ -78,13 +78,13 @@ export function createAgent(
 }
 
 export interface SubagentRunOptions {
-  /** Optional allow/deny filter applied while cloning the parent registry. */
+  /** 克隆父注册表时应用的可选允许/拒绝过滤器。 */
   readonly toolFilter?: ToolFilter;
-  /** Per-run override for the child's maximum tool iterations. */
+  /** 当前运行覆盖的子代理最大工具迭代次数。 */
   readonly maxSteps?: number;
 }
 
-/** Usage and failure details returned from a delegated task. */
+/** 委托任务返回的使用情况和失败详情。 */
 export interface SubagentMetadata {
   readonly steps: number;
   readonly tokens: number;
@@ -93,30 +93,30 @@ export interface SubagentMetadata {
   readonly error?: string;
 }
 
-/** Normalized result returned by a subagent runner. */
+/** 子代理运行器返回的标准化结果。 */
 export interface SubagentResult {
   readonly success: boolean;
   readonly summary: string;
   readonly metadata: SubagentMetadata;
 }
 
-/** Contract used by `TaskTool` to execute delegated work. */
+/** `TaskTool` 执行委托任务时使用的协议。 */
 export interface SubagentRunner {
-  /** Runs a task in an isolated child agent. */
+  /** 在隔离的子 Agent 中运行任务。 */
   runAsSubagent(task: string, options: SubagentRunOptions): Promise<SubagentResult>;
 }
 
-/** Supported child-agent strategy names. */
+/** 支持的子 Agent 类型名称。 */
 export type AgentType = 'react' | 'reflection' | 'plan' | 'simple';
-/** Produces an isolated runner for a requested strategy. */
+/** 根据请求的类型创建隔离运行器。 */
 export type AgentFactory = (agentType: string) => Promise<SubagentRunner> | SubagentRunner;
 
 export interface AgentFactoryOptions {
-  /** LLM client used by all generated child agents. */
+  /** 所有生成的子 Agent 使用的 LLM 客户端。 */
   readonly llm: HelloAgentsLLM;
-  /** Parent registry copied into isolated child registries. */
+  /** 复制到隔离子注册表的父注册表。 */
   readonly toolRegistry: ToolRegistry;
-  /** Default maximum tool iterations for generated child agents. */
+  /** 生成的子 Agent 默认最大工具迭代次数。 */
   readonly maxToolIterations?: number;
 }
 
@@ -148,11 +148,11 @@ export class IsolatedSubagent implements SubagentRunner {
     private readonly options: AgentFactoryOptions,
     private readonly type: AgentType
   ) {}
-  /** Strategy used by this child runner. */
+  /** 当前子代理运行器使用的 Agent 类型。 */
   public get agentType(): AgentType {
     return this.type;
   }
-  /** Runs a child with a filtered registry without mutating parent agent state. */
+  /** 使用过滤后的注册表运行子 Agent，不修改父 Agent 状态。 */
   public async runAsSubagent(task: string, options: SubagentRunOptions): Promise<SubagentResult> {
     const started = performance.now();
     const registry = cloneFilteredRegistry(this.options.toolRegistry, options.toolFilter);
@@ -200,7 +200,7 @@ export class IsolatedSubagent implements SubagentRunner {
   }
 }
 
-/** Creates isolated child agents; the parent registry is never mutated. */
+/** 创建隔离的子 Agent；不会修改父注册表。 */
 export function createAgentFactory(options: AgentFactoryOptions): AgentFactory {
   return (requestedType: string) => {
     const type = requestedType.toLowerCase();
@@ -214,7 +214,7 @@ export function createAgentFactory(options: AgentFactoryOptions): AgentFactory {
   };
 }
 
-/** Default factory used by TaskTool when a caller wants isolated child agents. */
+/** TaskTool 默认使用的隔离子 Agent 工厂。 */
 export function defaultSubagentFactory(options: AgentFactoryOptions): AgentFactory {
   return createAgentFactory(options);
 }

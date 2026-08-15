@@ -106,7 +106,7 @@ export class HelloAgentsLLM {
   public lastCallStats: StreamStats | undefined;
 
   /** 从显式选项或环境变量创建与提供商无关的 LLM 客户端。 */
-  public constructor(options: HelloAgentsLLMOptions) {
+  public constructor(options: HelloAgentsLLMOptions = {}) {
     const env = parseOrThrow(
       environmentSchema,
       options.env ?? runtimeEnvironment(),

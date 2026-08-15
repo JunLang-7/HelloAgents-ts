@@ -1,6 +1,6 @@
 {
   "name": "@junlang-7/helloagents",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bun-first, Node.js-compatible TypeScript implementation of HelloAgents.",
   "keywords": [
     "agents",

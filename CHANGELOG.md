@@ -5,6 +5,13 @@ All notable changes are documented here. This project follows
 
 ## Unreleased
 
+## [1.0.1] - 2026-08-15
+
+### Fixed
+
+- `HelloAgentsLLM` can now be constructed without explicit options; required
+  values are read from the `LLM_*` environment variables.
+
 ## [1.0.0] - 2026-08-14
 
 ### Added

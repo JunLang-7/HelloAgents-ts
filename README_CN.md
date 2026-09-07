@@ -1,8 +1,12 @@
-# HelloAgents TypeScript
+# HelloAgents TypeScript — 教学版
 
 [English](README.md) | [简体中文](README_CN.md)
 
-> 🤖 生产级多智能体框架 - 工具响应协议、上下文工程、会话持久化、子代理机制等 16 项核心能力。
+> 🚧 **`learn-version` 开发分支（`0.2.0`）**——忠实移植 Python [`learn_version`](https://github.com/jjyaoao/HelloAgents/tree/learn_version) 分支的 TypeScript 教学版本。本版本线与生产向 `1.x` 独立维护，并通过 npm `learn` tag 发布。
+>
+> 忠实移植尚在进行中，以下文档暂时仍描述 `1.x` 实现；具体进度以 `v0.2.0` Milestone 为准。
+
+> 🤖 教学友好的多智能体框架——使用轻量、直观的抽象配套 Datawhale Hello-Agents 教程。
 
 [![Bun 1.3+](https://img.shields.io/badge/bun-1.3%2B-f9f1e1.svg)](https://bun.sh/)
 [![Node.js 22+](https://img.shields.io/badge/node-22%2B-339933.svg)](https://nodejs.org/)

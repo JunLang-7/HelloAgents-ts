@@ -1,8 +1,12 @@
-# HelloAgents TypeScript
+# HelloAgents TypeScript — Learn Version
 
 [English](README.md) | [简体中文](README_CN.md)
 
-> 🤖 Production-Grade Multi-Agent Framework - Tool Response Protocol, Context Engineering, Session Persistence, Sub-Agent Mechanism, and 16 core capabilities.
+> 🚧 **`learn-version` development branch (`0.2.0`)** — a teaching-oriented TypeScript port of the Python [`learn_version`](https://github.com/jjyaoao/HelloAgents/tree/learn_version) branch. This line is maintained separately from the production-oriented `1.x` line and is published with the npm `learn` tag.
+>
+> The documentation below still describes the `1.x` implementation while the faithful teaching-version port is in progress. Track the work in the `v0.2.0` milestone.
+
+> 🤖 Teaching-friendly Multi-Agent Framework — lightweight abstractions aligned with the Datawhale Hello-Agents tutorial.
 
 [![Bun 1.3+](https://img.shields.io/badge/bun-1.3%2B-f9f1e1.svg)](https://bun.sh/)
 [![Node.js 22+](https://img.shields.io/badge/node-22%2B-339933.svg)](https://nodejs.org/)

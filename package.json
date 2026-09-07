@@ -1,7 +1,7 @@
 {
   "name": "@junlang-7/helloagents",
-  "version": "1.0.1",
-  "description": "Bun-first, Node.js-compatible TypeScript implementation of HelloAgents.",
+  "version": "0.2.0",
+  "description": "Teaching-oriented TypeScript port of the HelloAgents learn_version branch.",
   "keywords": [
     "agents",
     "ai",
@@ -43,7 +43,8 @@
   ],
   "publishConfig": {
     "access": "public",
-    "registry": "https://registry.npmjs.org"
+    "registry": "https://registry.npmjs.org",
+    "tag": "learn"
   },
   "sideEffects": false,
   "scripts": {

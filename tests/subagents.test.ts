@@ -123,15 +123,15 @@ describe('default subagent factory', () => {
   });
   test('uses an isolated filtered registry and reports tools used without polluting the parent', async () => {
     const source = registry();
+    let markerTurn = 0;
     const adapter = new MockAdapter({
-      invokeWithTools: () => ({
-        content: null,
-        tool_calls: [{ id: 'call', name: 'Read', arguments: '{}' }],
+      // #71 SimpleAgent uses the teaching text-marker protocol, not native calls.
+      invoke: () => ({
+        content: markerTurn++ === 0 ? '[TOOL_CALL:Read:{}]' : 'complete',
         model: 'test-model',
-        usage: { total_tokens: 4 },
+        usage: {},
         latency_ms: 0
-      }),
-      invoke: () => ({ content: 'complete', model: 'test-model', usage: {}, latency_ms: 0 })
+      })
     });
     const factory = createAgentFactory({
       llm: new HelloAgentsLLM({ ...config, adapter }),

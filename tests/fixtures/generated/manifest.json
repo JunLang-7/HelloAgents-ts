@@ -18,7 +18,9 @@
     },
     "messages": {
       "file": "messages.json",
-      "sources": ["hello_agents/core/message.py"]
+      "sources": [
+        "hello_agents/core/message.py"
+      ]
     },
     "serialization": {
       "file": "serialization.json",

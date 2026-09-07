@@ -57,16 +57,17 @@ def generate() -> Dict[str, Any]:
         stats_result = mt.run({"action": "stats"})
         results["memory_tool"]["stats"] = {"input": {"action": "stats"}, "output": stats_result}
 
-        # update (use first working memory id)
+        # update (use first working memory id; record the REAL id and let the
+        # normalizer turn it into UUID_n — do not hand-write the placeholder)
         wm = mt.memory_manager.memory_types["working"]
         all_mem = wm.get_all() if hasattr(wm, "get_all") else []
         if all_mem:
             mem_id = all_mem[0].id
             update_result = mt.run({"action": "update", "memory_id": mem_id, "content": "更新后的记忆内容", "importance": 0.9})
-            results["memory_tool"]["update"] = {"input": {"action": "update", "memory_id": "UUID_1", "content": "更新后的记忆内容", "importance": 0.9}, "output": update_result}
+            results["memory_tool"]["update"] = {"input": {"action": "update", "memory_id": mem_id, "content": "更新后的记忆内容", "importance": 0.9}, "output": update_result}
 
             remove_result = mt.run({"action": "remove", "memory_id": mem_id})
-            results["memory_tool"]["remove"] = {"input": {"action": "remove", "memory_id": "UUID_1"}, "output": remove_result}
+            results["memory_tool"]["remove"] = {"input": {"action": "remove", "memory_id": mem_id}, "output": remove_result}
 
         # forget
         forget_result = mt.run({"action": "forget", "strategy": "importance_based", "threshold": 0.1})

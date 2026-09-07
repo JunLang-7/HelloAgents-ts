@@ -119,6 +119,12 @@ def generate_all(output_dir: Path) -> Dict[str, Any]:
 
     for case_name in CASES:
         print(f"  generating {case_name} ...", file=sys.stderr)
+        # Seed BEFORE generate() so any randomness inside the case is fixed,
+        # and reset storage-mock singletons so state cannot leak across cases.
+        from normalizers import seed_rngs
+        from mocks import MockQdrantConnectionManager
+        seed_rngs()
+        MockQdrantConnectionManager.reset()
         module = importlib.import_module(f"cases.{case_name}")
         raw = module.generate()
         normalized = normalize_case(raw)

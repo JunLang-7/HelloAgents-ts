@@ -112,10 +112,11 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     area: 'memory/embedding',
     upstream:
       "_build_embedder passes model_name kwarg to TFIDFEmbedding which doesn't accept it, so TF-IDF fallback silently fails",
-    ts: 'TF-IDF fallback accepts optional model_name (ignored) and works',
-    status: 'fixed',
+    ts: 'No TS embedding module yet (tracked in #84). The Python fixture generator works around the upstream bug by constructing/fitting TFIDFEmbedding directly; the TS #84 implementation must NOT replicate this bug.',
+    status: 'unsupported',
     approved: true,
-    reason: 'Upstream bug; TF-IDF is the offline fallback and should work'
+    reason:
+      'Records an upstream bug as forward guidance for #84; no TS behavior exists to compare yet'
   },
   {
     id: 'DIFF-010',
@@ -177,6 +178,17 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     status: 'unsupported',
     approved: true,
     reason: 'Serialization helpers are part of issue #80 scope; pickle intentionally not portable'
+  },
+  {
+    id: 'DIFF-016',
+    area: 'tools/validation',
+    upstream:
+      "MemoryTool.run manually checks for a missing required 'action' and returns '❌ 参数验证失败：缺少必需的参数'",
+    ts: "zod inputSchema rejects at the Tool.execute boundary: '工具 memory 参数无效: action'",
+    status: 'kept',
+    approved: true,
+    reason:
+      'TS uses zod as the single validation layer instead of per-tool manual checks; both return an error result, text differs by framework. Fixture test asserts error status, not exact text.'
   }
 ];
 

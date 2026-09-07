@@ -20,7 +20,12 @@
     "decay_factor": 0.95,
     "importance_threshold": 0.1,
     "max_capacity": 100,
-    "perceptual_memory_modalities": ["text", "image", "audio", "video"],
+    "perceptual_memory_modalities": [
+      "text",
+      "image",
+      "audio",
+      "video"
+    ],
     "storage_path": "./memory_data",
     "working_memory_capacity": 10,
     "working_memory_tokens": 2000,

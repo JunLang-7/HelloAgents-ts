@@ -16,10 +16,10 @@ Rules:
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import random
 import re
-from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -48,10 +48,19 @@ def normalize_value(value: Any, uuid_map: dict[str, str] | None = None) -> Any:
     """Recursively normalize a JSON-serializable value."""
     if uuid_map is None:
         uuid_map = {}
+    # numpy 2.x scalars: np.float64 subclasses float, but np.int64 no longer
+    # subclasses int — convert all numpy scalars to native Python first.
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, np.ndarray):
+        return [normalize_value(v, uuid_map) for v in value.tolist()]
     if value is None or isinstance(value, bool):
         return value
     if isinstance(value, (int, float)):
         if isinstance(value, float):
+            # banker's rounding (round-half-to-even); the TS normalizer mirrors
+            # it. Limit: an exact 4-decimal .5 tie may diverge across runtimes
+            # due to IEEE-754 representation — fixture cases must avoid ties.
             return round(value, 4)
         return value
     if isinstance(value, str):
@@ -60,7 +69,13 @@ def normalize_value(value: Any, uuid_map: dict[str, str] | None = None) -> Any:
         return [normalize_value(v, uuid_map) for v in value]
     if isinstance(value, dict):
         return {k: normalize_value(v, uuid_map) for k, v in value.items()}
-    return str(value)
+    # datetime/date and any other non-primitive: stringify THEN re-run string
+    # normalization so TIME/UUID rules still apply (pydantic model_dump()
+    # returns datetime objects, not strings, which would otherwise leak raw
+    # timestamps into fixtures and break reproducibility).
+    if isinstance(value, (_dt.datetime, _dt.date)):
+        return _normalize_string(str(value), uuid_map)
+    return _normalize_string(str(value), uuid_map)
 
 
 def _normalize_string(text: str, uuid_map: dict[str, str]) -> str:
@@ -79,8 +94,12 @@ def _normalize_string(text: str, uuid_map: dict[str, str]) -> str:
 
 
 def normalize_case(case_data: Any) -> Any:
-    """Normalize a complete fixture case (fresh UUID map per case)."""
-    seed_rngs()
+    """Normalize a complete fixture case (fresh UUID map per case).
+
+    Note: RNG seeding is NOT done here — normalization consumes already-produced
+    values, so seeding at this point is too late. Callers MUST invoke
+    seed_rngs() BEFORE running the case's generate() function.
+    """
     return normalize_value(case_data, {})
 
 

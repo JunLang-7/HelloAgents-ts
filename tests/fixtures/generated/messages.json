@@ -3,7 +3,7 @@
     "content": "test content for assistant",
     "metadata": {},
     "role": "assistant",
-    "timestamp": "2026-09-07 23:24:04.145888"
+    "timestamp": "TIME"
   },
   "message_roundtrip": {
     "input": {
@@ -13,7 +13,7 @@
         "tokens": 5
       },
       "role": "user",
-      "timestamp": "2026-09-07 23:24:04.145893"
+      "timestamp": "TIME"
     },
     "output": {
       "content": "with metadata",
@@ -22,26 +22,26 @@
         "tokens": 5
       },
       "role": "user",
-      "timestamp": "2026-09-07 23:24:04.145893"
+      "timestamp": "TIME"
     }
   },
   "message_system": {
     "content": "test content for system",
     "metadata": {},
     "role": "system",
-    "timestamp": "2026-09-07 23:24:04.145879"
+    "timestamp": "TIME"
   },
   "message_tool": {
     "content": "test content for tool",
     "metadata": {},
     "role": "tool",
-    "timestamp": "2026-09-07 23:24:04.145890"
+    "timestamp": "TIME"
   },
   "message_user": {
     "content": "test content for user",
     "metadata": {},
     "role": "user",
-    "timestamp": "2026-09-07 23:24:04.145885"
+    "timestamp": "TIME"
   },
   "message_with_metadata": {
     "content": "with metadata",
@@ -50,6 +50,6 @@
       "tokens": 5
     },
     "role": "user",
-    "timestamp": "2026-09-07 23:24:04.145893"
+    "timestamp": "TIME"
   }
 }

@@ -85,9 +85,9 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 
 - **Area:** `memory/embedding`
 - **Upstream:** `_build_embedder` passes `model_name` kwarg to `TFIDFEmbedding` which doesn't accept it, so TF-IDF fallback silently fails.
-- **TS:** TF-IDF fallback accepts optional `model_name` (ignored) and works.
-- **Status:** fixed
-- **Reason:** Upstream bug; TF-IDF is the offline fallback and should work.
+- **TS:** No TS embedding module exists yet (tracked in #84). The Python fixture generator works around the upstream bug by constructing and fitting `TFIDFEmbedding` directly; the TS #84 implementation must not replicate this bug.
+- **Status:** unsupported (approved)
+- **Reason:** This records an upstream bug as forward guidance for #84; there is no TS behaviour to compare yet.
 
 ### DIFF-010 — Qdrant eager connection
 
@@ -137,6 +137,14 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Status:** unsupported
 - **Reason:** Serialization helpers are part of issue #80 scope; pickle intentionally not portable.
 
+### DIFF-016 — Missing-required-parameter validation
+
+- **Area:** `tools/validation`
+- **Upstream:** `MemoryTool.run` manually checks for a missing `action` and returns `❌ 参数验证失败：缺少必需的参数`.
+- **TS:** The zod `inputSchema` rejects at the `Tool.execute` boundary with `工具 'memory' 参数无效: action`.
+- **Status:** kept (approved)
+- **Reason:** TS uses zod as a single validation layer instead of per-tool manual checks. Both return an error result (`status: "error"`); only the wording differs. The fixture test asserts the error status, not the exact text.
+
 ## Fixture normalization rules
 
 Generated fixtures (`tests/fixtures/generated/*.json`) apply these
@@ -146,7 +154,7 @@ normalizations so that TS and Python outputs can be compared exactly:
 | ---------- | --------------------------------------------------------------------------------- |
 | **TIME**   | ISO-8601 datetimes and `session_YYYYMMDD_HHMMSS` IDs → `"TIME"`                   |
 | **UUID**   | UUID v4 → `"UUID_<n>"` (1-based, per-case); `ID: <8hex>...` → `"ID: UUID_<n>..."` |
-| **FLOAT**  | Round to 4 decimal places                                                         |
+| **FLOAT**  | Round to 4 decimal places (round-half-to-even / banker's rounding)                |
 | **RAND**   | Fixed seed 42 (`random.seed(42)`, `np.random.seed(42)`)                           |
 | **ORDER**  | Non-deterministic lists sorted by stable key                                      |
 | **STREAM** | Streaming chunks collected and concatenated                                       |
@@ -155,3 +163,23 @@ Python side: `scripts/generate-fixtures/normalizers.py`
 TS side: `tests/fixture-harness/normalizer.ts`
 
 Both MUST be updated together.
+
+### FLOAT tie caveat
+
+Both sides use banker's rounding (round-half-to-even) to 4 decimals. At an
+exact 4-decimal `.5` tie (e.g. `0.12345`), multiplying by 10000 introduces
+IEEE-754 error that can point the opposite way from CPython's
+decimal-correct rounding, so the two runtimes may diverge on such values.
+All current fixtures avoid ties (importance/decay/threshold values have at
+most four non-tied digits). Fixture cases MUST NOT construct values whose
+4-decimal boundary is an exact `.5` tie.
+
+## Coverage gaps
+
+- **Vector / hybrid retrieval path.** The Python fixture generator replaces
+  Qdrant and Neo4j with in-memory mocks whose `search_similar` always returns
+  `[]`, forcing every search down the keyword fallback. Therefore the vector
+  similarity and hybrid retrieval code paths have **zero fixture coverage**.
+  They can only be exercised once the TS embedding/vector layer exists
+  (#84); vector-path fixtures are deferred until then and must be added as
+  part of that issue.

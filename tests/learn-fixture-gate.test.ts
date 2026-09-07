@@ -104,15 +104,28 @@ describe('defaults fixture', () => {
     expect(schema.safeParse({ expression: '2+2' }).success).toBe(true);
   });
 
-  it('MemoryTool parameter count matches upstream', () => {
+  it('MemoryTool full parameter metadata matches upstream (name/type/required/default)', () => {
     const mt = new MemoryTool({ config: new MemoryConfig({ storagePath: tmpDir }) });
-    expect(mt.getParameters().length).toBe(fx.memory_tool_parameters.length);
+    const tsParams = mt.getParameters().map((p) => ({
+      name: p.name,
+      type: p.type,
+      required: p.required,
+      default: p.default
+    }));
+    // Full field-by-field comparison — catches added/removed params and any
+    // change to type, required flag, or default value, not just the count.
+    expect(normalizeCase(tsParams)).toEqual(normalizeCase(fx.memory_tool_parameters));
   });
 
-  it('MemoryTool action set matches upstream', () => {
+  it('MemoryTool declares every upstream action in its action parameter', () => {
     const mt = new MemoryTool({ config: new MemoryConfig({ storagePath: tmpDir }) });
-    const actions = mt.getParameters().find((p) => p.name === 'action');
-    expect(actions).toBeDefined();
+    const actionParam = mt.getParameters().find((p) => p.name === 'action');
+    expect(actionParam).toBeDefined();
+    const description = String(actionParam!.description ?? '');
+    // Every upstream action must appear in the TS action parameter description.
+    for (const action of fx.memory_tool_actions as string[]) {
+      expect(description).toContain(action);
+    }
   });
 });
 
@@ -211,18 +224,21 @@ describe('memory_tool fixture', () => {
 describe('exceptions fixture', () => {
   const fx = loadFixture<any>('exceptions');
 
-  it('missing action returns an error response', async () => {
+  it('missing action returns error status (validation-framework diff, DIFF-016)', async () => {
     const mt = new MemoryTool({ config: new MemoryConfig({ storagePath: tmpDir }) });
     const result = await mt.execute({});
+    // Upstream: "❌ 参数验证失败：缺少必需的参数"; TS uses zod at the execute
+    // boundary ("工具 'memory' 参数无效: action"). Text differs by framework —
+    // assert the shared semantic: the result is an error.
+    expect(result.status).toBe('error');
     expect(result.text).toBeTruthy();
-    // Semantic: both sides reject missing action. Exact validation message
-    // differs (pydantic vs zod) — registered as framework difference.
   });
 
-  it('unknown action returns an error response', async () => {
+  it('unknown action returns the exact upstream message', async () => {
     const mt = new MemoryTool({ config: new MemoryConfig({ storagePath: tmpDir }) });
-    const result = await mt.execute(fx.unknown_action.input);
-    expect(result.text).toBeTruthy();
+    const { input, output } = fx.unknown_action;
+    const result = await mt.execute(input);
+    expect(normalizeCase(result.text)).toEqual(normalizeCase(output));
   });
 
   it('update with nonexistent id returns upstream-formatted warning', async () => {
@@ -246,18 +262,18 @@ describe('exceptions fixture', () => {
     expect(normalizeCase(result.text)).toEqual(normalizeCase(output));
   });
 
-  it('calculator invalid expression returns an error', async () => {
+  it('calculator invalid expression returns error status (DIFF-014)', async () => {
     const calc = new CalculatorTool();
     const result = await calc.execute(fx.calculator_invalid.input);
-    // Both reject invalid syntax; exact error text differs (Python ast vs JS evaluator).
-    expect(result.text).toBeTruthy();
+    // Exact text differs (Python ast vs JS evaluator); assert error semantic.
+    expect(result.status).toBe('error');
   });
 
-  it('calculator unsafe expression is blocked', async () => {
+  it('calculator unsafe expression is blocked with error status (DIFF-014)', async () => {
     const calc = new CalculatorTool();
     const result = await calc.execute(fx.calculator_unsafe.input);
-    // Both block unsafe attribute access; exact error text differs.
-    expect(result.text).toBeTruthy();
+    // Both block unsafe attribute access; exact text differs.
+    expect(result.status).toBe('error');
   });
 });
 

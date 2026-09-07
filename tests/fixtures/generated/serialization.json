@@ -17,14 +17,18 @@
       "content": "hello world",
       "metadata": {},
       "role": "user",
-      "timestamp": "2026-09-07 23:24:04.145618"
+      "timestamp": "TIME"
     }
   },
   "plain_dict_roundtrip": {
     "deserialized": {
       "key": "value",
       "nested": {
-        "a": [1, 2, 3]
+        "a": [
+          1,
+          2,
+          3
+        ]
       },
       "number": 42,
       "unicode": "中文测试"
@@ -32,7 +36,11 @@
     "input": {
       "key": "value",
       "nested": {
-        "a": [1, 2, 3]
+        "a": [
+          1,
+          2,
+          3
+        ]
       },
       "number": 42,
       "unicode": "中文测试"

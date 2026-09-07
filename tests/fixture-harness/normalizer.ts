@@ -19,12 +19,39 @@ const UUID_SHORT_RE = /\bID:\s*([0-9a-f]{8})\.\.\./gi;
 
 export const FIXTURE_SEED = 42;
 
+/**
+ * Round half to even ("banker's rounding") to match Python's round(x, 4).
+ * JS Math.round uses round-half-away-from-zero which diverges at exact .5
+ * ties; this mirrors CPython semantics, including negative numbers.
+ *
+ * Known limit: at an exact 4-decimal tie (e.g. 0.12345) multiplying by 10000
+ * introduces IEEE-754 error that can point the opposite way from CPython's
+ * decimal-correct rounding. All current fixtures avoid such ties (importance,
+ * decay, threshold values have <=4 non-tied digits). Fixture cases MUST NOT
+ * construct values whose 4-decimal boundary is an exact .5 tie.
+ */
+function round4(value: number): number {
+  if (!Number.isFinite(value)) return value;
+  const factor = 10000;
+  const scaled = value * factor;
+  const floor = Math.floor(scaled);
+  const frac = scaled - floor;
+  let rounded: number;
+  if (Math.abs(frac - 0.5) < 1e-9) {
+    // Exact tie: pick the even neighbour.
+    rounded = floor % 2 === 0 ? floor : floor + 1;
+  } else {
+    rounded = Math.round(scaled);
+  }
+  return rounded / factor;
+}
+
 export function normalizeValue(value: unknown, uuidMap: Map<string, string> = new Map()): unknown {
   if (value === null || value === undefined || typeof value === 'boolean') {
     return value;
   }
   if (typeof value === 'number') {
-    return Number.isInteger(value) ? value : Math.round(value * 10000) / 10000;
+    return Number.isInteger(value) ? value : round4(value);
   }
   if (typeof value === 'string') {
     return normalizeString(value, uuidMap);

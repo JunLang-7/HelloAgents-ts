@@ -13,8 +13,8 @@
  *
  * Usage: bun scripts/release-gate.ts
  */
-import { readFileSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, resolve, basename } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const MATRIX_PATH = join(ROOT, 'docs', 'learn-v0.2.0-compatibility-matrix.md');
@@ -29,7 +29,10 @@ interface MatrixRow {
   ownerStatus: string;
   owner: string;
   status: string;
+  recognized: boolean;
 }
+
+const KNOWN_STATUSES = ['Implemented', 'Planned', 'Optional planned', 'Out of scope', 'Partial'];
 
 function parseMatrix(content: string): MatrixRow[] {
   const rows: MatrixRow[] = [];
@@ -39,61 +42,107 @@ function parseMatrix(content: string): MatrixRow[] {
       .split('|')
       .slice(1, -1)
       .map((c) => c.trim());
-    if (cells.length < 4) continue;
-    // Skip header and separator rows.
+    // The document mixes 4-column tables (symbols|source|destination|owner)
+    // and 3-column tables (source+symbols|destination|owner). Normalize both.
+    if (cells.length !== 3 && cells.length !== 4) continue;
+    const ownerStatus = cells[cells.length - 1];
+    const destination = cells[cells.length - 2];
+    const symbols = cells[0];
+    const source = cells.length === 4 ? cells[1] : cells[0];
+    // Skip header/separator rows from any of the document's tables.
     if (
-      cells[0].startsWith('---') ||
-      cells[0].includes('Python import') ||
-      cells[0].includes('Python subpackage')
+      /owner\s*\/\s*status/i.test(ownerStatus) ||
+      destination === 'Intended TS destination' ||
+      destination === 'Required TS behavior' ||
+      symbols.startsWith('---')
     )
       continue;
-    const ownerStatus = cells[3];
-    // Extract status: patterns like "#73 / Implemented", "#81 / Planned", "Optional planned"
-    const statusMatch = ownerStatus.match(
-      /\/\s*(Implemented|Planned|Optional planned|Out of scope|Partial)/
-    );
-    const status = statusMatch ? statusMatch[1] : ownerStatus;
+    // Only module-implementation rows reference an upstream .py path or github
+    // URL. Behaviour/environment tables put code snippets there and have no
+    // implementation status — skip them.
+    const looksLikeModuleRow = /\.py|github\.com/.test(source) || /\.py|github\.com/.test(symbols);
+    if (!looksLikeModuleRow) continue;
+    const statusMatch = ownerStatus.match(new RegExp(`/\\s*(${KNOWN_STATUSES.join('|')})`));
     const ownerMatch = ownerStatus.match(/#(\d+)/);
     rows.push({
-      symbols: cells[0],
-      source: cells[1],
-      destination: cells[2],
+      symbols,
+      source,
+      destination,
       ownerStatus,
       owner: ownerMatch ? `#${ownerMatch[1]}` : 'unknown',
-      status
+      status: statusMatch ? statusMatch[1] : ownerStatus,
+      recognized: Boolean(statusMatch)
     });
   }
   return rows;
 }
 
+/** Extract module basename tokens from a matrix "destination" cell.
+ * Handles backtick paths, `;` separators, and `{a,b,c}` brace expansion. */
+function extractModuleTokens(destination: string): string[] {
+  const tokens = new Set<string>();
+  const backtickPaths = destination.match(/`[^`]*\.ts`/g) ?? [];
+  for (const raw of backtickPaths) {
+    // Strip backticks and split on ; , whitespace.
+    for (const part of raw
+      .replaceAll('`', '')
+      .split(/[;,\s]+/)
+      .filter(Boolean)) {
+      // Expand {a,b} against the surrounding name (best-effort: also push
+      // each brace member on its own).
+      const brace = part.match(/\{([^}]+)\}/);
+      if (brace) {
+        for (const member of brace[1].split(',')) {
+          const expanded = part.replace(brace[0], member);
+          tokens.add(basename(expanded).replace(/\.ts$/, ''));
+        }
+      } else {
+        tokens.add(basename(part).replace(/\.ts$/, ''));
+      }
+    }
+  }
+  return [...tokens].filter((t) => t && t !== 'index');
+}
+
+/** Concatenate the contents of every *.test.ts under tests/ (recursive). */
+function loadAllTestSources(dir: string): string {
+  let acc = '';
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      acc += loadAllTestSources(full);
+    } else if (entry.name.endsWith('.test.ts')) {
+      acc += readFileSync(full, 'utf-8');
+    }
+  }
+  return acc;
+}
+
 function checkMatrixEvidence(rows: MatrixRow[]): string[] {
   const failures: string[] = [];
   const implemented = rows.filter((r) => r.status === 'Implemented');
+  const testSources = loadAllTestSources(join(ROOT, 'tests'));
+
   for (const row of implemented) {
-    // Derive a keyword from the destination path to check for test/fixture evidence.
-    const dest = row.destination.toLowerCase();
-    const areaKeywords: Array<{ keyword: string; testPatterns: string[] }> = [
-      { keyword: 'memory', testPatterns: ['learn-memory', 'fixture-gate'] },
-      { keyword: 'calculator', testPatterns: ['calculator', 'fixture-gate'] },
-      { keyword: 'message', testPatterns: ['message', 'fixture-gate'] },
-      { keyword: 'config', testPatterns: ['config', 'fixture-gate'] },
-      { keyword: 'tool', testPatterns: ['tool', 'fixture-gate'] }
-    ];
-    let hasEvidence = false;
-    for (const { keyword, testPatterns } of areaKeywords) {
-      if (dest.includes(keyword)) {
-        for (const pattern of testPatterns) {
-          const testPath = join(ROOT, 'tests', `${pattern}.test.ts`);
-          if (existsSync(testPath)) {
-            hasEvidence = true;
-            break;
-          }
-        }
-      }
+    let tokens = extractModuleTokens(row.destination);
+    // Barrel destinations (only index.ts) yield no usable token — fall back to
+    // the exported symbol names in the symbols column (e.g. MemoryManager).
+    if (tokens.length === 0) {
+      const symbolNames = row.symbols.match(/`[A-Za-z_][A-Za-z0-9_]*`/g) ?? [];
+      tokens = symbolNames.map((s) => s.replaceAll('`', ''));
     }
-    if (!hasEvidence && implemented.length > 0) {
-      // For rows we can't automatically verify, warn but don't fail.
-      // The gate test is the authoritative evidence.
+    if (tokens.length === 0) {
+      failures.push(
+        `Implemented row has no parseable destination or symbols to verify: ${row.symbols.slice(0, 60)}`
+      );
+      continue;
+    }
+    const hasEvidence = tokens.some((token) => testSources.includes(token));
+    if (!hasEvidence) {
+      failures.push(
+        `Implemented row has NO test evidence (looked for [${tokens.slice(0, 6).join(', ')}] in tests/*.test.ts): ` +
+          `${row.owner} ${row.symbols.slice(0, 60)}`
+      );
     }
   }
   return failures;
@@ -102,11 +151,14 @@ function checkMatrixEvidence(rows: MatrixRow[]): string[] {
 function checkCompatRegistry(): string[] {
   const failures: string[] = [];
   const content = readFileSync(COMPAT_REGISTRY_PATH, 'utf-8');
-  // Find entries with status "kept" and approved: false.
-  const keptUnapproved = content.match(/status:\s*"kept"[\s\S]*?approved:\s*false/g);
-  if (keptUnapproved) {
-    for (const match of keptUnapproved) {
-      const idMatch = match.match(/id:\s*"([^"]+)"/);
+  // Split into per-entry blocks (each starts with `id: 'DIFF-`) so the id is
+  // inside the match window — matching from `status:"kept"` onward would miss it.
+  const entries = content.split(/(?=\{\s*\n\s*id:\s*'DIFF-)/);
+  for (const entry of entries) {
+    const isKept = /status:\s*'kept'/.test(entry);
+    const isUnapproved = /approved:\s*false/.test(entry);
+    if (isKept && isUnapproved) {
+      const idMatch = entry.match(/id:\s*'([^']+)'/);
       failures.push(
         `Unapproved "kept" difference: ${idMatch ? idMatch[1] : 'unknown'} — ` +
           `maintainer approval required before release (issue #82 criterion #6)`
@@ -169,6 +221,7 @@ function main(): void {
   const plannedCount = rows.filter(
     (r) => r.status === 'Planned' || r.status === 'Optional planned'
   ).length;
+  const unrecognized = rows.filter((r) => !r.recognized);
 
   failures.push(...checkMatrixEvidence(rows));
   failures.push(...checkCompatRegistry());
@@ -177,8 +230,11 @@ function main(): void {
 
   console.error(`\n=== Release Gate Report ===`);
   console.error(
-    `Matrix rows: ${rows.length} total (${implementedCount} implemented, ${plannedCount} planned)`
+    `Matrix rows: ${rows.length} total (${implementedCount} implemented, ${plannedCount} planned, ${unrecognized.length} unrecognized status)`
   );
+  for (const row of unrecognized) {
+    console.error(`  ! unrecognized status in ${row.owner}: "${row.ownerStatus.slice(0, 80)}"`);
+  }
   console.error(
     `Fixture cases: ${Object.keys(JSON.parse(readFileSync(join(FIXTURE_DIR, 'manifest.json'), 'utf-8')).cases).length}`
   );

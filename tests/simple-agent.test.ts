@@ -7,8 +7,10 @@ import {
   HelloAgentsLLM,
   MockAdapter,
   SimpleAgent,
+  Tool,
   ToolAwareSimpleAgent,
-  ToolRegistry
+  ToolRegistry,
+  ToolResponse
 } from '../hello_agents/index.js';
 
 const config = { model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test' };
@@ -43,6 +45,21 @@ function rejectTool() {
     parameters: [{ name: 'count', type: 'integer', description: 'Count' }],
     handler: ({ count }) => `count ${count}`
   });
+}
+
+/** Partial (e.g. large/truncated) results are content, not upstream failures. */
+class PartialTool extends Tool<ReturnType<typeof z.object>> {
+  public constructor() {
+    super({
+      name: 'partial',
+      description: 'Returns a partial response with content.',
+      inputSchema: z.object({ input: z.string() }).strict()
+    });
+  }
+
+  protected run(): ToolResponse {
+    return ToolResponse.partial('部分输出…（已截断）', { truncated: true });
+  }
 }
 
 /** Passthrough probe that records the exact object delivered to the tool handler. */
@@ -401,6 +418,29 @@ describe('SimpleAgent tool failure feedback', () => {
     // Upstream float()/int() raise on invalid input; the original value is kept,
     // so '12.5' is never truncated to 12 and 'oops' never becomes NaN.
     expect(seen[0]).toEqual({ count: '12.5', ratio: 'oops', input: 'x' });
+  });
+
+  test('frames partial results as tool content, never as a failure', async () => {
+    let turn = 0;
+    const adapter = new MockAdapter({
+      invoke: () => ({
+        content: ++turn === 1 ? '[TOOL_CALL:partial:input=x]' : 'recovered from partial',
+        model: 'test-model',
+        usage: {},
+        latency_ms: 0
+      })
+    });
+    const agent = new SimpleAgent({
+      name: 'helper',
+      llm: new HelloAgentsLLM({ ...config, adapter }),
+      toolRegistry: new ToolRegistry().register(new PartialTool())
+    });
+
+    await expect(agent.run('use partial')).resolves.toBe('recovered from partial');
+    const feedback = String(adapter.requests[1]?.messages.at(-1)?.content);
+    expect(feedback).toContain('🔧 工具 partial 执行结果');
+    expect(feedback).toContain('部分输出');
+    expect(feedback).not.toContain('❌ 工具调用失败');
   });
 });
 

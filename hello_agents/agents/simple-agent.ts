@@ -224,15 +224,15 @@ export class SimpleAgent extends Agent {
         toolName,
         this.parseToolParameters(toolName, parameters)
       );
-      return result.status === ToolStatus.SUCCESS
-        ? `🔧 工具 ${toolName} 执行结果：\n${result.text}`
-        : this.describeToolFailure(result);
+      return result.status === ToolStatus.ERROR
+        ? this.describeToolFailure(result)
+        : `🔧 工具 ${toolName} 执行结果：\n${result.text}`;
     } catch (error) {
       return `❌ 工具调用失败：${error instanceof Error ? error.message : String(error)}`;
     }
   }
 
-  /** Upstream failure framing: non-success registry responses are never successes. */
+  /** Upstream failure framing: only error-status registry responses are failures. */
   protected describeToolFailure(response: ToolResponse): string {
     const reason = response.errorInfo?.message ?? response.text;
     return `❌ 工具调用失败：${reason}`;

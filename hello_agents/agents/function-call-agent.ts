@@ -161,9 +161,9 @@ export class FunctionCallAgent extends SimpleAgent {
     try {
       const typed = this.convertParameterTypes(name, argumentsObject);
       const response = await this.toolRegistry.execute(name, typed);
-      return response.status === ToolStatus.SUCCESS
-        ? response.text
-        : this.describeToolFailure(response);
+      return response.status === ToolStatus.ERROR
+        ? this.describeToolFailure(response)
+        : response.text;
     } catch (error) {
       return `❌ 工具调用失败：${error instanceof Error ? error.message : String(error)}`;
     }

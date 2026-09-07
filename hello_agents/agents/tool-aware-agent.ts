@@ -60,9 +60,9 @@ export class ToolAwareSimpleAgent extends SimpleAgent {
       );
       const response = await this.toolRegistry.execute(toolName, parsed);
       result =
-        response.status === ToolStatus.SUCCESS
-          ? `🔧 工具 ${toolName} 执行结果：\n${response.text}`
-          : this.describeToolFailure(response);
+        response.status === ToolStatus.ERROR
+          ? this.describeToolFailure(response)
+          : `🔧 工具 ${toolName} 执行结果：\n${response.text}`;
     } catch (error) {
       parsed = {};
       result = `❌ 工具调用失败：${error instanceof Error ? error.message : String(error)}`;

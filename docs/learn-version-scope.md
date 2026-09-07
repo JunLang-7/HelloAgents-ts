@@ -50,7 +50,7 @@ npm install @junlang-7/helloagents@learn
 ## `0.2.0` 完成定义
 
 - Milestone 内所有阻塞 Issue 关闭。
-- 公开 API 兼容矩阵完成，所有计划内符号有实现或有明确、经批准的差异说明。
+- [公开 API 兼容矩阵](./learn-v0.2.0-compatibility-matrix.md)完成，所有计划内符号有实现或有明确、经批准的差异说明。
 - Chapter 07–11 示例可在 Bun 和 Node.js 22+ 下运行。
 - typecheck、lint、单元测试、构建、Node.js smoke test 和 package consumer test 全部通过。
 - `npm pack --dry-run` 内容经检查，不包含开发产物或敏感信息。

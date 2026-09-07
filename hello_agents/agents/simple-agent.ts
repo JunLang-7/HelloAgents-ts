@@ -6,6 +6,8 @@ import type { LifecycleHook } from '../core/lifecycle.js';
 import { Message } from '../core/message.js';
 import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
 import { ToolRegistry } from '../tools/registry.js';
+import type { ToolResponse } from '../tools/response.js';
+import { ToolStatus } from '../tools/response.js';
 import type { ExpandableTool, Tool } from '../tools/tool.js';
 import type { TraceLogger } from '../observability/trace-logger.js';
 
@@ -86,7 +88,8 @@ export class SimpleAgent extends Agent {
   }
 
   public hasTools(): boolean {
-    return this.enableToolCalling && (this.toolRegistry?.list().length ?? 0) > 0;
+    // Upstream semantics: a registry (even an empty one) keeps tool calling enabled.
+    return this.enableToolCalling && this.toolRegistry !== undefined;
   }
 
   /** Upstream's enhanced marker-calling prompt, including its default prompt. */
@@ -96,7 +99,7 @@ export class SimpleAgent extends Agent {
     const toolsDescription = this.toolRegistry.getToolsDescription();
     if (!toolsDescription || toolsDescription === '暂无可用工具') return basePrompt;
 
-    return `${basePrompt}\n\n## 可用工具\n你可以使用以下工具来帮助回答问题：\n${toolsDescription}\n\n## 工具调用格式\n当需要使用工具时，请使用以下格式：\n\`[TOOL_CALL:{tool_name}:{parameters}]\`\n\n### 参数格式说明\n1. **多个参数**：使用 \`key=value\` 格式，用逗号分隔\n   示例：\`[TOOL_CALL:calculator_multiply:a=12,b=8]\`\n   示例：\`[TOOL_CALL:filesystem_read_file:path=README.md]\`\n\n2. **单个参数**：直接使用 \`key=value\`\n   示例：\`[TOOL_CALL:search:query=Python编程]\`\n\n3. **简单查询**：可以直接传入文本\n   示例：\`[TOOL_CALL:search:Python编程]\`\n\n### 重要提示\n- 参数名必须与工具定义的参数名完全匹配\n- 数字参数直接写数字，不需要引号：\`a=12\` 而不是 \`a="12"\`\n- 文件路径等字符串参数直接写：\`path=README.md\`\n- 工具调用结果会自动插入到对话中，然后你可以基于结果继续回答`;
+    return `${basePrompt}\n\n## 可用工具\n你可以使用以下工具来帮助回答问题：\n${toolsDescription}\n\n## 工具调用格式\n当需要使用工具时，请使用以下格式：\n\`[TOOL_CALL:{tool_name}:{parameters}]\`\n\n### 参数格式说明\n1. **多个参数**：使用 \`key=value\` 格式，用逗号分隔\n   示例：\`[TOOL_CALL:calculator_multiply:a=12,b=8]\`\n   示例：\`[TOOL_CALL:filesystem_read_file:path=README.md]\`\n\n2. **单个参数**：直接使用 \`key=value\`\n   示例：\`[TOOL_CALL:search:query=Python编程]\`\n\n3. **简单查询**：可以直接传入文本\n   示例：\`[TOOL_CALL:search:Python编程]\`\n\n### 重要提示\n- 参数名必须与工具定义的参数名完全匹配\n- 数字参数直接写数字，不需要引号：\`a=12\` 而不是 \`a="12"\`\n- 文件路径等字符串参数直接写：\`path=README.md\`\n- 工具调用结果会自动插入到对话中，然后你可以基于结果继续回答\n`;
   }
 
   protected parseToolCalls(text: string): ParsedToolCall[] {
@@ -143,12 +146,16 @@ export class SimpleAgent extends Agent {
     );
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parameters)) {
+      // Model-supplied records must never carry prototype-tampering keys.
+      if (SimpleAgent.isUnsafeKey(key)) continue;
       const type = types.get(key)?.toLowerCase();
       try {
-        if ((type === 'number' || type === 'float') && typeof value === 'string') {
-          converted[key] = Number(value);
-        } else if ((type === 'integer' || type === 'int') && typeof value === 'string') {
-          converted[key] = Number.parseInt(value, 10);
+        if (
+          (type === 'number' || type === 'float' || type === 'integer' || type === 'int') &&
+          typeof value === 'string'
+        ) {
+          const numeric = SimpleAgent.parseNumeric(value, type === 'integer' || type === 'int');
+          converted[key] = numeric ?? value;
         } else if ((type === 'boolean' || type === 'bool') && typeof value === 'string') {
           converted[key] = ['true', '1', 'yes'].includes(value.toLowerCase());
         } else if (type === 'boolean' || type === 'bool') {
@@ -161,6 +168,20 @@ export class SimpleAgent extends Agent {
       }
     }
     return converted;
+  }
+
+  /** Python-style numeric coercion: unparseable or fractional values stay original. */
+  protected static parseNumeric(value: string, integer: boolean): number | undefined {
+    const normalized = value.trim();
+    if (normalized === '') return undefined;
+    if (integer && !/^[+-]?\d+$/.test(normalized)) return undefined;
+    const parsed = Number(normalized);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
+  /** Keys that must never be copied from hostile model JSON into tool records. */
+  protected static isUnsafeKey(key: string): boolean {
+    return key === '__proto__' || key === 'constructor' || key === 'prototype';
   }
 
   protected inferAction(
@@ -203,10 +224,18 @@ export class SimpleAgent extends Agent {
         toolName,
         this.parseToolParameters(toolName, parameters)
       );
-      return `🔧 工具 ${toolName} 执行结果：\n${result.text}`;
+      return result.status === ToolStatus.SUCCESS
+        ? `🔧 工具 ${toolName} 执行结果：\n${result.text}`
+        : this.describeToolFailure(result);
     } catch (error) {
       return `❌ 工具调用失败：${error instanceof Error ? error.message : String(error)}`;
     }
+  }
+
+  /** Upstream failure framing: non-success registry responses are never successes. */
+  protected describeToolFailure(response: ToolResponse): string {
+    const reason = response.errorInfo?.message ?? response.text;
+    return `❌ 工具调用失败：${reason}`;
   }
 
   public override async run(input: string, options?: LLMInvokeOptions): Promise<string> {

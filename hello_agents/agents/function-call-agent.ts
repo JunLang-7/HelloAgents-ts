@@ -1,6 +1,7 @@
 import type { LLMMessage, ToolChoice } from '../adapters/base.js';
 import { Message } from '../core/message.js';
 import type { LLMInvokeOptions } from '../core/llm.js';
+import { ToolStatus } from '../tools/response.js';
 import type { ExpandableTool, Tool } from '../tools/tool.js';
 import type { SimpleAgentOptions } from './simple-agent.js';
 import { SimpleAgent } from './simple-agent.js';
@@ -67,32 +68,30 @@ export class FunctionCallAgent extends SimpleAgent {
         messages.push({ role: 'assistant', content: finalResponse });
         break;
       }
-
-      messages.push({
-        role: 'assistant',
-        content: response.content,
-        tool_calls: response.toolCalls.map((call) => ({
-          id: call.id,
-          type: 'function',
-          function: { name: call.name, arguments: call.arguments }
-        }))
-      });
-      for (const call of response.toolCalls) {
-        const result = await this.executeNativeToolCall(call.name, parseArguments(call.arguments));
-        messages.push({
-          role: 'tool',
-          tool_call_id: call.id,
-          name: call.name,
-          content: result
-        });
-      }
+      await this.appendToolRound(messages, response);
       iteration += 1;
     }
 
     if (iteration >= limit && !finalResponse) {
-      const response = await this.llm.invokeWithTools(messages, schemas, 'none', llmOptions);
-      finalResponse = response.content ?? '';
-      messages.push({ role: 'assistant', content: finalResponse });
+      // Anthropic ignores toolChoice 'none'. When the forced final request still
+      // returns tool calls, execute them and keep asking until no call remains or
+      // the iteration cap; only then settle with a plain request that drops tools
+      // so no pending call is ever silently dropped for an empty answer.
+      let forced = 0;
+      while (forced < limit && !finalResponse) {
+        const response = await this.llm.invokeWithTools(messages, schemas, 'none', llmOptions);
+        if (response.toolCalls.length === 0) {
+          finalResponse = response.content ?? '';
+          messages.push({ role: 'assistant', content: finalResponse });
+          break;
+        }
+        await this.appendToolRound(messages, response);
+        forced += 1;
+      }
+      if (!finalResponse) {
+        finalResponse = await this.llm.invoke(messages, llmOptions);
+        messages.push({ role: 'assistant', content: finalResponse });
+      }
     }
     this.addMessage(new Message(input, 'user'));
     this.addMessage(new Message(finalResponse, 'assistant'));
@@ -107,6 +106,33 @@ export class FunctionCallAgent extends SimpleAgent {
   /** Convenience signature retained for callers that add a tool after construction. */
   public override addTool(tool: Tool | ExpandableTool, autoExpand = true): void {
     super.addTool(tool, autoExpand);
+  }
+
+  private async appendToolRound(
+    messages: LLMMessage[],
+    response: {
+      content: string | null;
+      toolCalls: readonly { id: string; name: string; arguments: string }[];
+    }
+  ): Promise<void> {
+    messages.push({
+      role: 'assistant',
+      content: response.content,
+      tool_calls: response.toolCalls.map((call) => ({
+        id: call.id,
+        type: 'function',
+        function: { name: call.name, arguments: call.arguments }
+      }))
+    });
+    for (const call of response.toolCalls) {
+      const result = await this.executeNativeToolCall(call.name, parseArguments(call.arguments));
+      messages.push({
+        role: 'tool',
+        tool_call_id: call.id,
+        name: call.name,
+        content: result
+      });
+    }
   }
 
   private buildFunctionMessages(input: string): LLMMessage[] {
@@ -134,7 +160,10 @@ export class FunctionCallAgent extends SimpleAgent {
     if (!tool) return `❌ 错误：未找到工具 '${name}'`;
     try {
       const typed = this.convertParameterTypes(name, argumentsObject);
-      return (await this.toolRegistry.execute(name, typed)).text;
+      const response = await this.toolRegistry.execute(name, typed);
+      return response.status === ToolStatus.SUCCESS
+        ? response.text
+        : this.describeToolFailure(response);
     } catch (error) {
       return `❌ 工具调用失败：${error instanceof Error ? error.message : String(error)}`;
     }

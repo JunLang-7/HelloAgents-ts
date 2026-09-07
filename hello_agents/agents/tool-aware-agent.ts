@@ -1,6 +1,7 @@
 import type { LLMInvokeOptions } from '../core/llm.js';
 import { Message } from '../core/message.js';
 import type { ToolRegistry } from '../tools/registry.js';
+import { ToolStatus } from '../tools/response.js';
 import type { ParsedToolCall, SimpleAgentOptions } from './simple-agent.js';
 import { SimpleAgent } from './simple-agent.js';
 
@@ -48,24 +49,23 @@ export class ToolAwareSimpleAgent extends SimpleAgent {
   }
 
   protected override async executeToolCall(toolName: string, parameters: string): Promise<string> {
+    // Upstream returns before notifying the listener when no registry/tool exists.
+    if (!this.toolRegistry) return '❌ 错误：未配置工具注册表';
+    if (!this.toolRegistry.getTool(toolName)) return `❌ 错误：未找到工具 '${toolName}'`;
     let parsed: Record<string, unknown> = {};
     let result: string;
-    if (!this.toolRegistry) {
-      result = '❌ 错误：未配置工具注册表';
-    } else {
-      try {
-        if (!this.toolRegistry.getTool(toolName)) {
-          result = `❌ 错误：未找到工具 '${toolName}'`;
-        } else {
-          parsed = ToolAwareSimpleAgent.sanitizeParameters(
-            this.parseToolParameters(toolName, parameters)
-          );
-          const response = await this.toolRegistry.execute(toolName, parsed);
-          result = `🔧 工具 ${toolName} 执行结果：\n${response.text}`;
-        }
-      } catch (error) {
-        result = `❌ 工具调用失败：${error instanceof Error ? error.message : String(error)}`;
-      }
+    try {
+      parsed = ToolAwareSimpleAgent.sanitizeParameters(
+        this.parseToolParameters(toolName, parameters)
+      );
+      const response = await this.toolRegistry.execute(toolName, parsed);
+      result =
+        response.status === ToolStatus.SUCCESS
+          ? `🔧 工具 ${toolName} 执行结果：\n${response.text}`
+          : this.describeToolFailure(response);
+    } catch (error) {
+      parsed = {};
+      result = `❌ 工具调用失败：${error instanceof Error ? error.message : String(error)}`;
     }
     try {
       this.toolCallListener?.({
@@ -146,27 +146,36 @@ export class ToolAwareSimpleAgent extends SimpleAgent {
   public static sanitizeParameters(parameters: Record<string, unknown>): Record<string, unknown> {
     const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parameters)) {
+      // Model-supplied records must never carry prototype-tampering keys.
+      if (SimpleAgent.isUnsafeKey(key)) continue;
       if (typeof value !== 'string') {
         sanitized[key] = value;
         continue;
       }
       const normalized = ToolAwareSimpleAgent.normalizeString(value);
       if (key === 'task_id') {
-        const number = Number.parseInt(normalized, 10);
-        sanitized[key] = Number.isNaN(number) ? normalized : number;
-      } else if (key === 'tags') {
-        const sequence = ToolAwareSimpleAgent.coerceSequence(normalized);
-        sanitized[key] =
-          sequence ??
-          (normalized
-            ? normalized
-                .split(',')
-                .map((item) => item.trim())
-                .filter(Boolean)
-            : []);
-      } else {
-        sanitized[key] = normalized;
+        const numeric = SimpleAgent.parseNumeric(normalized, true);
+        if (numeric !== undefined) {
+          sanitized[key] = numeric;
+          continue;
+        }
       }
+      if (key === 'tags') {
+        const sequence = ToolAwareSimpleAgent.coerceSequence(normalized);
+        if (Array.isArray(sequence)) {
+          sanitized[key] = sequence;
+          continue;
+        }
+        if (normalized) {
+          sanitized[key] = normalized
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean);
+          continue;
+        }
+        // An empty normalized tags value falls through and stays empty (upstream).
+      }
+      sanitized[key] = normalized;
     }
     return sanitized;
   }
@@ -222,19 +231,33 @@ export class ToolAwareSimpleAgent extends SimpleAgent {
 
   private static normalizeString(value: string): string {
     let normalized = value.trim();
-    if (
-      normalized.length > 1 &&
-      ['"', "'"].includes(normalized[0] ?? '') &&
-      normalized.at(-1) === normalized[0]
-    )
+    const occurrences = (character: string): number =>
+      [...normalized].filter((item) => item === character).length;
+    const first = normalized[0] ?? '';
+    const last = normalized.at(-1) ?? '';
+    if (normalized && ['"', "'"].includes(first) && occurrences(first) === 1)
+      normalized = normalized.slice(1);
+    if (normalized && ['"', "'"].includes(last) && occurrences(last) === 1)
+      normalized = normalized.slice(0, -1);
+    const leading = normalized[0] ?? '';
+    if (normalized && ['"', "'"].includes(leading) && normalized.at(-1) === leading)
       normalized = normalized.slice(1, -1);
-    if (normalized.startsWith('[') && !normalized.endsWith(']')) normalized += ']';
-    if (normalized.startsWith('(') && !normalized.endsWith(')')) normalized += ')';
+    if (
+      normalized &&
+      ['[', '('].includes(normalized[0] ?? '') &&
+      ![']', ')'].includes(normalized.at(-1) ?? '')
+    )
+      normalized += normalized[0] === '[' ? ']' : ')';
     return normalized.trim();
   }
 
   private static coerceSequence(value: string): unknown[] | undefined {
-    const candidates = [value, value.startsWith('[') && !value.endsWith(']') ? `${value}]` : value];
+    if (!value) return undefined;
+    const candidates = [
+      value,
+      value.startsWith('[') && !value.endsWith(']') ? `${value}]` : undefined,
+      value.startsWith('(') && !value.endsWith(')') ? `${value})` : undefined
+    ].filter((candidate): candidate is string => candidate !== undefined);
     for (const candidate of candidates) {
       try {
         const parsed: unknown = JSON.parse(candidate);

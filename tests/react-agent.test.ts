@@ -6,111 +6,48 @@ import {
   HelloAgentsLLM,
   MockAdapter,
   ReActAgent,
-  ToolRegistry
+  ToolRegistry,
+  parseReActAction,
+  parseReActActionInput,
+  parseReActOutput
 } from '../hello_agents/index.js';
 
 const config = { model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test' };
 
-function llm(handler: ConstructorParameters<typeof MockAdapter>[0]): HelloAgentsLLM {
-  return new HelloAgentsLLM({ ...config, adapter: new MockAdapter(handler) });
+function llm(replies: string[]): HelloAgentsLLM {
+  return new HelloAgentsLLM({
+    ...config,
+    adapter: new MockAdapter({
+      invoke: () => ({
+        content: replies.shift() ?? '',
+        model: 'test-model',
+        usage: {},
+        latency_ms: 0
+      })
+    })
+  });
 }
 
 describe('ReActAgent', () => {
-  test('includes Thought and Finish schemas, and Thought does not complete the task', async () => {
-    let step = 0;
+  test('uses the upstream text prompt, records Action/Observation, and finishes', async () => {
     const adapter = new MockAdapter({
-      invokeWithTools: () => {
-        step += 1;
-        return step === 1
-          ? {
-              content: null,
-              tool_calls: [
-                { id: 'thought_1', name: 'Thought', arguments: '{"reasoning":"need calculate"}' }
-              ],
-              model: 'test-model',
-              usage: { total_tokens: 3 },
-              latency_ms: 0
-            }
-          : {
-              content: null,
-              tool_calls: [{ id: 'finish_1', name: 'Finish', arguments: '{"answer":"42"}' }],
-              model: 'test-model',
-              usage: { total_tokens: 2 },
-              latency_ms: 0
-            };
-      }
-    });
-    const agent = new ReActAgent({
-      name: 'react',
-      llm: new HelloAgentsLLM({ ...config, adapter })
-    });
-
-    await expect(agent.run('solve')).resolves.toBe('42');
-    expect(adapter.toolRequests[0]?.tools.slice(0, 2)).toMatchObject([
-      { function: { name: 'Thought' } },
-      { function: { name: 'Finish' } }
-    ]);
-    expect(adapter.toolRequests[1]?.messages.at(-1)).toMatchObject({
-      role: 'tool',
-      tool_call_id: 'thought_1',
-      content: '推理: need calculate'
-    });
-    expect(agent.sessionMetadata).toMatchObject({ total_steps: 2, total_tokens: 5 });
-  });
-
-  test('executes same-round user tools concurrently but writes observations in model order', async () => {
-    const started: string[] = [];
-    let releaseFirst: (() => void) | undefined;
-    const firstReleased = new Promise<void>((resolve) => {
-      releaseFirst = resolve;
-    });
-    let round = 0;
-    const adapter = new MockAdapter({
-      invokeWithTools: () => {
-        round += 1;
-        return round === 1
-          ? {
-              content: null,
-              tool_calls: [
-                { id: 'slow', name: 'slow', arguments: '{"input":"one"}' },
-                { id: 'fast', name: 'fast', arguments: '{"input":"two"}' }
-              ],
-              model: 'test-model',
-              usage: {},
-              latency_ms: 0
-            }
-          : {
-              content: null,
-              tool_calls: [{ id: 'finish', name: 'Finish', arguments: '{"answer":"done"}' }],
-              model: 'test-model',
-              usage: {},
-              latency_ms: 0
-            };
-      }
-    });
-    const registry = new ToolRegistry();
-    registry.registerFunction(
-      new FunctionTool({
-        name: 'slow',
-        description: 'Slow.',
-        inputSchema: z.object({ input: z.string() }).strict(),
-        handler: async ({ input }) => {
-          started.push('slow');
-          await firstReleased;
-          return input;
-        }
+      invoke: () => ({
+        content: replies.shift() ?? '',
+        model: 'test-model',
+        usage: {},
+        latency_ms: 0
       })
-    );
-    registry.registerFunction(
+    });
+    const replies = [
+      'Thought: need an echo\nAction: echo[hello]',
+      'Thought: done\nAction: Finish[hello]'
+    ];
+    const registry = new ToolRegistry().registerFunction(
       new FunctionTool({
-        name: 'fast',
-        description: 'Fast.',
+        name: 'echo',
+        description: 'Repeat the input.',
         inputSchema: z.object({ input: z.string() }).strict(),
-        handler: ({ input }) => {
-          started.push('fast');
-          releaseFirst?.();
-          return input;
-        }
+        handler: ({ input }) => input
       })
     );
     const agent = new ReActAgent({
@@ -119,46 +56,60 @@ describe('ReActAgent', () => {
       toolRegistry: registry
     });
 
-    await expect(agent.run('parallel')).resolves.toBe('done');
-    expect(started).toEqual(['slow', 'fast']);
-    expect(adapter.toolRequests[1]?.messages.slice(-3)).toMatchObject([
-      { role: 'assistant', tool_calls: [{ id: 'slow' }, { id: 'fast' }] },
-      { role: 'tool', tool_call_id: 'slow', content: 'one' },
-      { role: 'tool', tool_call_id: 'fast', content: 'two' }
-    ]);
+    await expect(agent.run('say hello')).resolves.toBe('hello');
+    expect(adapter.requests).toHaveLength(2);
+    expect(adapter.requests[0]?.messages[0]?.content).toContain('**Question:** say hello');
+    expect(adapter.requests[0]?.messages[0]?.content).toContain('- echo: Repeat the input.');
+    expect(adapter.requests[1]?.messages[0]?.content).toContain(
+      'Action: echo[hello]\nObservation: hello'
+    );
+    expect(agent.currentHistory).toEqual(['Action: echo[hello]', 'Observation: hello']);
+    expect(agent.getHistory().map((message) => message.content)).toEqual(['say hello', 'hello']);
   });
 
-  test('returns text without tools and Python-compatible max-step fallback when unfinished', async () => {
-    const direct = new ReActAgent({
+  test('continues after an invalid action format and exposes text parsing helpers', async () => {
+    const agent = new ReActAgent({
       name: 'react',
-      llm: llm({
-        invokeWithTools: () => ({
-          content: 'direct',
-          tool_calls: [],
-          model: 'test-model',
-          usage: {},
-          latency_ms: 0
-        })
-      })
+      llm: llm(['Thought: malformed\nAction: echo without brackets', 'Action: Finish[recovered]'])
     });
-    await expect(direct.run('hello')).resolves.toBe('direct');
-    expect(direct.listTools()).toEqual([]);
+
+    await expect(agent.run('task')).resolves.toBe('recovered');
+    expect(agent.currentHistory).toEqual(['Observation: 无效的Action格式，请检查。']);
+    expect(parseReActOutput('Thought: one\nAction: echo[value]')).toEqual(['one', 'echo[value]']);
+    expect(parseReActOutput('Action: echo[value]')).toEqual([undefined, 'echo[value]']);
+    expect(parseReActAction('echo[value]')).toEqual(['echo', 'value']);
+    expect(parseReActAction('not valid')).toEqual([undefined, undefined]);
+    expect(parseReActActionInput('Finish[a] b]')).toBe('a] b');
+  });
+
+  test('uses the upstream max-step fallback for empty responses and unfinished work', async () => {
+    const empty = new ReActAgent({ name: 'react', llm: llm(['']) });
+    await expect(empty.run('empty')).resolves.toBe('抱歉，我无法在限定步数内完成这个任务。');
 
     const unfinished = new ReActAgent({
       name: 'react',
       maxSteps: 1,
-      llm: llm({
-        invokeWithTools: () => ({
-          content: null,
-          tool_calls: [{ id: 'thought', name: 'Thought', arguments: '{"reasoning":"more"}' }],
-          model: 'test-model',
-          usage: {},
-          latency_ms: 0
-        })
-      })
+      llm: llm(['Thought: more\nAction: echo[again]'])
     });
     await expect(unfinished.run('never finish')).resolves.toBe(
       '抱歉，我无法在限定步数内完成这个任务。'
     );
+    expect(unfinished.currentHistory).toEqual([
+      'Action: echo[again]',
+      "Observation: 未找到名为 'echo' 的工具"
+    ]);
+  });
+
+  test('propagates LLM errors without recording a completed exchange', async () => {
+    const agent = new ReActAgent({
+      name: 'react',
+      llm: new HelloAgentsLLM({
+        ...config,
+        adapter: new MockAdapter({ invoke: () => Promise.reject(new Error('offline')) })
+      })
+    });
+
+    await expect(agent.run('task')).rejects.toThrow('LLM invoke failed');
+    expect(agent.getHistory()).toEqual([]);
   });
 });

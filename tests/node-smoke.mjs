@@ -76,9 +76,8 @@ const nodeReact = new packageEntry.ReActAgent({
     apiKey: 'test-key',
     baseUrl: 'https://provider.test',
     adapter: new packageEntry.MockAdapter({
-      invokeWithTools: () => ({
-        content: 'Node ReAct',
-        tool_calls: [],
+      invoke: () => ({
+        content: 'Action: Finish[Node ReAct]',
         model: 'test-model',
         usage: {},
         latency_ms: 0

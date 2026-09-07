@@ -1,65 +1,94 @@
-import type { LLMMessage } from '../adapters/base.js';
-import { AgentEvent } from '../core/lifecycle.js';
+import { Agent } from '../core/agent.js';
+import type { Config } from '../core/config.js';
 import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
 import { Message } from '../core/message.js';
-import { ToolRegistry } from '../tools/registry.js';
 
-/** 默认规划提示词，要求模型输出可执行步骤组成的字符串列表。 */
-export const DEFAULT_PLANNER_PROMPT =
-  '你是一个顶级的AI规划专家。请将问题拆成独立、可执行的步骤，并以 Python 字符串列表输出。\n\n问题: {question}';
-/** 默认执行提示词，携带历史结果执行当前计划步骤。 */
-export const DEFAULT_EXECUTOR_PROMPT =
-  '请严格执行当前步骤并只输出该步骤的最终答案。\n\n# 原始问题:\n{question}\n\n# 完整计划:\n{plan}\n\n# 历史步骤与结果:\n{history}\n\n# 当前步骤:\n{current_step}';
-/** 规划响应无法安全解析为步骤时返回的结果。 */
+/** 上游 Planner 使用的默认提示词模板。 */
+export const DEFAULT_PLANNER_PROMPT = `
+你是一个顶级的AI规划专家。你的任务是将用户提出的复杂问题分解成一个由多个简单步骤组成的行动计划。
+请确保计划中的每个步骤都是一个独立的、可执行的子任务，并且严格按照逻辑顺序排列。
+你的输出必须是一个Python列表，其中每个元素都是一个描述子任务的字符串。
+
+问题: {question}
+
+请严格按照以下格式输出你的计划:
+\`\`\`python
+["步骤1", "步骤2", "步骤3", ...]
+\`\`\`
+`;
+
+/** 上游 Executor 使用的默认提示词模板。 */
+export const DEFAULT_EXECUTOR_PROMPT = `
+你是一位顶级的AI执行专家。你的任务是严格按照给定的计划，一步步地解决问题。
+你将收到原始问题、完整的计划、以及到目前为止已经完成的步骤和结果。
+请你专注于解决"当前步骤"，并仅输出该步骤的最终答案，不要输出任何额外的解释或对话。
+
+# 原始问题:
+{question}
+
+# 完整计划:
+{plan}
+
+# 历史步骤与结果:
+{history}
+
+# 当前步骤:
+{current_step}
+
+请仅输出针对"当前步骤"的回答:
+`;
+
+/** 计划响应无法按上游 ```python 列表格式解析时的最终答案。 */
 export const INVALID_PLAN_ANSWER = '无法生成有效的行动计划，任务终止。';
 
-export interface PlanSolveAgentOptions {
-  /** Agent 名称，用于历史记录和生命周期事件。 */
-  readonly name: string;
-  /** 用于规划和执行的 LLM 客户端。 */
+export interface PlannerOptions {
   readonly llm: HelloAgentsLLM;
-  /** 规划和执行调用前追加的可选系统提示词。 */
+  readonly promptTemplate?: string;
+}
+
+export interface ExecutorOptions {
+  readonly llm: HelloAgentsLLM;
+  readonly promptTemplate?: string;
+}
+
+export interface PlanAndSolveAgentOptions {
+  readonly name: string;
+  readonly llm: Agent['llm'];
   readonly systemPrompt?: string;
-  /** 规划和执行阶段可用的可选工具注册表。 */
-  readonly toolRegistry?: ToolRegistry;
-  /** 提供工具注册表时是否启用 Function Calling。 */
-  readonly enableToolCalling?: boolean;
-  /** 每次规划或执行请求允许的最大 Function Calling 轮数。 */
-  readonly maxToolIterations?: number;
-  /** 对规划器和执行器提示词的部分覆盖。 */
+  readonly config?: Config;
   readonly customPrompts?: { readonly planner?: string; readonly executor?: string };
 }
 
-function extractPlanText(response: string): string {
-  const block = /```(?:python)?\s*([\s\S]*?)```/i.exec(response)?.[1];
-  return (block ?? response).trim();
-}
-
-/** 仅解析由引号字符串组成的字面量列表，绝不执行模型输出。 */
+/**
+ * Safely parses the quoted-string list accepted by the upstream Planner's
+ * `ast.literal_eval` path. The source only examines the content between an
+ * exact ```python opener and its next closing fence.
+ */
 export function parsePlan(response: string): string[] {
-  const text = extractPlanText(response);
-  try {
-    const json: unknown = JSON.parse(text);
-    return Array.isArray(json) && json.every((step) => typeof step === 'string') ? json : [];
-  } catch {
-    // Python V1 asks for a Python list. Support its quoted-literal subset safely.
-  }
-  if (!text.startsWith('[') || !text.endsWith(']')) return [];
-  const items: string[] = [];
+  const pythonFence = '```python';
+  const opener = response.indexOf(pythonFence);
+  if (opener === -1) return [];
+  const closer = response.indexOf('```', opener + pythonFence.length);
+  if (closer === -1) return [];
+  const source = response.slice(opener + pythonFence.length, closer).trim();
+  if (!source.startsWith('[') || !source.endsWith(']')) return [];
+
+  const steps: string[] = [];
   let index = 1;
-  while (index < text.length - 1) {
-    while (/\s|,/.test(text[index] ?? '')) index += 1;
-    if (index >= text.length - 1) break;
-    const quote = text[index];
-    if (quote !== '"' && quote !== "'") return [];
+  while (index < source.length - 1) {
+    while (/\s|,/.test(source[index] ?? '')) index += 1;
+    if (index >= source.length - 1) break;
+    const quote = source[index];
+    if (quote !== "'" && quote !== '"') return [];
     index += 1;
+
     let value = '';
     let closed = false;
-    while (index < text.length - 1) {
-      const character = text[index] ?? '';
+    while (index < source.length - 1) {
+      const character = source[index] ?? '';
       index += 1;
       if (character === '\\') {
-        const escaped = text[index] ?? '';
+        const escaped = source[index] ?? '';
         index += 1;
         value += escaped === 'n' ? '\n' : escaped === 't' ? '\t' : escaped;
       } else if (character === quote) {
@@ -68,189 +97,99 @@ export function parsePlan(response: string): string[] {
       } else value += character;
     }
     if (!closed) return [];
-    items.push(value);
-    while (/\s/.test(text[index] ?? '')) index += 1;
-    if (text[index] === ',') index += 1;
-    else if (index < text.length - 1) return [];
+    steps.push(value);
+
+    while (/\s/.test(source[index] ?? '')) index += 1;
+    if (source[index] === ',') index += 1;
+    else if (index < source.length - 1) return [];
   }
-  return items;
+  return steps;
 }
 
-function render(template: string, values: Record<string, string>): string {
-  return template.replace(
-    /\{(question|plan|history|current_step)\}/g,
-    (_, key: string) => values[key] ?? ''
-  );
-}
+/** 将复杂问题拆解为上游要求的 Python 字符串列表。 */
+export class Planner {
+  public readonly llmClient: HelloAgentsLLM;
+  public readonly promptTemplate: string;
 
-/** PlanAndSolveAgent 的 TypeScript 实现，公共 API 使用 PlanSolveAgent 名称。 */
-export class PlanSolveAgent {
-  public readonly name: string;
-  public readonly llm: HelloAgentsLLM;
-  public readonly systemPrompt: string | undefined;
-  public readonly toolRegistry: ToolRegistry;
-  public readonly maxToolIterations: number;
-  public readonly plannerPrompt: string;
-  public readonly executorPrompt: string;
-  public lastPlan: readonly string[] = [];
-  public lastStepResults: readonly string[] = [];
-  private readonly enableToolCalling: boolean;
-  private history: Message[] = [];
-
-  public constructor(options: PlanSolveAgentOptions) {
-    this.name = options.name;
-    this.llm = options.llm;
-    this.systemPrompt = options.systemPrompt;
-    this.toolRegistry = options.toolRegistry ?? new ToolRegistry();
-    this.enableToolCalling =
-      (options.enableToolCalling ?? true) && options.toolRegistry !== undefined;
-    this.maxToolIterations = options.maxToolIterations ?? 3;
-    this.plannerPrompt = options.customPrompts?.planner ?? DEFAULT_PLANNER_PROMPT;
-    this.executorPrompt = options.customPrompts?.executor ?? DEFAULT_EXECUTOR_PROMPT;
-  }
-
-  /** 获取已完成用户/助手对话的副本。 */
-  public getHistory(): readonly Message[] {
-    return [...this.history];
-  }
-
-  /** 生成计划，按顺序执行每个步骤，并返回最后一步结果。 */
-  public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
-    const plan = await this.createPlan(input, options);
-    if (plan.length === 0) return this.complete(input, INVALID_PLAN_ANSWER);
-    const results = await this.executePlan(input, plan, options);
-    return this.complete(input, results.at(-1) ?? '');
-  }
-
-  /** 为一次计划和执行运行发送规划及逐步执行事件。 */
-  public async *arunStream(input: string, options?: LLMInvokeOptions): AsyncIterable<AgentEvent> {
-    yield AgentEvent.create('agent_start', this.name, { input_text: input });
-    try {
-      yield AgentEvent.create('step_start', this.name, {
-        phase: 'planning',
-        description: '生成执行计划'
-      });
-      const plan = await this.createPlan(input, options);
-      if (plan.length === 0) {
-        const result = this.complete(input, INVALID_PLAN_ANSWER);
-        yield AgentEvent.create('agent_error', this.name, { error: result, phase: 'planning' });
-        yield AgentEvent.create('agent_finish', this.name, { result });
-        return;
-      }
-      yield AgentEvent.create('plan', this.name, { plan, total_steps: plan.length });
-      yield AgentEvent.create('step_finish', this.name, {
-        phase: 'planning',
-        plan,
-        total_steps: plan.length
-      });
-      const results: string[] = [];
-      for (const [index, step] of plan.entries()) {
-        yield AgentEvent.create('step_start', this.name, {
-          phase: 'execution',
-          step: index + 1,
-          total_steps: plan.length,
-          description: step
-        });
-        const result = await this.executeStep(input, plan, results, step, options);
-        results.push(result);
-        yield AgentEvent.create('step_finish', this.name, {
-          phase: 'execution',
-          step: index + 1,
-          result
-        });
-      }
-      this.lastStepResults = results;
-      const result = this.complete(input, results.at(-1) ?? '');
-      yield AgentEvent.create('agent_finish', this.name, { result, total_steps: plan.length });
-    } catch (error) {
-      yield AgentEvent.create('agent_error', this.name, {
-        error: error instanceof Error ? error.message : String(error)
-      });
-      throw error;
+  public constructor(options: PlannerOptions | HelloAgentsLLM, promptTemplate?: string) {
+    if (options instanceof Object && 'llm' in options) {
+      this.llmClient = options.llm;
+      this.promptTemplate = options.promptTemplate ?? DEFAULT_PLANNER_PROMPT;
+    } else {
+      this.llmClient = options;
+      this.promptTemplate = promptTemplate ?? DEFAULT_PLANNER_PROMPT;
     }
   }
 
-  private async createPlan(
-    input: string,
-    options: LLMInvokeOptions | undefined
-  ): Promise<string[]> {
-    const response = await this.respond(render(this.plannerPrompt, { question: input }), options);
-    const plan = parsePlan(response);
-    this.lastPlan = plan;
-    this.lastStepResults = [];
-    return plan;
+  public async plan(question: string, options?: LLMInvokeOptions): Promise<string[]> {
+    const response =
+      (await this.llmClient.invoke(
+        [{ role: 'user', content: this.promptTemplate.replaceAll('{question}', question) }],
+        options
+      )) || '';
+    return parsePlan(response);
+  }
+}
+
+/** 按计划顺序执行每一个教学步骤。 */
+export class Executor {
+  public readonly llmClient: HelloAgentsLLM;
+  public readonly promptTemplate: string;
+
+  public constructor(options: ExecutorOptions | HelloAgentsLLM, promptTemplate?: string) {
+    if (options instanceof Object && 'llm' in options) {
+      this.llmClient = options.llm;
+      this.promptTemplate = options.promptTemplate ?? DEFAULT_EXECUTOR_PROMPT;
+    } else {
+      this.llmClient = options;
+      this.promptTemplate = promptTemplate ?? DEFAULT_EXECUTOR_PROMPT;
+    }
   }
 
-  private async executePlan(
-    input: string,
+  public async execute(
+    question: string,
     plan: readonly string[],
-    options: LLMInvokeOptions | undefined
-  ): Promise<string[]> {
-    const results: string[] = [];
-    for (const step of plan)
-      results.push(await this.executeStep(input, plan, results, step, options));
-    this.lastStepResults = results;
-    return results;
-  }
-
-  private executeStep(
-    input: string,
-    plan: readonly string[],
-    results: readonly string[],
-    step: string,
-    options: LLMInvokeOptions | undefined
+    options?: LLMInvokeOptions
   ): Promise<string> {
-    const history =
-      results.length === 0
-        ? '无'
-        : results
-            .map((result, index) => `步骤 ${index + 1}: ${plan[index]}\n结果: ${result}`)
-            .join('\n\n');
-    return this.respond(
-      render(this.executorPrompt, {
-        question: input,
-        plan: plan.join('\n'),
-        history,
-        current_step: step
-      }),
-      options
-    );
-  }
+    let history = '';
+    let finalAnswer = '';
 
-  private async respond(prompt: string, options: LLMInvokeOptions | undefined): Promise<string> {
-    const messages: LLMMessage[] = [
-      ...(this.systemPrompt === undefined
-        ? []
-        : [{ role: 'system' as const, content: this.systemPrompt }]),
-      { role: 'user', content: prompt }
-    ];
-    if (!this.enableToolCalling) return await this.llm.invoke(messages, options);
-    const schemas = this.toolRegistry.toOpenAISchemas() as unknown as Record<string, unknown>[];
-    for (let iteration = 0; iteration < this.maxToolIterations; iteration += 1) {
-      const response = await this.llm.invokeWithTools(messages, schemas, 'auto', options);
-      if (response.toolCalls.length === 0) return response.content ?? '';
-      messages.push({
-        role: 'assistant',
-        content: response.content,
-        tool_calls: response.toolCalls.map((call) => ({
-          id: call.id,
-          type: 'function',
-          function: { name: call.name, arguments: call.arguments }
-        }))
-      });
-      for (const call of response.toolCalls) {
-        const result = await this.toolRegistry.execute(call.name, call.arguments);
-        messages.push({ role: 'tool', tool_call_id: call.id, content: result.text });
-      }
+    for (const [index, step] of plan.entries()) {
+      const prompt = this.promptTemplate
+        .replaceAll('{question}', question)
+        .replaceAll('{plan}', formatPythonStringList(plan))
+        .replaceAll('{history}', history || '无')
+        .replaceAll('{current_step}', step);
+      const response = await this.llmClient.invoke([{ role: 'user', content: prompt }], options);
+      finalAnswer = response || '';
+      history += `步骤 ${index + 1}: ${step}\n结果: ${finalAnswer}\n\n`;
     }
-    return await this.llm.invoke(messages, options);
-  }
-
-  private complete(input: string, result: string): string {
-    this.history.push(new Message(input, 'user'), new Message(result, 'assistant'));
-    return result;
+    return finalAnswer;
   }
 }
 
-/** Python `PlanAndSolveAgent` 名称的兼容别名。 */
-export { PlanSolveAgent as PlanAndSolveAgent };
+/** 组合 Planner 和 Executor 的上游 Plan-and-Solve Agent。 */
+export class PlanAndSolveAgent extends Agent {
+  public readonly planner: Planner;
+  public readonly executor: Executor;
+
+  public constructor(options: PlanAndSolveAgentOptions) {
+    super(options.name, options.llm, options.systemPrompt, options.config);
+    this.planner = new Planner(options.llm, options.customPrompts?.planner);
+    this.executor = new Executor(options.llm, options.customPrompts?.executor);
+  }
+
+  public override async run(input: string, options?: LLMInvokeOptions): Promise<string> {
+    const plan = await this.planner.plan(input, options);
+    const finalAnswer = plan.length
+      ? await this.executor.execute(input, plan, options)
+      : INVALID_PLAN_ANSWER;
+    this.addMessage(new Message(input, 'user'));
+    this.addMessage(new Message(finalAnswer, 'assistant'));
+    return finalAnswer;
+  }
+}
+
+function formatPythonStringList(plan: readonly string[]): string {
+  return `[${plan.map((step) => `'${step.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`).join(', ')}]`;
+}

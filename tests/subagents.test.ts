@@ -8,7 +8,7 @@ import {
   HelloAgentsLLM,
   MockAdapter,
   IsolatedSubagent,
-  PlanSolveAgent,
+  PlanAndSolveAgent,
   ReadOnlyFilter,
   ReActAgent,
   ReflectionAgent,
@@ -118,7 +118,7 @@ describe('default subagent factory', () => {
     expect(createAgent('simple', 'simple', llm)).toBeInstanceOf(SimpleAgent);
     expect(createAgent('react', 'react', llm)).toBeInstanceOf(ReActAgent);
     expect(createAgent('reflection', 'reflection', llm)).toBeInstanceOf(ReflectionAgent);
-    expect(createAgent({ agentType: 'plan', name: 'plan', llm })).toBeInstanceOf(PlanSolveAgent);
+    expect(createAgent({ agentType: 'plan', name: 'plan', llm })).toBeInstanceOf(PlanAndSolveAgent);
     expect(() => createAgent('invalid', 'invalid', llm)).toThrow('不支持的 agent_type');
   });
   test('uses an isolated filtered registry and reports tools used without polluting the parent', async () => {

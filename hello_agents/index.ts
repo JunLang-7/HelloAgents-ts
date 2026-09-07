@@ -175,13 +175,15 @@ export type {
   SimpleAgentOptions
 } from './agents/simple-agent.js';
 export { Agent } from './core/agent.js';
-export { DEFAULT_REACT_SYSTEM_PROMPT, ReActAgent } from './agents/react-agent.js';
-export type { ReActAgentOptions, ReActSessionMetadata } from './agents/react-agent.js';
 export {
-  DEFAULT_REFLECTION_PROMPTS,
-  ReflectionAgent,
-  ReflectionMemory
-} from './agents/reflection-agent.js';
+  DEFAULT_REACT_PROMPT,
+  ReActAgent,
+  parseReActAction,
+  parseReActActionInput,
+  parseReActOutput
+} from './agents/react-agent.js';
+export type { ReActAgentOptions } from './agents/react-agent.js';
+export { DEFAULT_PROMPTS, Memory, ReflectionAgent } from './agents/reflection-agent.js';
 export type {
   ReflectionAgentOptions,
   ReflectionPrompts,
@@ -190,12 +192,17 @@ export type {
 export {
   DEFAULT_EXECUTOR_PROMPT,
   DEFAULT_PLANNER_PROMPT,
+  Executor,
   INVALID_PLAN_ANSWER,
   PlanAndSolveAgent,
-  PlanSolveAgent,
+  Planner,
   parsePlan
 } from './agents/plan-solve-agent.js';
-export type { PlanSolveAgentOptions } from './agents/plan-solve-agent.js';
+export type {
+  ExecutorOptions,
+  PlanAndSolveAgentOptions,
+  PlannerOptions
+} from './agents/plan-solve-agent.js';
 export {
   TraceLogger,
   createTraceHooks,

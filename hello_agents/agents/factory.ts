@@ -1,6 +1,6 @@
 import type { HelloAgentsLLM } from '../core/llm.js';
 import type { ResolvedConfig } from '../core/config.js';
-import { PlanSolveAgent } from './plan-solve-agent.js';
+import { PlanAndSolveAgent } from './plan-solve-agent.js';
 import { ReActAgent } from './react-agent.js';
 import { ReflectionAgent } from './reflection-agent.js';
 import { SimpleAgent } from './simple-agent.js';
@@ -23,7 +23,7 @@ export interface CreateAgentOptions {
 }
 
 /** 四种公共 Agent 实现的联合类型。 */
-export type CreatedAgent = SimpleAgent | ReActAgent | ReflectionAgent | PlanSolveAgent;
+export type CreatedAgent = SimpleAgent | ReActAgent | ReflectionAgent | PlanAndSolveAgent;
 
 /** 根据类型名称创建四种公共 Agent 范式之一。 */
 export function createAgent(
@@ -58,18 +58,21 @@ export function createAgent(
   const shared = {
     name: options.name,
     llm: options.llm,
-    ...(options.systemPrompt === undefined ? {} : { systemPrompt: options.systemPrompt }),
+    ...(options.systemPrompt === undefined ? {} : { systemPrompt: options.systemPrompt })
+  };
+  const toolEnabled = {
+    ...shared,
     ...(options.toolRegistry === undefined ? {} : { toolRegistry: options.toolRegistry })
   };
   switch (type) {
     case 'react':
-      return new ReActAgent(shared);
+      return new ReActAgent(toolEnabled);
     case 'reflection':
       return new ReflectionAgent(shared);
     case 'plan':
-      return new PlanSolveAgent(shared);
+      return new PlanAndSolveAgent(shared);
     case 'simple':
-      return new SimpleAgent(shared);
+      return new SimpleAgent(toolEnabled);
     default:
       throw new Error(
         `不支持的 agent_type: ${options.agentType}。支持的类型: react, reflection, plan, simple`
@@ -186,16 +189,16 @@ export class IsolatedSubagent implements SubagentRunner {
   }
 
   private createAgent(registry: TrackingRegistry, maxSteps: number): RunnableAgent {
-    const shared = { name: `subagent-${this.type}`, llm: this.options.llm, toolRegistry: registry };
+    const shared = { name: `subagent-${this.type}`, llm: this.options.llm };
     switch (this.type) {
       case 'react':
-        return new ReActAgent({ ...shared, maxSteps });
+        return new ReActAgent({ ...shared, toolRegistry: registry, maxSteps });
       case 'reflection':
-        return new ReflectionAgent({ ...shared, maxToolIterations: maxSteps });
+        return new ReflectionAgent({ ...shared, maxIterations: maxSteps });
       case 'plan':
-        return new PlanSolveAgent({ ...shared, maxToolIterations: maxSteps });
+        return new PlanAndSolveAgent(shared);
       case 'simple':
-        return new SimpleAgent({ ...shared, maxToolIterations: maxSteps });
+        return new SimpleAgent({ ...shared, toolRegistry: registry, maxToolIterations: maxSteps });
     }
   }
 }

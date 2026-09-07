@@ -19,7 +19,7 @@ const registry = new ToolRegistry();
 registry.registerFunction(new FunctionTool({ name: 'echo', description: 'Echo consumer input.', inputSchema: z.object({ input: z.string() }).strict(), handler: ({ input }) => input }));
 const counter = new TokenCounter({ tokenize: (text) => [...text].length });
 const agent = new SimpleAgent({ name: 'consumer-agent', llm });
-const react = new ReActAgent({ name: 'consumer-react', llm: new HelloAgentsLLM({ model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test', adapter: new MockAdapter({ invokeWithTools: () => ({ content: 'consumer ReAct', tool_calls: [], model: 'test-model', usage: {}, latency_ms: 0 }) }) }) });
+const react = new ReActAgent({ name: 'consumer-react', llm: new HelloAgentsLLM({ model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test', adapter: new MockAdapter({ invoke: () => ({ content: 'Action: Finish[consumer ReAct]', model: 'test-model', usage: {}, latency_ms: 0 }) }) }) });
 async function* events() { yield AgentEvent.create('llm_chunk', 'consumer-agent', { chunk: 'consumer stream' }); }
 const jsonLines = []; for await (const line of streamToJsonLines(events())) jsonLines.push(line);
 const sessionDirectory = await mkdtemp('/tmp/helloagents-consumer-'); const store = new SessionStore({ sessionDir: sessionDirectory }); const session = await store.save({ agentConfig: {}, history: [], toolSchemaHash: 'consumer', readCache: {}, metadata: {} }); const sessionOk = (await store.load(session)).sessionId.length > 0; await rm(sessionDirectory, { recursive: true, force: true });

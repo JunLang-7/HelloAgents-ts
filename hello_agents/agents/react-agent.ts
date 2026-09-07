@@ -1,187 +1,132 @@
-import type { LLMMessage } from '../adapters/base.js';
-import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
+import type { LLMInvokeOptions } from '../core/llm.js';
+import { Agent } from '../core/agent.js';
+import type { Config } from '../core/config.js';
 import { Message } from '../core/message.js';
 import { ToolRegistry } from '../tools/registry.js';
 import type { ExpandableTool, Tool } from '../tools/tool.js';
 
-const maxStepAnswer = '抱歉，我无法在限定步数内完成这个任务。';
+/** ReAct 教学范式使用的上游默认提示词模板。 */
+export const DEFAULT_REACT_PROMPT = `你是一个具备推理和行动能力的AI助手。你可以通过思考分析问题，然后调用合适的工具来获取信息，最终给出准确的答案。
 
-/** ReAct Agent 默认系统提示词，定义 Thought/Finish Function Calling 流程。 */
-export const DEFAULT_REACT_SYSTEM_PROMPT = `你是一个具备推理和行动能力的 AI 助手。
+## 可用工具
+{tools}
 
 ## 工作流程
-你可以通过调用工具来完成任务：
+请严格按照以下格式进行回应，每次只能执行一个步骤：
 
-1. **Thought 工具**：用于记录你的推理过程和分析
-2. **业务工具**：用于获取信息或执行操作
-3. **Finish 工具**：用于返回最终答案
+Thought: 分析问题，确定需要什么信息，制定研究策略。
+Action: 选择合适的工具获取信息，格式为：
+- \`{tool_name}[{tool_input}]\`：调用工具获取信息。
+- \`Finish[研究结论]\`：当你有足够信息得出结论时。
 
 ## 重要提醒
-- 主动使用 Thought 工具记录推理过程
-- 可以多次调用工具获取信息
-- 只有在确信有足够信息时才调用 Finish`;
+1. 每次回应必须包含Thought和Action两部分
+2. 工具调用的格式必须严格遵循：工具名[参数]
+3. 只有当你确信有足够信息回答问题时，才使用Finish
+4. 如果工具返回的信息不够，继续使用其他工具或相同工具的不同参数
+
+## 当前任务
+**Question:** {question}
+
+## 执行历史
+{history}
+
+现在开始你的推理和行动：`;
 
 export interface ReActAgentOptions {
-  /** Agent 名称，用于历史记录。 */
   readonly name: string;
-  /** 用于 ReAct 循环的 LLM 客户端。 */
-  readonly llm: HelloAgentsLLM;
-  /** 与 Thought、Finish 一起暴露给模型的用户工具注册表。 */
+  readonly llm: Agent['llm'];
   readonly toolRegistry?: ToolRegistry;
-  /** 覆盖内置的 ReAct 系统提示词。 */
   readonly systemPrompt?: string;
-  /** Thought/工具调用的最大轮数，超出后返回限定步数失败响应。 */
+  readonly config?: Config;
   readonly maxSteps?: number;
+  readonly customPrompt?: string;
 }
 
-/** 最近一次运行的总步骤数和模型 token 使用量。 */
-export interface ReActSessionMetadata {
-  readonly total_steps: number;
-  readonly total_tokens: number;
+/** 从一条 ReAct 响应中提取首个 Thought 和 Action 行。 */
+export function parseReActOutput(text: string): [string | undefined, string | undefined] {
+  const thought = /Thought: (.*)/.exec(text)?.[1]?.trim();
+  const action = /Action: (.*)/.exec(text)?.[1]?.trim();
+  return [thought, action];
 }
 
-const builtinSchemas: readonly Record<string, unknown>[] = [
-  {
-    type: 'function',
-    function: {
-      name: 'Thought',
-      description: '分析问题，制定策略，记录推理过程。在需要思考时调用此工具。',
-      parameters: {
-        type: 'object',
-        properties: { reasoning: { type: 'string', description: '你的推理过程和分析' } },
-        required: ['reasoning']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'Finish',
-      description: '当你有足够信息得出结论时，使用此工具返回最终答案。',
-      parameters: {
-        type: 'object',
-        properties: { answer: { type: 'string', description: '最终答案' } },
-        required: ['answer']
-      }
-    }
-  }
-];
-
-function parseArguments(argumentsText: string): Record<string, unknown> {
-  try {
-    const value: unknown = JSON.parse(argumentsText);
-    return value !== null && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
-  } catch {
-    return {};
-  }
+/** 从 `工具名[参数]` 行中提取工具名和原始字符串参数。 */
+export function parseReActAction(actionText: string): [string | undefined, string | undefined] {
+  const match = /^(\w+)\[(.*)\]/.exec(actionText);
+  return match === null ? [undefined, undefined] : [match[1], match[2]];
 }
 
-/** ReAct Agent，使用原生 Function Calling 而不是文本解析。 */
-export class ReActAgent {
-  public readonly name: string;
-  public readonly llm: HelloAgentsLLM;
-  public readonly systemPrompt: string;
-  public readonly maxSteps: number;
+/** 提取包括 `Finish[...]` 在内的 Action 方括号内容。 */
+export function parseReActActionInput(actionText: string): string {
+  return /^\w+\[(.*)\]/.exec(actionText)?.[1] ?? '';
+}
+
+/**
+ * ReAct（推理与行动）Agent。
+ *
+ * 该教学实现以文本 Thought/Action 格式驱动当前教学版工具注册表，而非 1.x
+ * 的原生 Function Calling 循环。
+ */
+export class ReActAgent extends Agent {
   public readonly toolRegistry: ToolRegistry;
-  private history: Message[] = [];
-  private metadata: ReActSessionMetadata = { total_steps: 0, total_tokens: 0 };
+  public readonly maxSteps: number;
+  public readonly promptTemplate: string;
+  public currentHistory: string[] = [];
 
   public constructor(options: ReActAgentOptions) {
-    this.name = options.name;
-    this.llm = options.llm;
-    this.systemPrompt = options.systemPrompt ?? DEFAULT_REACT_SYSTEM_PROMPT;
-    this.maxSteps = options.maxSteps ?? 5;
+    super(options.name, options.llm, options.systemPrompt, options.config);
     this.toolRegistry = options.toolRegistry ?? new ToolRegistry();
+    this.maxSteps = options.maxSteps ?? 5;
+    this.promptTemplate = options.customPrompt ?? DEFAULT_REACT_PROMPT;
   }
 
-  /** 最近一次运行的总步骤数和 token 使用量。 */
-  public get sessionMetadata(): ReActSessionMetadata {
-    return this.metadata;
-  }
-  /** 获取已完成用户/助手对话的副本。 */
-  public getHistory(): readonly Message[] {
-    return [...this.history];
-  }
-  /** 注册用户工具或可展开工具组。 */
+  /** 注册当前教学工具或可展开工具组。 */
   public addTool(tool: Tool | ExpandableTool, autoExpand = true): void {
     this.toolRegistry.register(tool, autoExpand);
   }
-  /** 按名称注销用户工具。 */
-  public removeTool(name: string): boolean {
-    return this.toolRegistry.unregister(name);
-  }
-  /** 列出用户工具名称；内置 Thought 和 Finish 不在此列表中。 */
-  public listTools(): string[] {
-    return this.toolRegistry.list();
-  }
 
-  /** 运行有界的 Thought/工具/Finish 循环，并保存完整对话。 */
-  public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
-    const messages: LLMMessage[] = [
-      { role: 'system', content: this.systemPrompt },
-      { role: 'user', content: input }
-    ];
-    let totalTokens = 0;
-    for (let step = 1; step <= this.maxSteps; step += 1) {
-      const response = await this.llm.invokeWithTools(
-        messages,
-        [...builtinSchemas, ...this.toolRegistry.toOpenAISchemas()] as Record<string, unknown>[],
-        'auto',
-        options
-      );
-      totalTokens += response.usage.total_tokens ?? 0;
-      this.metadata = { total_steps: step, total_tokens: totalTokens };
-      if (response.toolCalls.length === 0)
-        return this.complete(input, response.content ?? '抱歉，我无法回答这个问题。');
+  /** 按上游的 Thought/Action/Observation 循环处理任务。 */
+  public override async run(input: string, options?: LLMInvokeOptions): Promise<string> {
+    this.currentHistory = [];
+    let currentStep = 0;
 
-      messages.push({
-        role: 'assistant',
-        content: response.content,
-        tool_calls: response.toolCalls.map((call) => ({
-          id: call.id,
-          type: 'function',
-          function: { name: call.name, arguments: call.arguments }
-        }))
-      });
-      const userCalls = response.toolCalls.filter(
-        (call) => call.name !== 'Thought' && call.name !== 'Finish'
-      );
-      const userResults = new Map(
-        await Promise.all(
-          userCalls.map(
-            async (call) =>
-              [call.id, await this.toolRegistry.execute(call.name, call.arguments)] as const
-          )
-        )
-      );
-      for (const call of response.toolCalls) {
-        if (call.name === 'Finish') {
-          const answer = parseArguments(call.arguments).answer;
-          return this.complete(input, typeof answer === 'string' ? answer : '');
-        }
-        if (call.name === 'Thought') {
-          const reasoning = parseArguments(call.arguments).reasoning;
-          messages.push({
-            role: 'tool',
-            tool_call_id: call.id,
-            content: `推理: ${typeof reasoning === 'string' ? reasoning : ''}`
-          });
-        } else {
-          messages.push({
-            role: 'tool',
-            tool_call_id: call.id,
-            content: userResults.get(call.id)?.text ?? `未找到名为 '${call.name}' 的工具`
-          });
-        }
+    while (currentStep < this.maxSteps) {
+      currentStep += 1;
+      const prompt = this.renderPrompt(input);
+      const responseText = await this.llm.invoke([{ role: 'user', content: prompt }], options);
+      if (!responseText) break;
+
+      const [, action] = parseReActOutput(responseText);
+      if (!action) break;
+
+      if (action.startsWith('Finish')) {
+        const finalAnswer = parseReActActionInput(action);
+        this.addMessage(new Message(input, 'user'));
+        this.addMessage(new Message(finalAnswer, 'assistant'));
+        return finalAnswer;
       }
+
+      const [toolName, toolInput] = parseReActAction(action);
+      if (!toolName || toolInput === undefined) {
+        this.currentHistory.push('Observation: 无效的Action格式，请检查。');
+        continue;
+      }
+
+      const observation = await this.toolRegistry.executeTool(toolName, toolInput);
+      this.currentHistory.push(`Action: ${action}`);
+      this.currentHistory.push(`Observation: ${observation.text}`);
     }
-    return this.complete(input, maxStepAnswer);
+
+    const finalAnswer = '抱歉，我无法在限定步数内完成这个任务。';
+    this.addMessage(new Message(input, 'user'));
+    this.addMessage(new Message(finalAnswer, 'assistant'));
+    return finalAnswer;
   }
 
-  private complete(input: string, answer: string): string {
-    this.history.push(new Message(input, 'user'), new Message(answer, 'assistant'));
-    return answer;
+  private renderPrompt(question: string): string {
+    return this.promptTemplate
+      .replaceAll('{tools}', this.toolRegistry.getToolsDescription())
+      .replaceAll('{question}', question)
+      .replaceAll('{history}', this.currentHistory.join('\n'));
   }
 }

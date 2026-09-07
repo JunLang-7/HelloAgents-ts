@@ -1,18 +1,26 @@
 # Terminal safety policy
 
 `TerminalTool` is a deliberately restricted teaching tool, not a general shell.
-It invokes an argv directly with `shell: false` and permits only a small set of
-read-only inspection commands. Shell syntax, command options, interpreters,
-pagers, `sed`, `awk`, and `find` are rejected. In particular, dynamic `find`
-forms such as `-exec` are never accepted.
+It **never starts an external process**: there is no command lookup, argv
+execution, shell, interpreter, or `PATH` use. Consequently, a hostile `PATH`
+cannot change its behavior.
 
-The workspace and every existing positional path operand are resolved with
-`realpath`. The resolved path must remain within the resolved workspace, so a
-symlink cannot escape the sandbox. `cd` follows the same check. Nonexistent
-operands receive a lexical containment check; because the allowlist has no
-write-capable command, they cannot be used to create an escape.
+The supported in-process command surface is intentionally small:
 
-This is intentionally stricter than the upstream teaching implementation:
-options such as `ls -la` are rejected because options can introduce command-
-specific path, execution, or write behavior. Use direct file paths and the
-supported commands only.
+- `cat <filename>` reads one regular, direct child of the workspace.
+- `ls` lists the current workspace directory and accepts no arguments.
+- `pwd` reports the current workspace directory and accepts no arguments.
+- `echo [text...]` returns its literal arguments.
+
+All other commands, options, path-bearing `ls` arguments, shell syntax,
+control characters, and `cd` are rejected. `cat` rejects absolute paths,
+directory traversal, separators, and links. On macOS and Linux it opens the
+resolved direct-child path using `O_NOFOLLOW`, validates the opened descriptor
+is a regular file with no extra hard links, and reads that descriptor without
+re-opening the supplied pathname. Platforms that cannot provide this no-follow
+behavior reject file reads rather than weakening containment.
+
+This deliberately narrow policy avoids both executable lookup and the common
+validate-then-reopen race. It is stricter than the upstream teaching
+implementation; use the file tools when an application needs broader,
+explicitly reviewed filesystem behavior.

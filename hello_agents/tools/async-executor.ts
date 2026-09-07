@@ -1,4 +1,5 @@
-import type { ToolRegistry } from './registry.js';
+import { calculate } from './builtin/calculator.js';
+import { ToolRegistry } from './registry.js';
 
 export interface ToolTask {
   readonly tool_name: string;
@@ -113,3 +114,22 @@ export function runBatchTool(
 /** Upstream spellings; TypeScript callers await the same Promise-based helpers. */
 export const run_parallel_tools = runParallelTools;
 export const run_batch_tool = runBatchTool;
+
+/**
+ * Run the upstream parallel-execution lesson with an isolated deterministic
+ * calculator registration. TypeScript exposes the async lesson directly as a
+ * Promise instead of providing Python's blocking wrapper.
+ */
+export function demo_parallel_execution(): Promise<ToolTaskResult[]> {
+  const registry = new ToolRegistry().registerFunction(
+    'my_calculator',
+    'Demo calculator used by demo_parallel_execution.',
+    calculate
+  );
+  return runParallelTools(registry, [
+    { tool_name: 'my_calculator', input_data: '2 + 2' },
+    { tool_name: 'my_calculator', input_data: '3 * 4' },
+    { tool_name: 'my_calculator', input_data: 'sqrt(16)' },
+    { tool_name: 'my_calculator', input_data: '10 / 2' }
+  ]);
+}

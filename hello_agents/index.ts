@@ -116,6 +116,7 @@ export {
 } from './tools/chain.js';
 export {
   AsyncToolExecutor,
+  demo_parallel_execution,
   runBatchTool,
   runParallelTools,
   run_batch_tool,

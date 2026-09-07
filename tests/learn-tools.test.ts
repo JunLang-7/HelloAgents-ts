@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { chmod, mkdtemp, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { z } from 'zod';
 
 import toolsFixture from './fixtures/learn-v0.2.0-tools.json' with { type: 'json' };
@@ -9,6 +10,7 @@ import toolsFixture from './fixtures/learn-v0.2.0-tools.json' with { type: 'json
 import {
   AsyncToolExecutor,
   CalculatorTool,
+  demo_parallel_execution,
   SearchTool,
   TerminalTool,
   Tool,
@@ -121,20 +123,38 @@ describe('learn-version tools', () => {
     expect(failed.errorInfo?.code).toBe(ToolErrorCode.API_ERROR);
   });
 
-  test('terminal rejects interpreters, unsafe find options, and symlink path escapes', async () => {
+  test('terminal stays in process and rejects path replacement and escape attempts', async () => {
     const workspace = await mkdtemp(join(tmpdir(), 'helloagents-learn-tools-'));
     const outside = await mkdtemp(join(tmpdir(), 'helloagents-outside-'));
+    const originalPath = process.env.PATH;
+    const pathMarker = join(outside, 'path-was-executed');
     try {
       await writeFile(join(workspace, 'hello.txt'), 'hello', 'utf8');
       await writeFile(join(outside, 'secret.txt'), 'secret', 'utf8');
       await symlink(outside, join(workspace, 'outside'));
+      await writeFile(join(workspace, 'replaceable.txt'), 'inside', 'utf8');
+      await unlink(join(workspace, 'replaceable.txt'));
+      await symlink(join(outside, 'secret.txt'), join(workspace, 'replaceable.txt'));
+      await writeFile(
+        join(workspace, 'cat'),
+        `#!/bin/sh\nprintf exploited > "${pathMarker}"\n`,
+        'utf8'
+      );
+      await chmod(join(workspace, 'cat'), 0o755);
+      process.env.PATH = `${workspace}${delimiter}${originalPath ?? ''}`;
+
       const terminal = new TerminalTool({ workspace });
       expect((await terminal.execute({ command: 'cat hello.txt' })).text).toBe('hello');
+      expect(existsSync(pathMarker)).toBe(false);
+      expect((await terminal.execute({ command: 'pwd' })).text).toBe(`${terminal.workspace}\n`);
+      expect((await terminal.execute({ command: 'ls' })).text).toContain('hello.txt');
+      expect((await terminal.execute({ command: 'echo safe text' })).text).toBe('safe text\n');
       for (const command of [
         'node -e "bad"',
         'awk 1 hello.txt',
         'find . -exec cat {}',
         'cat outside/secret.txt',
+        'cat replaceable.txt',
         'cd outside'
       ]) {
         expect((await terminal.execute({ command })).errorInfo?.code).toBe(
@@ -142,9 +162,44 @@ describe('learn-version tools', () => {
         );
       }
     } finally {
+      if (originalPath === undefined) delete process.env.PATH;
+      else process.env.PATH = originalPath;
       await rm(workspace, { recursive: true, force: true });
       await rm(outside, { recursive: true, force: true });
     }
+  });
+
+  test('demo_parallel_execution is a deterministic Promise-based teaching helper', async () => {
+    await expect(demo_parallel_execution()).resolves.toEqual([
+      {
+        task_id: 0,
+        tool_name: 'my_calculator',
+        input_data: '2 + 2',
+        result: '4',
+        status: 'success'
+      },
+      {
+        task_id: 1,
+        tool_name: 'my_calculator',
+        input_data: '3 * 4',
+        result: '12',
+        status: 'success'
+      },
+      {
+        task_id: 2,
+        tool_name: 'my_calculator',
+        input_data: 'sqrt(16)',
+        result: '4',
+        status: 'success'
+      },
+      {
+        task_id: 3,
+        tool_name: 'my_calculator',
+        input_data: '10 / 2',
+        result: '5',
+        status: 'success'
+      }
+    ]);
   });
 
   test('parallel and batch records retain failed response status', async () => {

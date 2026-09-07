@@ -62,7 +62,7 @@ describe('HelloAgentsLLM', () => {
       providerOptions: { seed: 7 }
     });
 
-    expect(response.content).toBe('world');
+    expect(response).toBe('world');
     expect(llm).toMatchObject({
       model: 'test-model',
       apiKey: 'test-key',

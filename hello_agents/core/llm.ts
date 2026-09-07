@@ -13,7 +13,7 @@ import { llmMessageSchema, toolChoiceSchema } from '../adapters/base.js';
 import { createAdapter } from '../adapters/providers.js';
 import { LLMAbortError, LLMError, LLMTimeoutError, parseOrThrow } from './errors.js';
 import { parseLLMResponse, parseLLMToolResponse, parseStreamStats } from './responses.js';
-import type { LLMResponse, LLMToolResponse, StreamStats } from './responses.js';
+import type { LLMToolResponse, StreamStats } from './responses.js';
 
 const environmentSchema = z.record(z.string(), z.string().optional());
 const toolSchema = z.record(z.string(), z.unknown());
@@ -28,18 +28,37 @@ const adapterCallOptionsSchema = z
   })
   .strict();
 
+export const SUPPORTED_PROVIDERS = [
+  'openai',
+  'deepseek',
+  'qwen',
+  'modelscope',
+  'kimi',
+  'zhipu',
+  'ollama',
+  'vllm',
+  'local',
+  'auto',
+  'custom'
+] as const;
+export type SupportedProvider = (typeof SUPPORTED_PROVIDERS)[number];
+
 export interface HelloAgentsLLMOptions {
-  /** 模型标识；未提供时使用 `LLM_MODEL_ID`。 */
+  /** 模型名称；未提供时按 provider 或 `LLM_MODEL_ID` 推断。 */
   readonly model?: string;
-  /** 提供商凭证；未提供时使用 `LLM_API_KEY`。 */
+  /** 提供商凭证；未提供时遵循 provider-specific、再到 `LLM_API_KEY`。 */
   readonly apiKey?: string;
-  /** 提供商端点；未提供时使用 `LLM_BASE_URL`。 */
+  /** OpenAI-compatible 服务地址；未提供时按 provider 或 `LLM_BASE_URL` 推断。 */
   readonly baseUrl?: string;
+  /** 提供商；未提供时执行上游的自动检测。 */
+  readonly provider?: SupportedProvider | string;
   /** 调用未覆盖时使用的默认采样温度。 */
   readonly temperature?: number;
   /** 默认最大生成 token 数。 */
   readonly maxTokens?: number;
-  /** 单次请求超时时间（毫秒）。 */
+  /** 单次请求超时（秒），对应 Python `timeout`。 */
+  readonly timeout?: number;
+  /** 毫秒形式的 TypeScript 兼容选项。 */
   readonly timeoutMs?: number;
   /** 自定义适配器，可用于本地提供商和测试。 */
   readonly adapter?: BaseLLMAdapter;
@@ -57,7 +76,7 @@ function runtimeEnvironment(): Record<string, string | undefined> {
 }
 
 function required(value: string | undefined, label: string): string {
-  if (!value) throw new LLMError(`Missing required LLM ${label}`);
+  if (!value) throw new LLMError(`API密钥和服务地址必须被提供或在.env文件中定义。 (${label})`);
   return value;
 }
 
@@ -66,6 +85,81 @@ function parseTimeoutMs(value: string | undefined): number {
   const seconds = Number(value);
   if (!Number.isFinite(seconds) || seconds <= 0) throw new LLMError('Invalid LLM_TIMEOUT');
   return seconds * 1000;
+}
+
+const providerDefaults: Record<Exclude<SupportedProvider, 'auto' | 'custom'>, { baseUrl: string; model: string }> = {
+  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-3.5-turbo' },
+  deepseek: { baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat' },
+  qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
+  modelscope: { baseUrl: 'https://api-inference.modelscope.cn/v1/', model: 'Qwen/Qwen2.5-72B-Instruct' },
+  kimi: { baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' },
+  zhipu: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4' },
+  ollama: { baseUrl: 'http://localhost:11434/v1', model: 'llama3.2' },
+  vllm: { baseUrl: 'http://localhost:8000/v1', model: 'meta-llama/Llama-2-7b-chat-hf' },
+  local: { baseUrl: 'http://localhost:8000/v1', model: 'local-model' }
+};
+
+function autoDetectProvider(
+  apiKey: string | undefined,
+  baseUrl: string | undefined,
+  env: Record<string, string | undefined>
+): SupportedProvider {
+  if (env.OPENAI_API_KEY) return 'openai';
+  if (env.DEEPSEEK_API_KEY) return 'deepseek';
+  if (env.DASHSCOPE_API_KEY) return 'qwen';
+  if (env.MODELSCOPE_API_KEY) return 'modelscope';
+  if (env.KIMI_API_KEY || env.MOONSHOT_API_KEY) return 'kimi';
+  if (env.ZHIPU_API_KEY || env.GLM_API_KEY) return 'zhipu';
+  if (env.OLLAMA_API_KEY || env.OLLAMA_HOST) return 'ollama';
+  if (env.VLLM_API_KEY || env.VLLM_HOST) return 'vllm';
+
+  const actualKey = apiKey ?? env.LLM_API_KEY;
+  if (actualKey) {
+    const lower = actualKey.toLowerCase();
+    if (actualKey.startsWith('ms-')) return 'modelscope';
+    if (lower === 'ollama') return 'ollama';
+    if (lower === 'vllm') return 'vllm';
+    if (lower === 'local') return 'local';
+    if (actualKey.endsWith('.') || actualKey.slice(-20).includes('.')) return 'zhipu';
+  }
+
+  const actualUrl = (baseUrl ?? env.LLM_BASE_URL)?.toLowerCase();
+  if (actualUrl) {
+    if (actualUrl.includes('api.openai.com')) return 'openai';
+    if (actualUrl.includes('api.deepseek.com')) return 'deepseek';
+    if (actualUrl.includes('dashscope.aliyuncs.com')) return 'qwen';
+    if (actualUrl.includes('api-inference.modelscope.cn')) return 'modelscope';
+    if (actualUrl.includes('api.moonshot.cn')) return 'kimi';
+    if (actualUrl.includes('open.bigmodel.cn')) return 'zhipu';
+    if (actualUrl.includes('localhost') || actualUrl.includes('127.0.0.1')) {
+      if (actualUrl.includes(':11434') || actualUrl.includes('ollama')) return 'ollama';
+      if (actualUrl.includes(':8000') && actualUrl.includes('vllm')) return 'vllm';
+      if (actualUrl.includes(':8080') || actualUrl.includes(':7860')) return 'local';
+      if (actualKey?.toLowerCase() === 'ollama') return 'ollama';
+      if (actualKey?.toLowerCase() === 'vllm') return 'vllm';
+      return 'local';
+    }
+    if ([':8080', ':7860', ':5000'].some((port) => actualUrl.includes(port))) return 'local';
+  }
+  return 'auto';
+}
+
+function providerCredential(
+  provider: string,
+  apiKey: string | undefined,
+  env: Record<string, string | undefined>
+): string | undefined {
+  const providerEnv: Record<string, string | undefined> = {
+    openai: env.OPENAI_API_KEY,
+    deepseek: env.DEEPSEEK_API_KEY,
+    qwen: env.DASHSCOPE_API_KEY,
+    modelscope: env.MODELSCOPE_API_KEY,
+    kimi: env.KIMI_API_KEY ?? env.MOONSHOT_API_KEY,
+    zhipu: env.ZHIPU_API_KEY ?? env.GLM_API_KEY,
+    ollama: env.OLLAMA_API_KEY,
+    vllm: env.VLLM_API_KEY
+  };
+  return apiKey || providerEnv[provider] || env.LLM_API_KEY;
 }
 
 function normalizeAbort(signal: AbortSignal | undefined): void {
@@ -99,6 +193,9 @@ export class HelloAgentsLLM {
   public readonly model: string;
   public readonly apiKey: string;
   public readonly baseUrl: string;
+  public readonly provider: string;
+  /** Python timeout value in seconds. */
+  public readonly timeout: number;
   public readonly timeoutMs: number;
   public readonly temperature: number;
   public readonly maxTokens: number | undefined;
@@ -113,15 +210,38 @@ export class HelloAgentsLLM {
       'LLM environment',
       LLMError
     );
-    this.model = required(options.model ?? env.LLM_MODEL_ID, 'model (model or LLM_MODEL_ID)');
-    this.apiKey = required(options.apiKey ?? env.LLM_API_KEY, 'API key (apiKey or LLM_API_KEY)');
-    this.baseUrl = required(
-      options.baseUrl ?? env.LLM_BASE_URL,
-      'base URL (baseUrl or LLM_BASE_URL)'
-    );
-    this.timeoutMs = options.timeoutMs ?? parseTimeoutMs(env.LLM_TIMEOUT);
+    const requestedProvider = options.provider?.toLowerCase();
+    const provider = requestedProvider && requestedProvider !== 'auto'
+      ? requestedProvider
+      : requestedProvider === 'auto'
+        ? 'auto'
+        : autoDetectProvider(options.apiKey, options.baseUrl, env);
+    this.provider = provider;
+
+    const defaults = providerDefaults[provider as keyof typeof providerDefaults];
+    const baseUrl = options.baseUrl || env.LLM_BASE_URL || defaults?.baseUrl;
+    const apiKey = provider === 'ollama'
+      ? providerCredential(provider, options.apiKey, env) || 'ollama'
+      : provider === 'vllm'
+        ? providerCredential(provider, options.apiKey, env) || 'vllm'
+        : provider === 'local'
+          ? providerCredential(provider, options.apiKey, env) || 'local'
+          : providerCredential(provider, options.apiKey, env);
+    const model = options.model || env.LLM_MODEL_ID || defaults?.model;
+
+    this.model = required(model, 'model');
+    this.apiKey = required(apiKey, 'API key');
+    this.baseUrl = required(baseUrl, 'base URL');
     this.temperature = options.temperature ?? 0.7;
     this.maxTokens = options.maxTokens;
+    this.timeoutMs = options.timeoutMs ?? (options.timeout === undefined
+      ? parseTimeoutMs(env.LLM_TIMEOUT)
+      : (() => {
+          if (!Number.isFinite(options.timeout) || options.timeout <= 0)
+            throw new LLMError('Invalid timeout');
+          return options.timeout * 1000;
+        })());
+    this.timeout = this.timeoutMs / 1000;
 
     const config: AdapterConfig = {
       model: this.model,
@@ -188,12 +308,12 @@ export class HelloAgentsLLM {
   public async invoke(
     messages: readonly LLMMessage[],
     options?: LLMInvokeOptions
-  ): Promise<LLMResponse> {
+  ): Promise<string> {
     const timed = this.withTimeout(this.request(messages, options));
     try {
       const raw = await this.adapter.invoke(timed.request);
       normalizeAbort(timed.request.options.signal);
-      return parseLLMResponse(raw);
+      return parseLLMResponse(raw).content;
     } catch (error) {
       return normalizeFailure(error, 'invoke', timed.request.options.signal);
     } finally {
@@ -262,22 +382,28 @@ export class HelloAgentsLLM {
   }
 
   /** `stream` 的兼容别名。 */
-  public think(messages: readonly LLMMessage[], options?: LLMInvokeOptions): AsyncIterable<string> {
-    return this.stream(messages, options);
+  public think(
+    messages: readonly LLMMessage[],
+    options?: LLMInvokeOptions | number
+  ): AsyncIterable<string> {
+    return this.stream(
+      messages,
+      typeof options === 'number' ? { temperature: options } : options
+    );
   }
 
   /** `stream` 的兼容别名。 */
   public streamInvoke(
     messages: readonly LLMMessage[],
-    options?: LLMInvokeOptions
+    options?: LLMInvokeOptions | number
   ): AsyncIterable<string> {
-    return this.stream(messages, options);
+    return this.think(messages, options);
   }
 
   public ainvoke(
     messages: readonly LLMMessage[],
     options?: LLMInvokeOptions
-  ): Promise<LLMResponse> {
+  ): Promise<string> {
     return this.invoke(messages, options);
   }
 

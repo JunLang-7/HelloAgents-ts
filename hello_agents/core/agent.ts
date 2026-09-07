@@ -1,4 +1,5 @@
 import type { HelloAgentsLLM } from './llm.js';
+import { Config } from './config.js';
 import type { ResolvedConfig } from './config.js';
 import { Message } from './message.js';
 import { HistoryManager } from '../context/history.js';
@@ -23,7 +24,9 @@ export interface AgentOptions {
   /** 历史消息保留和压缩策略。 */
   readonly history?: HistoryManagerOptions;
   /** 可选的配置驱动 Skill 发现和注册。 */
-  readonly config?: Pick<ResolvedConfig, 'skillsEnabled' | 'skillsDir' | 'skillsAutoRegister'>;
+  readonly config?:
+    | Pick<ResolvedConfig, 'skillsEnabled' | 'skillsDir' | 'skillsAutoRegister'>
+    | Config;
 }
 export interface LoadedSessionResult {
   /** 保存配置和当前 Agent 配置的比较结果。 */
@@ -44,16 +47,37 @@ export abstract class Agent {
   public readonly systemPrompt: string | undefined;
   public readonly toolRegistry: ToolRegistry;
   public readonly sessionStore: SessionStore | undefined;
-  private readonly config: AgentOptions['config'];
+  public readonly config: Config | AgentOptions['config'];
   protected readonly historyManager: HistoryManager;
 
-  public constructor(options: AgentOptions) {
+  /** Python 构造顺序为 name, llm, system_prompt, config；对象形式便于 TS 调用。 */
+  public constructor(
+    name: string,
+    llm: HelloAgentsLLM,
+    systemPrompt?: string,
+    config?: Config
+  );
+  public constructor(options: AgentOptions);
+  public constructor(
+    nameOrOptions: string | AgentOptions,
+    llm?: HelloAgentsLLM,
+    systemPrompt?: string,
+    config?: Config
+  ) {
+    const options: AgentOptions = typeof nameOrOptions === 'string'
+      ? {
+          name: nameOrOptions,
+          llm: llm!,
+          ...(systemPrompt === undefined ? {} : { systemPrompt }),
+          ...(config === undefined ? {} : { config })
+        }
+      : nameOrOptions;
     this.name = options.name;
     this.llm = options.llm;
     this.systemPrompt = options.systemPrompt;
     this.toolRegistry = options.toolRegistry ?? new ToolRegistry();
     this.sessionStore = options.sessionStore;
-    this.config = options.config;
+    this.config = options.config ?? new Config();
     this.historyManager = new HistoryManager(options.history ?? { maxTokens: 128_000 });
   }
   /**
@@ -63,7 +87,7 @@ export abstract class Agent {
    */
   public async registerConfiguredSkills(): Promise<SkillLoader | undefined> {
     const config = this.config;
-    if (!config?.skillsEnabled) return undefined;
+    if (!config || !('skillsEnabled' in config) || !config.skillsEnabled) return undefined;
     const loader = await SkillLoader.create({ skillsDir: config.skillsDir });
     if (config.skillsAutoRegister) this.toolRegistry.register(new SkillTool(loader));
     return loader;
@@ -74,19 +98,37 @@ export abstract class Agent {
   public getHistory(): readonly Message[] {
     return this.historyManager.getAll();
   }
-  /**
-   * 添加消息；超过配置的 token 预算时压缩历史。
-   *
-   * @param content 消息内容。
-   * @param role 消息角色。
-   */
-  public async addMessage(content: string, role: Message['role']): Promise<void> {
-    this.historyManager.add(new Message(content, role));
+  /** 添加一条消息；也接受旧 TypeScript API 的 content/role 形式。 */
+  public async addMessage(message: Message): Promise<void>;
+  public async addMessage(content: string, role: Message['role']): Promise<void>;
+  public async addMessage(messageOrContent: Message | string, role?: Message['role']): Promise<void> {
+    const message = typeof messageOrContent === 'string'
+      ? new Message(messageOrContent, role!)
+      : messageOrContent;
+    this.historyManager.add(message);
     await this.historyManager.compact();
+  }
+  /** Python 命名风格的兼容别名。 */
+  public add_message(message: Message): Promise<void> {
+    return this.addMessage(message);
   }
   /** 清空所有保留的对话历史。 */
   public clearHistory(): void {
     this.historyManager.clear();
+  }
+  /** Python 命名风格的兼容别名。 */
+  public clear_history(): void {
+    this.clearHistory();
+  }
+  /** 获取历史副本的 Python 命名风格别名。 */
+  public get_history(): readonly Message[] {
+    return this.getHistory();
+  }
+  public toString(): string {
+    return `Agent(name=${this.name}, provider=${this.llm.provider})`;
+  }
+  public toJSON(): string {
+    return this.toString();
   }
   /** 为当前注册表构建提供商 Function Calling 模式。 */
   public buildToolSchemas(): ReturnType<ToolRegistry['toOpenAISchemas']> {

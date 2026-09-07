@@ -35,9 +35,9 @@ export class Message {
       wireTimestamp?: string | null;
     } = {}
   ) {
-    this.timestamp = options.timestamp ?? new Date();
-    this.metadata = options.metadata ?? {};
-    this.wireTimestamp = options.wireTimestamp ?? null;
+    this.timestamp = options.timestamp === undefined ? new Date() : options.timestamp;
+    this.metadata = options.metadata === undefined ? {} : options.metadata;
+    this.wireTimestamp = options.wireTimestamp === undefined ? null : options.wireTimestamp;
   }
   /** 解析序列化消息，并保留原始线格式时间戳。 */
   public static fromJSON(input: unknown): Message {
@@ -47,6 +47,14 @@ export class Message {
       metadata: value.metadata,
       wireTimestamp: value.timestamp
     });
+  }
+  /** 转换为上游 OpenAI 消息格式；时间戳和元数据不是 API 载荷的一部分。 */
+  public toDict(): { role: MessageRole; content: string } {
+    return { role: this.role, content: this.content };
+  }
+  /** Python 命名风格的兼容别名。 */
+  public to_dict(): { role: MessageRole; content: string } {
+    return this.toDict();
   }
   /** 使用 snake_case 字段名序列化消息。 */
   public toJSON(): MessageJSON {

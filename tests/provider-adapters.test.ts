@@ -78,7 +78,7 @@ describe('provider selection', () => {
         )
     });
 
-    expect(await llm.invoke(messages)).toMatchObject({ content: 'factory result' });
+    expect(await llm.invoke(messages)).toBe('factory result');
     expect(llm.adapter).toBeInstanceOf(AnthropicAdapter);
   });
 

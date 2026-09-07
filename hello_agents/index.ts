@@ -7,16 +7,21 @@ import pkg from '../package.json' with { type: 'json' };
 
 export {
   AgentError,
+  AgentException,
   ConfigError,
+  ConfigException,
   HelloAgentsError,
+  HelloAgentsException,
   LLMAbortError,
   LLMError,
+  LLMException,
   LLMTimeoutError,
-  ToolError
+  ToolError,
+  ToolException
 } from './core/errors.js';
 export { SkillError } from './core/errors.js';
-export { HelloAgentsLLM } from './core/llm.js';
-export type { HelloAgentsLLMOptions, LLMInvokeOptions } from './core/llm.js';
+export { HelloAgentsLLM, SUPPORTED_PROVIDERS } from './core/llm.js';
+export type { HelloAgentsLLMOptions, LLMInvokeOptions, SupportedProvider } from './core/llm.js';
 export { MockAdapter } from './adapters/mock.js';
 export {
   AnthropicAdapter,
@@ -200,6 +205,15 @@ export type {
 } from './agents/factory.js';
 
 export const version = pkg.version;
+export {
+  __author__,
+  __description__,
+  __email__,
+  __version__,
+  author,
+  description,
+  email
+} from './version.js';
 
 export const metadata = Object.freeze({
   name: '@junlang-7/helloagents',

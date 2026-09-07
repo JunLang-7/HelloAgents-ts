@@ -35,7 +35,7 @@ const llm = new packageEntry.HelloAgentsLLM({
   baseUrl: 'https://provider.test',
   adapter
 });
-assert.equal((await llm.invoke([{ role: 'user', content: 'hello' }])).content, 'Node LLM');
+assert.equal(await llm.invoke([{ role: 'user', content: 'hello' }]), 'Node LLM');
 const openAiAdapter = new packageEntry.OpenAIAdapter(
   {
     model: 'test-model',

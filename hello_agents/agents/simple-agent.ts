@@ -237,6 +237,7 @@ export class SimpleAgent {
   ): Promise<string> {
     const registry = this.toolRegistry;
     if (!registry) throw new Error('Tool registry is required for tool calling');
+    // SAFETY: ToolRegistry schemas are JSON-compatible records by contract.
     const schemas = registry.toOpenAISchemas() as unknown as Record<string, unknown>[];
     for (let iteration = 0; iteration < this.maxToolIterations; iteration += 1) {
       const response = await this.llm.invokeWithTools(messages, schemas, 'auto', options);
@@ -285,11 +286,9 @@ export class SimpleAgent {
   ): Promise<string> {
     const response = await this.llm.invoke(messages, options);
     await this.traceLogger?.logEvent('model_output', {
-      content: response.content,
-      model: response.model,
-      usage: response.usage,
-      latency_ms: response.latencyMs
+      content: response,
+      model: this.llm.model
     });
-    return response.content;
+    return response;
   }
 }

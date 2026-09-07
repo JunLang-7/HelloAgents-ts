@@ -4,9 +4,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import {
-  Agent,
-  HelloAgentsLLM,
-  MockAdapter,
   SkillError,
   SkillLoader,
   SkillTool,
@@ -137,42 +134,6 @@ describe('SkillTool', () => {
       expect((await tool.execute({ skill: 'writer', args: 42 })).errorInfo?.code).toBe(
         ToolErrorCode.INVALID_PARAM
       );
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
-});
-
-describe('Agent skill registration', () => {
-  test('respects skillsEnabled and skillsAutoRegister configuration', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'helloagents-skills-'));
-    try {
-      await writeSkill(root, 'writing', '---\nname: writer\ndescription: Help\n---\nbody');
-      const llm = new HelloAgentsLLM({
-        model: 'test-model',
-        apiKey: 'test-key',
-        baseUrl: 'https://provider.test',
-        adapter: new MockAdapter()
-      });
-      class TestAgent extends Agent {
-        public async run(): Promise<string> {
-          return '';
-        }
-      }
-      const disabled = new TestAgent({
-        name: 'disabled',
-        llm,
-        config: { skillsEnabled: false, skillsDir: root, skillsAutoRegister: true }
-      });
-      await expect(disabled.registerConfiguredSkills()).resolves.toBeUndefined();
-      expect(disabled.toolRegistry.list()).toEqual([]);
-      const enabled = new TestAgent({
-        name: 'enabled',
-        llm,
-        config: { skillsEnabled: true, skillsDir: root, skillsAutoRegister: true }
-      });
-      await enabled.registerConfiguredSkills();
-      expect(enabled.toolRegistry.list()).toEqual(['Skill']);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

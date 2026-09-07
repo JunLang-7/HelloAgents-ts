@@ -72,7 +72,9 @@ export class HistoryManager {
     const keep = grouped.slice(-this.retainRecentTurns).flat();
     const older = grouped.slice(0, -this.retainRecentTurns).flat();
     if (older.length === 0) return this.getAll();
-    const summary = new Message(await this.summarize(older), 'summary');
+    // Use the valid teaching-core system role; adapters merge this instruction
+    // with earlier system policy when constructing provider payloads.
+    const summary = new Message(await this.summarize(older), 'system');
     this.messages = [summary, ...keep];
     return this.getAll();
   }

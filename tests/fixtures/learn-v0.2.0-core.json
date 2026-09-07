@@ -1,0 +1,21 @@
+{
+  "config": {
+    "default_model": "gpt-3.5-turbo",
+    "default_provider": "openai",
+    "temperature": 0.7,
+    "max_tokens": null,
+    "debug": false,
+    "log_level": "INFO",
+    "max_history_length": 100
+  },
+  "message": {
+    "role": "user",
+    "content": "hello"
+  },
+  "response": {
+    "content": "world",
+    "model": "test-model",
+    "usage": {},
+    "latency_ms": 0
+  }
+}

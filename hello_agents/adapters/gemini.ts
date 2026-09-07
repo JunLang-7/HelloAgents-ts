@@ -59,6 +59,8 @@ function toolCalls(message: LLMMessage): unknown[] {
   return Array.isArray(message.tool_calls) ? message.tool_calls : [];
 }
 
+const systemInstructionDelimiter = '\n\n';
+
 export class GeminiAdapter extends FetchAdapter {
   private endpoint(stream = false) {
     return endpoint(
@@ -68,12 +70,14 @@ export class GeminiAdapter extends FetchAdapter {
   }
 
   private convertMessages(messages: readonly LLMMessage[]) {
-    let systemInstruction: Record<string, unknown> | undefined;
+    const systemInstructions: string[] = [];
     const contents: Array<Record<string, unknown>> = [];
     const toolNames = new Map<string, string>();
     for (const message of messages) {
       if (message.role === 'system') {
-        systemInstruction = { parts: [{ text: message.content ?? '' }] };
+        // Teaching-core summaries use the valid system role; keep all policy
+        // instructions instead of letting the summary replace an earlier one.
+        systemInstructions.push(message.content ?? '');
         continue;
       }
       if (message.role === 'assistant' && toolCalls(message).length > 0) {
@@ -120,7 +124,13 @@ export class GeminiAdapter extends FetchAdapter {
         parts: [{ text: message.content ?? '' }]
       });
     }
-    return { systemInstruction, contents };
+    return {
+      systemInstruction:
+        systemInstructions.length > 0
+          ? { parts: [{ text: systemInstructions.join(systemInstructionDelimiter) }] }
+          : undefined,
+      contents
+    };
   }
 
   private body(request: AdapterRequest, extra: Record<string, unknown> = {}) {
@@ -136,7 +146,9 @@ export class GeminiAdapter extends FetchAdapter {
     };
     return {
       contents: converted.contents,
-      ...(converted.systemInstruction ? { systemInstruction: converted.systemInstruction } : {}),
+      ...(converted.systemInstruction === undefined
+        ? {}
+        : { systemInstruction: converted.systemInstruction }),
       ...(Object.keys(generationConfig).length ? { generationConfig } : {}),
       ...extra
     };

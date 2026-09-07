@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 import { parseOrThrow } from './errors.js';
 
+function runtimeEnvironment(): Record<string, string | undefined> {
+  return typeof process === 'undefined' ? {} : { ...process.env };
+}
+
 const configFields = {
   defaultModel: z.string().min(1).default('gpt-3.5-turbo'),
   defaultProvider: z.string().min(1).default('openai'),
@@ -130,9 +134,79 @@ const configWireSchema = z
   .strict();
 
 export class Config {
-  /** 包装已经解析完成的配置值，用于线格式序列化。 */
-  public constructor(private readonly values: ConfigValues) {}
-  /** 将 camelCase 配置序列化为 snake_case 的会话/配置线格式。 */
+  public readonly default_model: string;
+  public readonly default_provider: string;
+  public readonly temperature: number;
+  public readonly max_tokens: number | null;
+  public readonly debug: boolean;
+  public readonly log_level: string;
+  public readonly max_history_length: number;
+
+  /** 创建与 Python learn_version Config 相同的默认配置。 */
+  public constructor(input: unknown = {}) {
+    const record =
+      input && typeof input === 'object' ? (input as Record<string, unknown>) : undefined;
+    const hasWireFields =
+      record !== undefined &&
+      Object.entries(wireNameMap).some(([camel, wire]) => camel !== wire && wire in record);
+    const camelInput = hasWireFields
+      ? Object.fromEntries(
+          Object.entries(wireNameMap).flatMap(([camel, wire]) =>
+            record?.[wire] !== undefined ? [[camel, record[wire]]] : []
+          )
+        )
+      : input;
+    const values = parseOrThrow(configSchema, camelInput, 'Config');
+    this.values = values;
+    this.default_model = values.defaultModel;
+    this.default_provider = values.defaultProvider;
+    this.temperature = values.temperature;
+    this.max_tokens = values.maxTokens;
+    this.debug = values.debug;
+    this.log_level = values.logLevel;
+    this.max_history_length = values.maxHistoryLength;
+    Object.assign(this, values);
+  }
+
+  private readonly values: ConfigValues;
+
+  /** 从显式环境映射读取配置；不传映射时读取进程环境。 */
+  public static fromEnv(env: Record<string, string | undefined> = runtimeEnvironment()): Config {
+    return createConfigFromEnv(env);
+  }
+
+  /** Python 命名风格的兼容别名。 */
+  public static from_env(env: Record<string, string | undefined> = runtimeEnvironment()): Config {
+    return Config.fromEnv(env);
+  }
+
+  /** 上游 Config.to_dict() 的七个字段。 */
+  public toDict(): {
+    default_model: string;
+    default_provider: string;
+    temperature: number;
+    max_tokens: number | null;
+    debug: boolean;
+    log_level: string;
+    max_history_length: number;
+  } {
+    return {
+      default_model: this.default_model,
+      default_provider: this.default_provider,
+      temperature: this.temperature,
+      max_tokens: this.max_tokens,
+      debug: this.debug,
+      log_level: this.log_level,
+      max_history_length: this.max_history_length
+    };
+  }
+
+  /** Python 命名风格的兼容别名。 */
+  public to_dict() {
+    return this.toDict();
+  }
+
+  /** 将完整配置序列化为 snake_case 的线格式。 */
   public toJSON(): Record<string, ConfigValues[keyof ConfigValues]> {
     return Object.fromEntries(
       Object.entries(wireNameMap).map(([key, wire]) => [

@@ -224,7 +224,7 @@ export class PlanSolveAgent {
         : [{ role: 'system' as const, content: this.systemPrompt }]),
       { role: 'user', content: prompt }
     ];
-    if (!this.enableToolCalling) return (await this.llm.invoke(messages, options)).content;
+    if (!this.enableToolCalling) return await this.llm.invoke(messages, options);
     const schemas = this.toolRegistry.toOpenAISchemas() as unknown as Record<string, unknown>[];
     for (let iteration = 0; iteration < this.maxToolIterations; iteration += 1) {
       const response = await this.llm.invokeWithTools(messages, schemas, 'auto', options);
@@ -243,7 +243,7 @@ export class PlanSolveAgent {
         messages.push({ role: 'tool', tool_call_id: call.id, content: result.text });
       }
     }
-    return (await this.llm.invoke(messages, options)).content;
+    return await this.llm.invoke(messages, options);
   }
 
   private complete(input: string, result: string): string {

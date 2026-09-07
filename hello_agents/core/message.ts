@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { parseOrThrow } from './errors.js';
 
-/** 对话和工具协议接受的消息角色。 */
-export const messageRoleSchema = z.enum(['user', 'assistant', 'system', 'tool', 'summary']);
+/** 上游教学核心接受的消息角色。 */
+export const messageRoleSchema = z.enum(['user', 'assistant', 'system', 'tool']);
 /** 对话角色标识。 */
 export type MessageRole = z.infer<typeof messageRoleSchema>;
 const pythonIsoDateTimeSchema = z
@@ -17,27 +17,29 @@ export const messageSchema = z
     metadata: z.record(z.string(), z.unknown()).nullable().default({})
   })
   .strict();
-/** 会话和生命周期载荷使用的 JSON 兼容消息格式。 */
+/** 会话模块使用的 JSON 兼容消息格式；不是模型调用消息格式。 */
 export type MessageJSON = z.output<typeof messageSchema>;
 
 /** 支持 Python 兼容序列化的对话消息。 */
 export class Message {
+  public readonly role: MessageRole;
   public readonly timestamp: Date | null;
   public readonly metadata: Record<string, unknown> | null;
   private readonly wireTimestamp: string | null;
   /** 创建消息；时间戳默认为当前时间。 */
   public constructor(
     public readonly content: string,
-    public readonly role: MessageRole,
+    role: MessageRole,
     options: {
       timestamp?: Date | null;
       metadata?: Record<string, unknown> | null;
       wireTimestamp?: string | null;
     } = {}
   ) {
-    this.timestamp = options.timestamp ?? new Date();
-    this.metadata = options.metadata ?? {};
-    this.wireTimestamp = options.wireTimestamp ?? null;
+    this.role = parseOrThrow(messageRoleSchema, role, 'Message role');
+    this.timestamp = options.timestamp === undefined ? new Date() : options.timestamp;
+    this.metadata = options.metadata === undefined ? {} : options.metadata;
+    this.wireTimestamp = options.wireTimestamp === undefined ? null : options.wireTimestamp;
   }
   /** 解析序列化消息，并保留原始线格式时间戳。 */
   public static fromJSON(input: unknown): Message {
@@ -47,6 +49,14 @@ export class Message {
       metadata: value.metadata,
       wireTimestamp: value.timestamp
     });
+  }
+  /** 转换为上游 OpenAI 消息格式；时间戳和元数据不是 API 载荷的一部分。 */
+  public toDict(): { role: MessageRole; content: string } {
+    return { role: this.role, content: this.content };
+  }
+  /** Python 命名风格的兼容别名。 */
+  public to_dict(): { role: MessageRole; content: string } {
+    return this.toDict();
   }
   /** 使用 snake_case 字段名序列化消息。 */
   public toJSON(): MessageJSON {

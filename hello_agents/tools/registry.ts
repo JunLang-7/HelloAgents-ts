@@ -6,6 +6,9 @@ import { ToolErrorCode } from './errors.js';
 import { ToolResponse } from './response.js';
 import type { ExpandableTool, FunctionToolOptions, OpenAIToolSchema, Tool } from './tool.js';
 import { FunctionTool } from './tool.js';
+import { z } from 'zod';
+
+const awaitableStringSchema = z.object({ input: z.string() }).strict();
 
 type RegisteredTool = Tool | ExpandableTool;
 
@@ -18,13 +21,24 @@ function isExpandableTool(tool: RegisteredTool): tool is ExpandableTool {
   return 'expandable' in tool && tool.expandable;
 }
 
-function normalizeInput(input: unknown): unknown {
-  if (typeof input !== 'string') return input;
-  try {
-    return JSON.parse(input);
-  } catch {
+type NormalizedInput = Record<string, unknown>;
+
+function normalizeInput(input: unknown): NormalizedInput {
+  if (input !== null && typeof input === 'object' && !Array.isArray(input)) {
+    return input as NormalizedInput;
+  }
+  if (typeof input === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(input);
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as NormalizedInput;
+      }
+    } catch {
+      // Plain text is the teaching-line shorthand for the `input` field.
+    }
     return { input };
   }
+  return { input };
 }
 
 /** HelloAgents 工具注册表，提供工具注册、管理和执行能力。 */
@@ -71,8 +85,28 @@ export class ToolRegistry {
    */
   public registerFunction<TSchema extends ZodType>(
     tool: FunctionTool<TSchema> | FunctionToolOptions<TSchema>
+  ): this;
+  public registerFunction(
+    name: string,
+    description: string,
+    handler: (input: string) => unknown | Promise<unknown>
+  ): this;
+  public registerFunction<TSchema extends ZodType>(
+    toolOrName: FunctionTool<TSchema> | FunctionToolOptions<TSchema> | string,
+    description?: string,
+    handler?: (input: string) => unknown | Promise<unknown>
   ): this {
-    const wrapped = tool instanceof FunctionTool ? tool : new FunctionTool(tool);
+    const wrapped =
+      typeof toolOrName === 'string'
+        ? new FunctionTool({
+            name: toolOrName,
+            description: description ?? '',
+            inputSchema: awaitableStringSchema,
+            handler: ({ input }) => handler?.(input)
+          })
+        : toolOrName instanceof FunctionTool
+          ? toolOrName
+          : new FunctionTool(toolOrName);
     this.register(wrapped);
     this.functions.set(wrapped.name, wrapped);
     return this;
@@ -209,3 +243,5 @@ export class ToolRegistry {
 
 /** 进程级默认注册表，适用于不需要隔离工具集合的应用。 */
 export const globalRegistry = new ToolRegistry();
+/** Python `global_registry` spelling retained as an explicit compatibility alias. */
+export const global_registry = globalRegistry;

@@ -154,6 +154,15 @@ later subpath export decisions.
 | Protocol/network I/O and optional backends                                             | `Promise` / `AsyncIterable` as appropriate, gated at load/use                            | Preserve explicit unavailable failure; never make package import perform network I/O.                                           | #75, #84, #85                               |
 | Python generators/iterators used by memory/RAG/benchmarks                              | `Iterable` only for in-memory synchronous enumeration; `AsyncIterable`/`Promise` for I/O | The owning fixture must pin order, pagination/chunk boundaries, and error behavior before implementation.                       | #73, #76, #85                               |
 
+### Approved #70 safety differences
+
+- `SearchTool` never performs network I/O on construction or by default. Real
+  backends require explicit opt-in and tests inject a backend adapter.
+- `TerminalTool` uses argv-only execution with `shell: false`, rejects shell
+  metacharacters and workspace escapes, and does not expose Python, Node, Bash,
+  PowerShell, or other interpreter commands. This intentionally replaces the
+  upstream `shell=True` behavior to keep the teaching package safe.
+
 ## Environment, defaults, and external-dependency inventory
 
 These names are observable configuration inputs, not an invitation to read all

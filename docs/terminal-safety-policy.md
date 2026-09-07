@@ -5,22 +5,25 @@ It **never starts an external process**: there is no command lookup, argv
 execution, shell, interpreter, or `PATH` use. Consequently, a hostile `PATH`
 cannot change its behavior.
 
-The supported in-process command surface is intentionally small:
+The supported in-process command surface is intentionally limited to:
 
-- `cat <filename>` reads one regular, direct child of the workspace.
-- `ls` lists the current workspace directory and accepts no arguments.
-- `pwd` reports the current workspace directory and accepts no arguments.
 - `echo [text...]` returns its literal arguments.
+- `pwd` reports the lexical workspace label captured when the tool is
+  constructed and accepts no arguments.
 
-All other commands, options, path-bearing `ls` arguments, shell syntax,
-control characters, and `cd` are rejected. `cat` rejects absolute paths,
-directory traversal, separators, and links. On macOS and Linux it opens the
-resolved direct-child path using `O_NOFOLLOW`, validates the opened descriptor
-is a regular file with no extra hard links, and reads that descriptor without
-re-opening the supplied pathname. Platforms that cannot provide this no-follow
-behavior reject file reads rather than weakening containment.
+`cat`, `ls`, `cd`, and every other command are rejected. No terminal command
+reads, lists, resolves, or navigates the filesystem, so command operands cannot
+be used as filesystem paths. Shell syntax and control characters are also
+rejected.
 
-This deliberately narrow policy avoids both executable lookup and the common
-validate-then-reopen race. It is stricter than the upstream teaching
-implementation; use the file tools when an application needs broader,
-explicitly reviewed filesystem behavior.
+The construction-time workspace label is not a filesystem capability. After
+construction, `pwd` returns that captured string without touching the
+filesystem. Therefore, replacing the workspace directory with a symlink or
+another directory cannot cause `TerminalTool` to disclose content outside the
+original workspace.
+
+This is a deliberate teaching safety divergence from the upstream
+filesystem-capable terminal behavior. Portable Node APIs cannot safely preserve
+workspace ancestry across root-directory replacement, so this tool does not
+offer filesystem operations. Use explicitly reviewed file tools when an
+application needs filesystem behavior.

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { chmod, mkdtemp, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { z } from 'zod';
@@ -123,48 +123,47 @@ describe('learn-version tools', () => {
     expect(failed.errorInfo?.code).toBe(ToolErrorCode.API_ERROR);
   });
 
-  test('terminal stays in process and rejects path replacement and escape attempts', async () => {
+  test('terminal permits only echo and captured-label pwd without process or filesystem access', async () => {
     const workspace = await mkdtemp(join(tmpdir(), 'helloagents-learn-tools-'));
+    const originalWorkspace = `${workspace}-original`;
     const outside = await mkdtemp(join(tmpdir(), 'helloagents-outside-'));
     const originalPath = process.env.PATH;
     const pathMarker = join(outside, 'path-was-executed');
     try {
-      await writeFile(join(workspace, 'hello.txt'), 'hello', 'utf8');
-      await writeFile(join(outside, 'secret.txt'), 'secret', 'utf8');
-      await symlink(outside, join(workspace, 'outside'));
-      await writeFile(join(workspace, 'replaceable.txt'), 'inside', 'utf8');
-      await unlink(join(workspace, 'replaceable.txt'));
-      await symlink(join(outside, 'secret.txt'), join(workspace, 'replaceable.txt'));
+      await writeFile(join(outside, 'secret.txt'), 'root-swap-secret', 'utf8');
       await writeFile(
-        join(workspace, 'cat'),
+        join(workspace, 'echo'),
         `#!/bin/sh\nprintf exploited > "${pathMarker}"\n`,
         'utf8'
       );
-      await chmod(join(workspace, 'cat'), 0o755);
+      await chmod(join(workspace, 'echo'), 0o755);
       process.env.PATH = `${workspace}${delimiter}${originalPath ?? ''}`;
 
       const terminal = new TerminalTool({ workspace });
-      expect((await terminal.execute({ command: 'cat hello.txt' })).text).toBe('hello');
-      expect(existsSync(pathMarker)).toBe(false);
-      expect((await terminal.execute({ command: 'pwd' })).text).toBe(`${terminal.workspace}\n`);
-      expect((await terminal.execute({ command: 'ls' })).text).toContain('hello.txt');
+      expect(TerminalTool.ALLOWED_COMMANDS).toEqual(['echo', 'pwd']);
       expect((await terminal.execute({ command: 'echo safe text' })).text).toBe('safe text\n');
-      for (const command of [
-        'node -e "bad"',
-        'awk 1 hello.txt',
-        'find . -exec cat {}',
-        'cat outside/secret.txt',
-        'cat replaceable.txt',
-        'cd outside'
-      ]) {
+      expect((await terminal.execute({ command: 'pwd' })).text).toBe(`${terminal.workspace}\n`);
+      expect(existsSync(pathMarker)).toBe(false);
+      for (const command of ['cat secret.txt', 'ls', 'ls .', 'cd .']) {
         expect((await terminal.execute({ command })).errorInfo?.code).toBe(
           ToolErrorCode.ACCESS_DENIED
         );
       }
+      expect((await terminal.execute({ command: 'pwd workspace' })).errorInfo?.code).toBe(
+        ToolErrorCode.INVALID_PARAM
+      );
+
+      await rename(workspace, originalWorkspace);
+      await symlink(outside, workspace);
+      expect((await terminal.execute({ command: 'pwd' })).text).toBe(`${terminal.workspace}\n`);
+      const rootSwapAttempt = await terminal.execute({ command: 'cat secret.txt' });
+      expect(rootSwapAttempt.errorInfo?.code).toBe(ToolErrorCode.ACCESS_DENIED);
+      expect(rootSwapAttempt.text).not.toContain('root-swap-secret');
     } finally {
       if (originalPath === undefined) delete process.env.PATH;
       else process.env.PATH = originalPath;
       await rm(workspace, { recursive: true, force: true });
+      await rm(originalWorkspace, { recursive: true, force: true });
       await rm(outside, { recursive: true, force: true });
     }
   });

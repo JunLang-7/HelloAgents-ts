@@ -158,9 +158,12 @@ later subpath export decisions.
 
 - `SearchTool` never performs network I/O on construction or by default. Real
   backends require explicit opt-in and tests inject a backend adapter.
-- `TerminalTool` performs its documented read-only operations in process. It never
-  starts an external command, so `PATH` is not an execution boundary; shell
-  metacharacters, workspace escapes, and interpreter commands are rejected.
+- `TerminalTool` is a deliberate teaching safety divergence from the upstream
+  filesystem-capable terminal: it exposes only in-process `echo` and `pwd`.
+  `pwd` returns a construction-time workspace label without filesystem access;
+  `cat`, `ls`, `cd`, filesystem operands, shell metacharacters, and interpreter
+  commands are rejected. It never starts an external command, so `PATH` is not
+  an execution boundary.
 
 ## Environment, defaults, and external-dependency inventory
 

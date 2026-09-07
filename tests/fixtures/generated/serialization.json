@@ -1,0 +1,49 @@
+{
+  "config_to_dict": {
+    "debug": false,
+    "default_model": "gpt-3.5-turbo",
+    "default_provider": "openai",
+    "log_level": "INFO",
+    "max_history_length": 100,
+    "max_tokens": null,
+    "temperature": 0.7
+  },
+  "message_construction": {
+    "input": {
+      "content": "hello world",
+      "role": "user"
+    },
+    "output": {
+      "content": "hello world",
+      "metadata": {},
+      "role": "user",
+      "timestamp": "2026-09-07 23:24:04.145618"
+    }
+  },
+  "plain_dict_roundtrip": {
+    "deserialized": {
+      "key": "value",
+      "nested": {
+        "a": [1, 2, 3]
+      },
+      "number": 42,
+      "unicode": "中文测试"
+    },
+    "input": {
+      "key": "value",
+      "nested": {
+        "a": [1, 2, 3]
+      },
+      "number": 42,
+      "unicode": "中文测试"
+    },
+    "serialized": "{\n  \"key\": \"value\",\n  \"number\": 42,\n  \"nested\": {\n    \"a\": [\n      1,\n      2,\n      3\n    ]\n  },\n  \"unicode\": \"中文测试\"\n}"
+  },
+  "unsupported_format": {
+    "error": "不支持的序列化格式: yaml",
+    "input": {
+      "format": "yaml"
+    },
+    "output": null
+  }
+}

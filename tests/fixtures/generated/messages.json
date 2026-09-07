@@ -1,0 +1,55 @@
+{
+  "message_assistant": {
+    "content": "test content for assistant",
+    "metadata": {},
+    "role": "assistant",
+    "timestamp": "2026-09-07 23:24:04.145888"
+  },
+  "message_roundtrip": {
+    "input": {
+      "content": "with metadata",
+      "metadata": {
+        "source": "test",
+        "tokens": 5
+      },
+      "role": "user",
+      "timestamp": "2026-09-07 23:24:04.145893"
+    },
+    "output": {
+      "content": "with metadata",
+      "metadata": {
+        "source": "test",
+        "tokens": 5
+      },
+      "role": "user",
+      "timestamp": "2026-09-07 23:24:04.145893"
+    }
+  },
+  "message_system": {
+    "content": "test content for system",
+    "metadata": {},
+    "role": "system",
+    "timestamp": "2026-09-07 23:24:04.145879"
+  },
+  "message_tool": {
+    "content": "test content for tool",
+    "metadata": {},
+    "role": "tool",
+    "timestamp": "2026-09-07 23:24:04.145890"
+  },
+  "message_user": {
+    "content": "test content for user",
+    "metadata": {},
+    "role": "user",
+    "timestamp": "2026-09-07 23:24:04.145885"
+  },
+  "message_with_metadata": {
+    "content": "with metadata",
+    "metadata": {
+      "source": "test",
+      "tokens": 5
+    },
+    "role": "user",
+    "timestamp": "2026-09-07 23:24:04.145893"
+  }
+}

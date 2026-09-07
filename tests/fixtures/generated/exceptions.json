@@ -1,0 +1,45 @@
+{
+  "calculator_invalid": {
+    "input": {
+      "expression": "2 + "
+    },
+    "output": "计算失败: invalid syntax (<unknown>, line 1)"
+  },
+  "calculator_unsafe": {
+    "input": {
+      "expression": "__import__('os').system('echo hack')"
+    },
+    "output": "计算失败: 'Attribute' object has no attribute 'id'"
+  },
+  "empty_search": {
+    "input": {
+      "action": "search",
+      "query": "完全不存在的查询词xyz"
+    },
+    "output": "🔍 未找到与 '完全不存在的查询词xyz' 相关的记忆"
+  },
+  "missing_action": {
+    "input": {},
+    "output": "❌ 参数验证失败：缺少必需的参数"
+  },
+  "remove_missing_id": {
+    "input": {
+      "action": "remove",
+      "memory_id": "nonexistent-id"
+    },
+    "output": "⚠️ 未找到要删除的记忆"
+  },
+  "unknown_action": {
+    "input": {
+      "action": "nonexistent_action"
+    },
+    "output": "❌ 不支持的操作: nonexistent_action"
+  },
+  "update_missing_id": {
+    "input": {
+      "action": "update",
+      "memory_id": "nonexistent-id"
+    },
+    "output": "⚠️ 未找到要更新的记忆"
+  }
+}

@@ -1,0 +1,107 @@
+name: Opt-in integration evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type RUN_REAL_INTEGRATION to allow a real API request
+        required: true
+        default: 'NO'
+        type: choice
+        options:
+          - 'NO'
+          - RUN_REAL_INTEGRATION
+      backend_version:
+        description: Backend or endpoint version to record in the run summary
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  integration-gate:
+    name: Check integration configuration
+    if: ${{ inputs.confirm == 'RUN_REAL_INTEGRATION' }}
+    runs-on: ubuntu-latest
+    environment: integration
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check required environment secrets
+        id: check
+        shell: bash
+        env:
+          LLM_MODEL_ID: ${{ secrets.LLM_MODEL_ID }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+        run: |
+          if [[ -z "$LLM_MODEL_ID" || -z "$LLM_API_KEY" || -z "$LLM_BASE_URL" ]]; then
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Integration skipped: configure all three integration environment secrets.'
+          else
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+            echo 'Integration environment is configured.'
+          fi
+
+  real-api:
+    name: Real API integration
+    needs: integration-gate
+    if: ${{ needs.integration-gate.outputs.configured == 'true' }}
+    runs-on: ubuntu-latest
+    environment: integration
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: learn-version
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Record integration evidence metadata
+        env:
+          BACKEND_VERSION: ${{ inputs.backend_version }}
+        run: |
+          {
+            echo '### Real API integration evidence'
+            echo "- commit SHA: \`$(git rev-parse HEAD)\`"
+            printf -- '- backend version: `%s`\n' "${BACKEND_VERSION:-not provided}"
+            echo '- command: `bun run test:integration`'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Run opt-in integration test
+        id: integration
+        env:
+          HELLOAGENTS_INTEGRATION: '1'
+          LLM_MODEL_ID: ${{ secrets.LLM_MODEL_ID }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+        run: bun run test:integration
+      - name: Record redacted result
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ steps.integration.outcome }}
+        run: |
+          echo "- result: ${RESULT} (response content and credentials are not recorded)" >> "$GITHUB_STEP_SUMMARY"
+
+  integration-summary:
+    name: Integration run summary
+    if: ${{ always() && inputs.confirm == 'RUN_REAL_INTEGRATION' }}
+    needs: [integration-gate, real-api]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped or completed run
+        env:
+          GATE_RESULT: ${{ needs.integration-gate.result }}
+          API_RESULT: ${{ needs.real-api.result }}
+        run: |
+          {
+            echo '### Integration workflow status'
+            if [[ "$GATE_RESULT" == 'success' && "$API_RESULT" == 'skipped' ]]; then
+              echo '- result: skipped (integration environment secrets are not fully configured)'
+            else
+              echo "- configuration gate: ${GATE_RESULT}"
+              echo "- real API job: ${API_RESULT}"
+            fi
+            echo '- no package publish step is defined'
+          } >> "$GITHUB_STEP_SUMMARY"

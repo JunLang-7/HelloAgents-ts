@@ -164,6 +164,18 @@ describe('Message', () => {
     expect(error).toBeInstanceOf(ConfigError);
     expect(error).not.toHaveProperty('issues');
   });
+
+  test('rejects invalid roles when constructing directly', () => {
+    let error: unknown;
+    try {
+      new Message('invalid role', 'invalid' as never);
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(ConfigError);
+    expect(error).not.toHaveProperty('issues');
+  });
 });
 
 describe('LLM response models', () => {

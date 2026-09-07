@@ -227,6 +227,7 @@ describe('Anthropic adapter', () => {
     );
     const toolHistory = [
       { role: 'system' as const, content: 'be helpful' },
+      { role: 'system' as const, content: 'summary: earlier context' },
       {
         role: 'assistant' as const,
         content: null,
@@ -251,7 +252,7 @@ describe('Anthropic adapter', () => {
     const request = JSON.parse(String(capture.init?.body));
 
     expect(request).toMatchObject({
-      system: 'be helpful',
+      system: 'be helpful\n\nsummary: earlier context',
       tool_choice: { type: 'tool', name: 'calculate' },
       tools: [{ name: 'calculate', input_schema: { type: 'object' } }],
       messages: [
@@ -313,6 +314,7 @@ describe('Gemini adapter', () => {
     const response = await adapter.invokeWithTools({
       messages: [
         { role: 'system', content: 'be helpful' },
+        { role: 'system', content: 'summary: earlier context' },
         { role: 'user', content: 'calculate 2+3' }
       ],
       tools: [
@@ -327,7 +329,7 @@ describe('Gemini adapter', () => {
     const request = JSON.parse(String(capture.init?.body));
 
     expect(request).toMatchObject({
-      systemInstruction: { parts: [{ text: 'be helpful' }] },
+      systemInstruction: { parts: [{ text: 'be helpful\n\nsummary: earlier context' }] },
       contents: [{ role: 'user', parts: [{ text: 'calculate 2+3' }] }],
       generationConfig: { temperature: 0.2, maxOutputTokens: 50 },
       tools: [

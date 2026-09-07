@@ -76,6 +76,8 @@ function toolCallParts(message: LLMMessage): Array<Record<string, unknown>> {
   return parts;
 }
 
+const systemInstructionDelimiter = '\n\n';
+
 function collectText(response: z.infer<typeof anthropicResponseSchema>): string {
   return response.content
     .filter(
@@ -92,11 +94,13 @@ export class AnthropicAdapter extends FetchAdapter {
   }
 
   private convertMessages(messages: readonly LLMMessage[]) {
-    let system: string | undefined;
+    const systemInstructions: string[] = [];
     const converted: Array<Record<string, unknown>> = [];
     for (const message of messages) {
       if (message.role === 'system') {
-        system = message.content ?? '';
+        // Teaching-core summaries use the valid system role; keep all policy
+        // instructions instead of letting the summary replace an earlier one.
+        systemInstructions.push(message.content ?? '');
         continue;
       }
       if (message.role === 'assistant' && toolCalls(message).length > 0) {
@@ -121,7 +125,13 @@ export class AnthropicAdapter extends FetchAdapter {
         content: message.content ?? ''
       });
     }
-    return { system, messages: converted };
+    return {
+      system:
+        systemInstructions.length > 0
+          ? systemInstructions.join(systemInstructionDelimiter)
+          : undefined,
+      messages: converted
+    };
   }
 
   private body(request: AdapterRequest, extra: Record<string, unknown> = {}) {
@@ -130,7 +140,7 @@ export class AnthropicAdapter extends FetchAdapter {
       model: this.config.model,
       messages: converted.messages,
       max_tokens: request.options.maxTokens ?? 4096,
-      ...(converted.system ? { system: converted.system } : {}),
+      ...(converted.system === undefined ? {} : { system: converted.system }),
       ...(request.options.temperature === undefined
         ? {}
         : { temperature: request.options.temperature }),

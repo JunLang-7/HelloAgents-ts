@@ -144,7 +144,39 @@ describe('HelloAgentsLLM', () => {
     expect(vllm.baseUrl).toBe('http://vllm.test/v1');
   });
 
+  test('uses LLM_BASE_URL as an endpoint signal before ambient provider credentials', () => {
+    const llm = new HelloAgentsLLM({
+      env: {
+        LLM_BASE_URL: 'https://api.deepseek.com',
+        DEEPSEEK_API_KEY: 'deepseek-key',
+        OPENAI_API_KEY: 'ambient-openai-key'
+      },
+      adapter: new MockAdapter()
+    });
+
+    expect(llm.provider).toBe('deepseek');
+    expect(llm.baseUrl).toBe('https://api.deepseek.com');
+    expect(llm.apiKey).toBe('deepseek-key');
+  });
+
   test('explicit endpoints take priority over ambient provider credentials', () => {
+    const llm = new HelloAgentsLLM({
+      provider: 'auto',
+      baseUrl: 'https://api.deepseek.com',
+      env: {
+        OPENAI_API_KEY: 'ambient-openai-key',
+        DEEPSEEK_API_KEY: 'endpoint-provider-key',
+        LLM_API_KEY: 'generic-key',
+        LLM_BASE_URL: 'https://environment.test'
+      },
+      adapter: new MockAdapter()
+    });
+    expect(llm.provider).toBe('deepseek');
+    expect(llm.baseUrl).toBe('https://api.deepseek.com');
+    expect(llm.apiKey).toBe('endpoint-provider-key');
+  });
+
+  test('leaves unknown explicit endpoints generic without ambient provider detection', () => {
     const llm = new HelloAgentsLLM({
       provider: 'auto',
       baseUrl: 'https://custom.test/v1',
@@ -155,6 +187,7 @@ describe('HelloAgentsLLM', () => {
       },
       adapter: new MockAdapter()
     });
+
     expect(llm.provider).toBe('auto');
     expect(llm.baseUrl).toBe('https://custom.test/v1');
     expect(llm.apiKey).toBe('generic-key');

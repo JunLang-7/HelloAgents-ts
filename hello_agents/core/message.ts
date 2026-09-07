@@ -22,19 +22,21 @@ export type MessageJSON = z.output<typeof messageSchema>;
 
 /** 支持 Python 兼容序列化的对话消息。 */
 export class Message {
+  public readonly role: MessageRole;
   public readonly timestamp: Date | null;
   public readonly metadata: Record<string, unknown> | null;
   private readonly wireTimestamp: string | null;
   /** 创建消息；时间戳默认为当前时间。 */
   public constructor(
     public readonly content: string,
-    public readonly role: MessageRole,
+    role: MessageRole,
     options: {
       timestamp?: Date | null;
       metadata?: Record<string, unknown> | null;
       wireTimestamp?: string | null;
     } = {}
   ) {
+    this.role = parseOrThrow(messageRoleSchema, role, 'Message role');
     this.timestamp = options.timestamp === undefined ? new Date() : options.timestamp;
     this.metadata = options.metadata === undefined ? {} : options.metadata;
     this.wireTimestamp = options.wireTimestamp === undefined ? null : options.wireTimestamp;

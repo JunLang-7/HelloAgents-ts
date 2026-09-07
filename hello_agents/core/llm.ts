@@ -142,7 +142,15 @@ function autoDetectProvider(
 ): SupportedProvider {
   // An explicitly supplied endpoint identifies the target more reliably than
   // credentials inherited from an unrelated provider in the environment.
-  if (baseUrl) return detectProviderFromUrl(baseUrl, apiKey ?? env.LLM_API_KEY);
+  if (baseUrl) {
+    const detected = detectProviderFromUrl(baseUrl, apiKey ?? env.LLM_API_KEY);
+    if (detected !== 'auto') return detected;
+    // Provider hosts are endpoint signals too; retain their existing fallback
+    // for generic LLM_BASE_URL values without consulting provider credentials.
+    if (env.OLLAMA_HOST) return 'ollama';
+    if (env.VLLM_HOST) return 'vllm';
+    return 'auto';
+  }
   if (env.OPENAI_API_KEY) return 'openai';
   if (env.DEEPSEEK_API_KEY) return 'deepseek';
   if (env.DASHSCOPE_API_KEY) return 'qwen';
@@ -234,7 +242,7 @@ export class HelloAgentsLLM {
     const provider =
       requestedProvider && requestedProvider !== 'auto'
         ? requestedProvider
-        : autoDetectProvider(options.apiKey, options.baseUrl, env);
+        : autoDetectProvider(options.apiKey, options.baseUrl || env.LLM_BASE_URL, env);
     this.provider = provider;
 
     const defaults = providerDefaults[provider as keyof typeof providerDefaults];

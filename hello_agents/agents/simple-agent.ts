@@ -1,42 +1,42 @@
 import type { LLMMessage } from '../adapters/base.js';
+import { Agent } from '../core/agent.js';
+import type { Config } from '../core/config.js';
 import { AgentEvent } from '../core/lifecycle.js';
 import type { LifecycleHook } from '../core/lifecycle.js';
 import { Message } from '../core/message.js';
 import type { HelloAgentsLLM, LLMInvokeOptions } from '../core/llm.js';
 import { ToolRegistry } from '../tools/registry.js';
+import type { ToolResponse } from '../tools/response.js';
+import { ToolStatus } from '../tools/response.js';
 import type { ExpandableTool, Tool } from '../tools/tool.js';
 import type { TraceLogger } from '../observability/trace-logger.js';
 
 export interface SimpleAgentOptions {
-  /** Agent 名称，用于历史记录和生命周期事件。 */
   readonly name: string;
-  /** 用于生成回答和工具调用的 LLM 客户端。 */
   readonly llm: HelloAgentsLLM;
-  /** 每次调用前追加的可选系统提示词。 */
   readonly systemPrompt?: string;
-  /** 初始工具注册表；未提供时不启用工具调用。 */
+  readonly config?: Config;
   readonly toolRegistry?: ToolRegistry;
-  /** 注册表中存在工具时是否启用原生 Function Calling。 */
   readonly enableToolCalling?: boolean;
-  /** 模型工具调用的最大轮数，超出后回退到直接响应。 */
   readonly maxToolIterations?: number;
-  /** 可选的会话 Trace；每次运行都会 finalize，包括发生异常时。 */
+  /** Existing 1.x tracing support retained for the current TypeScript API. */
   readonly traceLogger?: TraceLogger;
 }
 
 export interface AgentLifecycleOptions {
-  /** 运行开始前调用的回调。 */
   readonly onStart?: LifecycleHook;
-  /** 运行成功后调用的回调。 */
   readonly onFinish?: LifecycleHook;
-  /** 运行失败时调用的回调。 */
   readonly onError?: LifecycleHook;
-  /** 每个回调的最大等待时间；超时和回调异常会被忽略。 */
   readonly hookTimeoutMs?: number;
 }
-/** `arun` 和 `arunStream` 使用的 LLM 选项及可选生命周期回调。 */
 export interface AgentInvocationOptions extends LLMInvokeOptions {
   readonly lifecycle?: AgentLifecycleOptions;
+}
+
+export interface ParsedToolCall {
+  readonly toolName: string;
+  readonly parameters: string;
+  readonly original: string;
 }
 
 async function invokeHook(
@@ -52,86 +52,212 @@ async function invokeHook(
 }
 
 /**
- * 简单的对话 Agent，支持可选的工具调用。
+ * Text-marker tool calling agent from the teaching upstream.
  *
- * 特性：
- * - 纯对话模式（无工具）
- * - Function Calling 工具调用（可选）
- * - 自动多轮工具调用
+ * Models call tools by emitting `[TOOL_CALL:name:parameters]`; tool feedback is
+ * supplied as the next user message. Native provider function calling belongs to
+ * `FunctionCallAgent`.
  */
-export class SimpleAgent {
-  public readonly name: string;
-  public readonly llm: HelloAgentsLLM;
-  public readonly systemPrompt: string | undefined;
+export class SimpleAgent extends Agent {
   public readonly maxToolIterations: number;
-  private toolRegistry: ToolRegistry | undefined;
-  private enableToolCalling: boolean;
+  protected toolRegistry: ToolRegistry | undefined;
+  protected enableToolCalling: boolean;
   private readonly traceLogger: TraceLogger | undefined;
-  private history: Message[] = [];
 
   public constructor(options: SimpleAgentOptions) {
-    this.name = options.name;
-    this.llm = options.llm;
-    this.systemPrompt = options.systemPrompt;
+    super(options.name, options.llm, options.systemPrompt, options.config);
     this.toolRegistry = options.toolRegistry;
-    this.traceLogger = options.traceLogger;
-    this.enableToolCalling = (options.enableToolCalling ?? true) && this.toolRegistry !== undefined;
+    this.enableToolCalling =
+      (options.enableToolCalling ?? true) && options.toolRegistry !== undefined;
     this.maxToolIterations = options.maxToolIterations ?? 3;
+    this.traceLogger = options.traceLogger;
   }
 
-  /** 获取当前 Agent 保留的所有历史消息。 */
-  public getHistory(): readonly Message[] {
-    return [...this.history];
-  }
-  /** 清空历史消息。 */
-  public clearHistory(): void {
-    this.history = [];
-  }
-
-  /** 添加工具；必要时创建独立的工具注册表。 */
   public addTool(tool: Tool | ExpandableTool, autoExpand = true): void {
     this.toolRegistry ??= new ToolRegistry();
     this.toolRegistry.register(tool, autoExpand);
     this.enableToolCalling = true;
   }
-  /** 按名称移除工具，并返回工具是否已注册。 */
+
   public removeTool(name: string): boolean {
     return this.toolRegistry?.unregister(name) ?? false;
   }
-  /** 列出所有可用工具。 */
+
   public listTools(): string[] {
     return this.toolRegistry?.list() ?? [];
   }
-  /** 检查当前 Agent 是否有可用工具。 */
+
   public hasTools(): boolean {
-    return this.enableToolCalling && (this.toolRegistry?.list().length ?? 0) > 0;
+    // Upstream semantics: a registry (even an empty one) keeps tool calling enabled.
+    return this.enableToolCalling && this.toolRegistry !== undefined;
   }
 
-  /**
-   * 运行 SimpleAgent（基于 Function Calling）。
-   *
-   * @param input 用户输入。
-   * @param options LLM 调用选项。
-   * @returns 最终回复。
-   */
-  public async run(input: string, options?: LLMInvokeOptions): Promise<string> {
-    const messages = this.buildMessages(input);
+  /** Upstream's enhanced marker-calling prompt, including its default prompt. */
+  protected getEnhancedSystemPrompt(): string {
+    const basePrompt = this.systemPrompt ?? '你是一个有用的AI助手。';
+    if (!this.enableToolCalling || !this.toolRegistry) return basePrompt;
+    const toolsDescription = this.toolRegistry.getToolsDescription();
+    if (!toolsDescription || toolsDescription === '暂无可用工具') return basePrompt;
+
+    return `${basePrompt}\n\n## 可用工具\n你可以使用以下工具来帮助回答问题：\n${toolsDescription}\n\n## 工具调用格式\n当需要使用工具时，请使用以下格式：\n\`[TOOL_CALL:{tool_name}:{parameters}]\`\n\n### 参数格式说明\n1. **多个参数**：使用 \`key=value\` 格式，用逗号分隔\n   示例：\`[TOOL_CALL:calculator_multiply:a=12,b=8]\`\n   示例：\`[TOOL_CALL:filesystem_read_file:path=README.md]\`\n\n2. **单个参数**：直接使用 \`key=value\`\n   示例：\`[TOOL_CALL:search:query=Python编程]\`\n\n3. **简单查询**：可以直接传入文本\n   示例：\`[TOOL_CALL:search:Python编程]\`\n\n### 重要提示\n- 参数名必须与工具定义的参数名完全匹配\n- 数字参数直接写数字，不需要引号：\`a=12\` 而不是 \`a="12"\`\n- 文件路径等字符串参数直接写：\`path=README.md\`\n- 工具调用结果会自动插入到对话中，然后你可以基于结果继续回答\n`;
+  }
+
+  protected parseToolCalls(text: string): ParsedToolCall[] {
+    const pattern = /\[TOOL_CALL:([^:]+):([^\]]+)\]/g;
+    return [...text.matchAll(pattern)].map((match) => ({
+      toolName: match[1]?.trim() ?? '',
+      parameters: match[2]?.trim() ?? '',
+      original: match[0]
+    }));
+  }
+
+  protected parseToolParameters(toolName: string, parameters: string): Record<string, unknown> {
+    const text = parameters.trim();
+    if (text.startsWith('{')) {
+      try {
+        const parsed: unknown = JSON.parse(text);
+        if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed))
+          return this.convertParameterTypes(toolName, parsed as Record<string, unknown>);
+      } catch {
+        // Fall through to the upstream key=value parser.
+      }
+    }
+
+    const values: Record<string, unknown> = {};
+    if (text.includes('=')) {
+      for (const pair of text.split(',')) {
+        const separator = pair.indexOf('=');
+        if (separator < 0) continue;
+        values[pair.slice(0, separator).trim()] = pair.slice(separator + 1).trim();
+      }
+      return this.inferAction(toolName, this.convertParameterTypes(toolName, values));
+    }
+    return this.inferSimpleParameters(toolName, parameters);
+  }
+
+  protected convertParameterTypes(
+    toolName: string,
+    parameters: Record<string, unknown>
+  ): Record<string, unknown> {
+    const tool = this.toolRegistry?.getTool(toolName);
+    if (!tool) return parameters;
+    const types = new Map(
+      tool.getParameters().map((parameter) => [parameter.name, parameter.type])
+    );
+    const converted: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(parameters)) {
+      // Model-supplied records must never carry prototype-tampering keys.
+      if (SimpleAgent.isUnsafeKey(key)) continue;
+      const type = types.get(key)?.toLowerCase();
+      try {
+        if (
+          (type === 'number' || type === 'float' || type === 'integer' || type === 'int') &&
+          typeof value === 'string'
+        ) {
+          const numeric = SimpleAgent.parseNumeric(value, type === 'integer' || type === 'int');
+          converted[key] = numeric ?? value;
+        } else if ((type === 'boolean' || type === 'bool') && typeof value === 'string') {
+          converted[key] = ['true', '1', 'yes'].includes(value.toLowerCase());
+        } else if (type === 'boolean' || type === 'bool') {
+          converted[key] = Boolean(value);
+        } else {
+          converted[key] = value;
+        }
+      } catch {
+        converted[key] = value;
+      }
+    }
+    return converted;
+  }
+
+  /** Python-style numeric coercion: unparseable or fractional values stay original. */
+  protected static parseNumeric(value: string, integer: boolean): number | undefined {
+    const normalized = value.trim();
+    if (normalized === '') return undefined;
+    if (integer && !/^[+-]?\d+$/.test(normalized)) return undefined;
+    const parsed = Number(normalized);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
+  /** Keys that must never be copied from hostile model JSON into tool records. */
+  protected static isUnsafeKey(key: string): boolean {
+    return key === '__proto__' || key === 'constructor' || key === 'prototype';
+  }
+
+  protected inferAction(
+    toolName: string,
+    parameters: Record<string, unknown>
+  ): Record<string, unknown> {
+    if ('action' in parameters) return parameters;
+    if (toolName === 'memory') {
+      if ('recall' in parameters) {
+        parameters.action = 'search';
+        parameters.query = parameters.recall;
+        delete parameters.recall;
+      } else if ('store' in parameters) {
+        parameters.action = 'add';
+        parameters.content = parameters.store;
+        delete parameters.store;
+      } else if ('query' in parameters) parameters.action = 'search';
+      else if ('content' in parameters) parameters.action = 'add';
+    } else if (toolName === 'rag') {
+      if ('search' in parameters) {
+        parameters.action = 'search';
+        parameters.query = parameters.search;
+        delete parameters.search;
+      } else if ('query' in parameters) parameters.action = 'search';
+      else if ('text' in parameters) parameters.action = 'add_text';
+    }
+    return parameters;
+  }
+
+  protected inferSimpleParameters(toolName: string, parameters: string): Record<string, unknown> {
+    if (toolName === 'memory' || toolName === 'rag') return { action: 'search', query: parameters };
+    return { input: parameters };
+  }
+
+  protected async executeToolCall(toolName: string, parameters: string): Promise<string> {
+    if (!this.toolRegistry) return '❌ 错误：未配置工具注册表';
+    try {
+      if (!this.toolRegistry.getTool(toolName)) return `❌ 错误：未找到工具 '${toolName}'`;
+      const result = await this.toolRegistry.execute(
+        toolName,
+        this.parseToolParameters(toolName, parameters)
+      );
+      return result.status === ToolStatus.ERROR
+        ? this.describeToolFailure(result)
+        : `🔧 工具 ${toolName} 执行结果：\n${result.text}`;
+    } catch (error) {
+      return `❌ 工具调用失败：${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  /** Upstream failure framing: only error-status registry responses are failures. */
+  protected describeToolFailure(response: ToolResponse): string {
+    const reason = response.errorInfo?.message ?? response.text;
+    return `❌ 工具调用失败：${reason}`;
+  }
+
+  public override async run(input: string, options?: LLMInvokeOptions): Promise<string> {
+    const messages = this.buildMessages(input, true);
     await this.traceLogger?.logEvent('session_start', {
       agent_name: this.name,
       agent_type: 'SimpleAgent'
     });
     await this.traceLogger?.logEvent('message_written', { role: 'user', content: input });
     try {
-      const answer =
-        !this.hasTools() || !this.toolRegistry
-          ? await this.runDirect(messages, options)
-          : await this.runWithTools(messages, options);
-      this.history.push(new Message(input, 'user'), new Message(answer, 'assistant'));
+      let answer: string;
+      if (!this.enableToolCalling) {
+        answer = await this.runDirect(messages, options);
+      } else {
+        answer = await this.runMarkerLoop(messages, options);
+      }
+      this.addMessage(new Message(input, 'user'));
+      this.addMessage(new Message(answer, 'assistant'));
       await this.traceLogger?.logEvent('session_end', { status: 'success', final_answer: answer });
       return answer;
     } catch (error) {
       await this.traceLogger?.logEvent('error', {
-        error_type: error instanceof Error ? error.name : 'Error',
         message: error instanceof Error ? error.message : String(error)
       });
       await this.traceLogger?.logEvent('session_end', { status: 'error' });
@@ -141,154 +267,109 @@ export class SimpleAgent {
     }
   }
 
-  /**
-   * 流式运行 Agent。
-   *
-   * @param input 用户输入。
-   * @param options LLM 调用选项。
-   * @yields Agent 响应片段。
-   */
+  /** Plain streaming is intentionally direct, matching upstream SimpleAgent. */
   public async *stream(input: string, options?: LLMInvokeOptions): AsyncIterable<string> {
-    const messages = this.buildMessages(input);
-    let complete = '';
+    const messages: LLMMessage[] = [
+      ...(this.systemPrompt === undefined
+        ? []
+        : [{ role: 'system' as const, content: this.systemPrompt }]),
+      ...this.getHistory().map((message) => ({ role: message.role, content: message.content })),
+      { role: 'user', content: input }
+    ];
+    let response = '';
     for await (const chunk of this.llm.stream(messages, options)) {
-      complete += chunk;
+      response += chunk;
       yield chunk;
     }
-    this.history.push(new Message(input, 'user'), new Message(complete, 'assistant'));
+    this.addMessage(new Message(input, 'user'));
+    this.addMessage(new Message(response, 'assistant'));
   }
 
-  /** 运行一轮对话，并触发生命周期回调。 */
   public async arun(input: string, options: AgentInvocationOptions = {}): Promise<string> {
     const { lifecycle, ...llmOptions } = options;
-    const timeoutMs = lifecycle?.hookTimeoutMs ?? 5_000;
+    const timeout = lifecycle?.hookTimeoutMs ?? 5_000;
     await invokeHook(
       lifecycle?.onStart,
       AgentEvent.create('agent_start', this.name, { input_text: input }),
-      timeoutMs
+      timeout
     );
     try {
       const answer = await this.run(input, llmOptions);
       await invokeHook(
         lifecycle?.onFinish,
         AgentEvent.create('agent_finish', this.name, { result: answer }),
-        timeoutMs
+        timeout
       );
       return answer;
     } catch (error) {
       await invokeHook(
         lifecycle?.onError,
-        AgentEvent.create('agent_error', this.name, {
-          error: error instanceof Error ? error.message : String(error)
-        }),
-        timeoutMs
+        AgentEvent.create('agent_error', this.name, { error: String(error) }),
+        timeout
       );
       throw error;
     }
   }
 
-  /**
-   * SimpleAgent 真正的流式执行，实时返回 LLM 输出的每个文本块。
-   *
-   * @param input 用户输入。
-   * @param options LLM 选项和生命周期回调。
-   * @yields 流式生命周期事件。
-   */
   public async *arunStream(
     input: string,
     options: AgentInvocationOptions = {}
   ): AsyncIterable<AgentEvent> {
     const { lifecycle, ...llmOptions } = options;
-    const timeoutMs = lifecycle?.hookTimeoutMs ?? 5_000;
+    const timeout = lifecycle?.hookTimeoutMs ?? 5_000;
     const started = AgentEvent.create('agent_start', this.name, { input_text: input });
     yield started;
-    await invokeHook(lifecycle?.onStart, started, timeoutMs);
+    await invokeHook(lifecycle?.onStart, started, timeout);
     try {
-      for await (const chunk of this.stream(input, llmOptions)) {
+      for await (const chunk of this.stream(input, llmOptions))
         yield AgentEvent.create('llm_chunk', this.name, { chunk });
-      }
-      const result = this.history.at(-1)?.content ?? '';
+      const result = this.getHistory().at(-1)?.content ?? '';
       const finished = AgentEvent.create('agent_finish', this.name, { result });
       yield finished;
-      await invokeHook(lifecycle?.onFinish, finished, timeoutMs);
+      await invokeHook(lifecycle?.onFinish, finished, timeout);
     } catch (error) {
-      const failed = AgentEvent.create('agent_error', this.name, {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      const failed = AgentEvent.create('agent_error', this.name, { error: String(error) });
       yield failed;
-      await invokeHook(lifecycle?.onError, failed, timeoutMs);
+      await invokeHook(lifecycle?.onError, failed, timeout);
       throw error;
     }
   }
 
-  private buildMessages(input: string): LLMMessage[] {
+  protected buildMessages(input: string, enhanced: boolean): LLMMessage[] {
     return [
-      ...(this.systemPrompt === undefined
-        ? []
-        : [{ role: 'system' as const, content: this.systemPrompt }]),
-      ...this.history.map((message) => ({ role: message.role, content: message.content })),
-      { role: 'user' as const, content: input }
+      {
+        role: 'system',
+        content: enhanced
+          ? this.getEnhancedSystemPrompt()
+          : (this.systemPrompt ?? '你是一个有用的AI助手。')
+      },
+      ...this.getHistory().map((message) => ({ role: message.role, content: message.content })),
+      { role: 'user', content: input }
     ];
   }
 
-  private async runWithTools(
-    messages: LLMMessage[],
-    options: LLMInvokeOptions | undefined
-  ): Promise<string> {
-    const registry = this.toolRegistry;
-    if (!registry) throw new Error('Tool registry is required for tool calling');
-    // SAFETY: ToolRegistry schemas are JSON-compatible records by contract.
-    const schemas = registry.toOpenAISchemas() as unknown as Record<string, unknown>[];
-    for (let iteration = 0; iteration < this.maxToolIterations; iteration += 1) {
-      const response = await this.llm.invokeWithTools(messages, schemas, 'auto', options);
-      await this.traceLogger?.logEvent(
-        'model_output',
-        {
-          content: response.content,
-          model: response.model,
-          usage: response.usage,
-          latency_ms: response.latencyMs,
-          tool_calls: response.toolCalls.length
-        },
-        iteration + 1
-      );
-      if (response.toolCalls.length === 0) return response.content ?? '抱歉，我无法回答这个问题。';
+  private async runMarkerLoop(messages: LLMMessage[], options?: LLMInvokeOptions): Promise<string> {
+    let iteration = 0;
+    while (iteration < this.maxToolIterations) {
+      const response = await this.runDirect(messages, options);
+      const calls = this.parseToolCalls(response);
+      if (calls.length === 0) return response;
+      messages.push({ role: 'assistant', content: response });
+      const results: string[] = [];
+      for (const call of calls)
+        results.push(await this.executeToolCall(call.toolName, call.parameters));
       messages.push({
-        role: 'assistant',
-        content: response.content,
-        tool_calls: response.toolCalls.map((call) => ({
-          id: call.id,
-          type: 'function',
-          function: { name: call.name, arguments: call.arguments }
-        }))
+        role: 'user',
+        content: `工具执行结果：\n${results.join('\n\n')}\n\n请基于这些结果给出完整的回答。`
       });
-      for (const call of response.toolCalls) {
-        await this.traceLogger?.logEvent(
-          'tool_call',
-          { tool_name: call.name, arguments: call.arguments },
-          iteration + 1
-        );
-        const result = await registry.execute(call.name, call.arguments);
-        await this.traceLogger?.logEvent(
-          'tool_result',
-          { tool_name: call.name, result: result.toJSON() },
-          iteration + 1
-        );
-        messages.push({ role: 'tool', tool_call_id: call.id, content: result.text });
-      }
+      iteration += 1;
     }
     return this.runDirect(messages, options);
   }
 
-  private async runDirect(
-    messages: LLMMessage[],
-    options: LLMInvokeOptions | undefined
-  ): Promise<string> {
+  protected async runDirect(messages: LLMMessage[], options?: LLMInvokeOptions): Promise<string> {
     const response = await this.llm.invoke(messages, options);
-    await this.traceLogger?.logEvent('model_output', {
-      content: response,
-      model: this.llm.model
-    });
+    await this.traceLogger?.logEvent('model_output', { content: response, model: this.llm.model });
     return response;
   }
 }

@@ -172,8 +172,16 @@ export { SimpleAgent } from './agents/simple-agent.js';
 export type {
   AgentInvocationOptions,
   AgentLifecycleOptions,
+  ParsedToolCall,
   SimpleAgentOptions
 } from './agents/simple-agent.js';
+export { FunctionCallAgent } from './agents/function-call-agent.js';
+export type {
+  FunctionCallAgentOptions,
+  FunctionCallRunOptions
+} from './agents/function-call-agent.js';
+export { ToolAwareSimpleAgent } from './agents/tool-aware-agent.js';
+export type { ToolAwareSimpleAgentOptions, ToolCallInfo } from './agents/tool-aware-agent.js';
 export { Agent } from './core/agent.js';
 export {
   DEFAULT_REACT_PROMPT,

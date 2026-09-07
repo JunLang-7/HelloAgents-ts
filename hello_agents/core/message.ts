@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { parseOrThrow } from './errors.js';
 
-/** 对话和工具协议接受的消息角色。 */
-export const messageRoleSchema = z.enum(['user', 'assistant', 'system', 'tool', 'summary']);
+/** 上游教学核心接受的消息角色。 */
+export const messageRoleSchema = z.enum(['user', 'assistant', 'system', 'tool']);
 /** 对话角色标识。 */
 export type MessageRole = z.infer<typeof messageRoleSchema>;
 const pythonIsoDateTimeSchema = z
@@ -17,7 +17,7 @@ export const messageSchema = z
     metadata: z.record(z.string(), z.unknown()).nullable().default({})
   })
   .strict();
-/** 会话和生命周期载荷使用的 JSON 兼容消息格式。 */
+/** 会话模块使用的 JSON 兼容消息格式；不是模型调用消息格式。 */
 export type MessageJSON = z.output<typeof messageSchema>;
 
 /** 支持 Python 兼容序列化的对话消息。 */

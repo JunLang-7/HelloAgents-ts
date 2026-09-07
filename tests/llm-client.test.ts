@@ -96,6 +96,108 @@ describe('HelloAgentsLLM', () => {
     expect(() => new HelloAgentsLLM({ adapter, env: {} })).toThrow(LLMError);
   });
 
+  test('uses gpt-3.5-turbo for generic, custom, and auto clients without a model', () => {
+    for (const provider of ['auto', 'custom'] as const) {
+      const llm = new HelloAgentsLLM({
+        provider,
+        apiKey: 'test-key',
+        baseUrl: 'https://provider.test/v1',
+        adapter: new MockAdapter(),
+        env: {}
+      });
+      expect(llm.model).toBe('gpt-3.5-turbo');
+    }
+    const generic = new HelloAgentsLLM({
+      apiKey: 'test-key',
+      baseUrl: 'https://provider.test/v1',
+      adapter: new MockAdapter(),
+      env: {}
+    });
+    expect(generic.model).toBe('gpt-3.5-turbo');
+  });
+
+  test('detects auto providers and applies endpoint and host precedence', () => {
+    const ollama = new HelloAgentsLLM({
+      provider: 'auto',
+      env: {
+        OLLAMA_HOST: 'http://ollama.test/v1',
+        LLM_BASE_URL: 'https://environment.test'
+      },
+      adapter: new MockAdapter()
+    });
+    expect(ollama.provider).toBe('ollama');
+    expect(ollama.baseUrl).toBe('http://ollama.test/v1');
+
+    const explicit = new HelloAgentsLLM({
+      provider: 'ollama',
+      baseUrl: 'http://explicit.test/v1',
+      env: { OLLAMA_HOST: 'http://ollama.test/v1', LLM_BASE_URL: 'https://environment.test' },
+      adapter: new MockAdapter()
+    });
+    expect(explicit.baseUrl).toBe('http://explicit.test/v1');
+
+    const vllm = new HelloAgentsLLM({
+      provider: 'vllm',
+      env: { VLLM_HOST: 'http://vllm.test/v1', LLM_BASE_URL: 'https://environment.test' },
+      adapter: new MockAdapter()
+    });
+    expect(vllm.baseUrl).toBe('http://vllm.test/v1');
+  });
+
+  test('explicit endpoints take priority over ambient provider credentials', () => {
+    const llm = new HelloAgentsLLM({
+      provider: 'auto',
+      baseUrl: 'https://custom.test/v1',
+      env: {
+        OPENAI_API_KEY: 'ambient-openai-key',
+        LLM_API_KEY: 'generic-key',
+        LLM_BASE_URL: 'https://environment.test'
+      },
+      adapter: new MockAdapter()
+    });
+    expect(llm.provider).toBe('auto');
+    expect(llm.baseUrl).toBe('https://custom.test/v1');
+    expect(llm.apiKey).toBe('generic-key');
+  });
+
+  test('validates constructor sampling and timeout values', () => {
+    for (const temperature of [-0.1, 2.1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(
+        () => new HelloAgentsLLM({ ...credentials, temperature, adapter: new MockAdapter() })
+      ).toThrow(LLMError);
+    }
+    for (const maxTokens of [0, 1.5, Number.NaN]) {
+      expect(
+        () => new HelloAgentsLLM({ ...credentials, maxTokens, adapter: new MockAdapter() })
+      ).toThrow(LLMError);
+    }
+    for (const timeoutMs of [0, -1, 1.5, Number.NaN]) {
+      expect(
+        () => new HelloAgentsLLM({ ...credentials, timeoutMs, adapter: new MockAdapter() })
+      ).toThrow(LLMError);
+    }
+  });
+
+  test('validates tools before creating a timeout timer', async () => {
+    const adapter = new MockAdapter();
+    const llm = new HelloAgentsLLM({ ...credentials, adapter });
+    const originalSetTimeout = globalThis.setTimeout;
+    let timerCount = 0;
+    globalThis.setTimeout = ((...args: Parameters<typeof setTimeout>) => {
+      timerCount += 1;
+      return originalSetTimeout(...args);
+    }) as typeof setTimeout;
+    try {
+      await expect(
+        llm.invokeWithTools(messages, null as unknown as readonly Record<string, unknown>[])
+      ).rejects.toBeInstanceOf(LLMError);
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+    }
+    expect(timerCount).toBe(0);
+    expect(adapter.toolRequests).toHaveLength(0);
+  });
+
   test('preserves Python tool-call IDs, names and JSON-string arguments', async () => {
     const adapter = new MockAdapter({
       invokeWithTools: () => ({
@@ -122,6 +224,26 @@ describe('HelloAgentsLLM', () => {
       { id: 'call_1', name: 'calculate', arguments: '{"expression":"2+3"}' }
     ]);
     expect(adapter.toolRequests[0]).toMatchObject({ tools, toolChoice: 'required' });
+  });
+
+  test('streamInvoke forwards only the upstream temperature option', async () => {
+    const adapter = new MockAdapter({
+      stream: async function* (request) {
+        expect(request.options.temperature).toBe(0.3);
+        expect(request.options).not.toHaveProperty('maxTokens');
+        expect(request.options).not.toHaveProperty('providerOptions');
+        yield 'ok';
+      }
+    });
+    const llm = new HelloAgentsLLM({ ...credentials, adapter });
+    const chunks: string[] = [];
+    for await (const chunk of llm.streamInvoke(messages, {
+      temperature: 0.3,
+      maxTokens: 12,
+      providerOptions: { seed: 1 }
+    }))
+      chunks.push(chunk);
+    expect(chunks).toEqual(['ok']);
   });
 
   test('streams through AsyncIterable and records validated lastCallStats after completion', async () => {

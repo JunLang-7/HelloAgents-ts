@@ -11,7 +11,7 @@ import {
 
 class FixtureAgent extends Agent {
   public async run(input: string): Promise<string> {
-    await this.addMessage(new Message(input, 'user'));
+    this.addMessage(new Message(input, 'user'));
     return input;
   }
 }

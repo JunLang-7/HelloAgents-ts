@@ -45,7 +45,7 @@ describe('HistoryManager', () => {
 
     const compacted = await history.compact();
     expect(compacted.map((message) => [message.role, message.content])).toEqual([
-      ['summary', 'summary:2'],
+      ['system', 'summary:2'],
       ['user', 'second question'],
       ['assistant', 'second answer']
     ]);

@@ -138,7 +138,6 @@ export type {
   SimpleAgentOptions
 } from './agents/simple-agent.js';
 export { Agent } from './core/agent.js';
-export type { AgentOptions, LoadedSessionResult } from './core/agent.js';
 export { DEFAULT_REACT_SYSTEM_PROMPT, ReActAgent } from './agents/react-agent.js';
 export type { ReActAgentOptions, ReActSessionMetadata } from './agents/react-agent.js';
 export {

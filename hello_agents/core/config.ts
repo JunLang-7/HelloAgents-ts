@@ -144,9 +144,11 @@ export class Config {
 
   /** 创建与 Python learn_version Config 相同的默认配置。 */
   public constructor(input: unknown = {}) {
-    const record = input && typeof input === 'object' ? input as Record<string, unknown> : undefined;
+    const record =
+      input && typeof input === 'object' ? (input as Record<string, unknown>) : undefined;
     const hasWireFields =
-      record !== undefined && Object.entries(wireNameMap).some(([camel, wire]) => camel !== wire && wire in record);
+      record !== undefined &&
+      Object.entries(wireNameMap).some(([camel, wire]) => camel !== wire && wire in record);
     const camelInput = hasWireFields
       ? Object.fromEntries(
           Object.entries(wireNameMap).flatMap(([camel, wire]) =>
@@ -207,7 +209,10 @@ export class Config {
   /** 将完整配置序列化为 snake_case 的线格式。 */
   public toJSON(): Record<string, ConfigValues[keyof ConfigValues]> {
     return Object.fromEntries(
-      Object.entries(wireNameMap).map(([key, wire]) => [wire, this.values[key as keyof ConfigValues]])
+      Object.entries(wireNameMap).map(([key, wire]) => [
+        wire,
+        this.values[key as keyof ConfigValues]
+      ])
     );
   }
 }

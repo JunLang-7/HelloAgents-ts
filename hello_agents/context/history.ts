@@ -72,7 +72,8 @@ export class HistoryManager {
     const keep = grouped.slice(-this.retainRecentTurns).flat();
     const older = grouped.slice(0, -this.retainRecentTurns).flat();
     if (older.length === 0) return this.getAll();
-    const summary = new Message(await this.summarize(older), 'summary');
+    // Summaries are context instructions, not a teaching-core message role.
+    const summary = new Message(await this.summarize(older), 'system');
     this.messages = [summary, ...keep];
     return this.getAll();
   }

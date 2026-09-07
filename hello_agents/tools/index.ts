@@ -16,15 +16,21 @@ export type {
   ToolParameter
 } from './base.js';
 export { ToolRegistry, globalRegistry, global_registry } from './registry.js';
-export type { ToolRegistryOptions } from './registry.js';
-export { ToolChain, ToolChainManager, createResearchChain, createSimpleChain } from './chain.js';
+export {
+  ToolChain,
+  ToolChainManager,
+  createResearchChain,
+  createSimpleChain,
+  create_research_chain,
+  create_simple_chain
+} from './chain.js';
 export type { ToolChainStep } from './chain.js';
 export {
   AsyncToolExecutor,
   runBatchTool,
-  runBatchToolSync,
   runParallelTools,
-  runParallelToolsSync
+  run_batch_tool,
+  run_parallel_tools
 } from './async-executor.js';
 export type { ToolTask, ToolTaskResult } from './async-executor.js';
 export { CalculatorTool, calculate } from './builtin/calculator.js';
@@ -37,10 +43,15 @@ export {
   search,
   searchHybrid,
   searchSerpapi,
-  searchTavily
+  searchTavily,
+  search_hybrid,
+  search_serpapi,
+  search_tavily
 } from './builtin/search-tool.js';
 export type {
   SearchBackend,
+  FetchResponse,
+  SearchFetch,
   SearchPayload,
   SearchResult,
   SearchToolOptions

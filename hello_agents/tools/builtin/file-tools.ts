@@ -6,13 +6,10 @@ import { z } from 'zod';
 import { ToolErrorCode } from '../errors.js';
 import { ToolResponse } from '../response.js';
 import { Tool } from '../tool.js';
-import type { ToolRegistry } from '../registry.js';
 
 export interface FileToolOptions {
   /** 工作区根目录；超出该目录的文件操作都会被拒绝。 */
   readonly workspaceRoot: string;
-  /** 可选工具注册表，用于保存读取版本并进行写入/编辑冲突检查。 */
-  readonly registry?: ToolRegistry;
   /** Read 返回部分响应前允许读取的最大字节数。 */
   readonly maxReadBytes?: number;
 }
@@ -44,16 +41,8 @@ function responseForFileError(action: string, error: unknown): ToolResponse {
   );
 }
 
-function cachedVersion(registry: ToolRegistry | undefined, path: string): FileVersion {
-  const cached = registry?.getReadMetadata(path);
-  return {
-    file_mtime_ms: typeof cached?.file_mtime_ms === 'number' ? cached.file_mtime_ms : undefined,
-    file_hash: typeof cached?.file_hash === 'string' ? cached.file_hash : undefined
-  };
-}
 abstract class WorkspaceTool<TSchema extends z.ZodType> extends Tool<TSchema> {
   protected readonly root: string;
-  protected readonly registry: ToolRegistry | undefined;
   protected readonly maxReadBytes: number;
   protected constructor(
     options: FileToolOptions & {
@@ -64,7 +53,6 @@ abstract class WorkspaceTool<TSchema extends z.ZodType> extends Tool<TSchema> {
   ) {
     super(options);
     this.root = resolve(options.workspaceRoot);
-    this.registry = options.registry;
     this.maxReadBytes = options.maxReadBytes ?? DEFAULT_MAX_READ_BYTES;
   }
   protected path(path: string): string | undefined {
@@ -137,7 +125,6 @@ abstract class WorkspaceTool<TSchema extends z.ZodType> extends Tool<TSchema> {
       file_size_bytes: info.size,
       file_hash: contentHash(content)
     };
-    this.registry?.cacheReadMetadata(relative(this.root, path).replaceAll('\\', '/'), metadata);
     return metadata;
   }
 }
@@ -236,10 +223,9 @@ export class WriteTool extends WorkspaceTool<typeof WriteTool.inputSchema> {
       return ToolResponse.error(ToolErrorCode.ACCESS_DENIED, `路径 '${input.path}' 超出工作目录`);
     try {
       await this.assertSafePath(file);
-      const cached = cachedVersion(this.registry, input.path);
       const check = await this.conflict(file, {
-        file_mtime_ms: input.file_mtime_ms ?? cached.file_mtime_ms,
-        file_hash: input.file_hash ?? cached.file_hash
+        file_mtime_ms: input.file_mtime_ms,
+        file_hash: input.file_hash
       });
       if (check) return check;
       await this.atomicWrite(file, input.content);
@@ -278,10 +264,9 @@ export class EditTool extends WorkspaceTool<typeof EditTool.inputSchema> {
       return ToolResponse.error(ToolErrorCode.ACCESS_DENIED, `路径 '${input.path}' 超出工作目录`);
     try {
       await this.assertSafePath(file);
-      const cached = cachedVersion(this.registry, input.path);
       const check = await this.conflict(file, {
-        file_mtime_ms: input.file_mtime_ms ?? cached.file_mtime_ms,
-        file_hash: input.file_hash ?? cached.file_hash
+        file_mtime_ms: input.file_mtime_ms,
+        file_hash: input.file_hash
       });
       if (check) return check;
       const raw = await readFile(file);

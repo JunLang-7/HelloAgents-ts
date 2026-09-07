@@ -112,3 +112,6 @@ export function createSimpleChain(): ToolChain {
   chain.addStep('my_calculator', '{input}', 'result');
   return chain;
 }
+
+export const create_research_chain = createResearchChain;
+export const create_simple_chain = createSimpleChain;

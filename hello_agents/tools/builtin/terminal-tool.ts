@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, statSync } from 'node:fs';
 import { platform } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
@@ -9,6 +9,12 @@ import { ToolResponse } from '../response.js';
 import { Tool } from '../tool.js';
 
 const inputSchema = z.object({ command: z.string() }).strict();
+/**
+ * Deliberately narrow read-only policy: no shells, interpreters, pagers, find,
+ * sed/awk, or options. Positional file operands are realpath-checked so a
+ * symlink cannot escape the workspace. This intentionally rejects some unsafe
+ * upstream terminal conveniences (for example `find -exec` and `sort -o`).
+ */
 const SAFE_COMMANDS = new Set([
   'ls',
   'dir',
@@ -17,33 +23,25 @@ const SAFE_COMMANDS = new Set([
   'type',
   'head',
   'tail',
-  'less',
-  'more',
-  'find',
-  'where',
   'grep',
   'egrep',
   'fgrep',
   'findstr',
   'wc',
-  'sort',
   'uniq',
   'cut',
-  'awk',
-  'sed',
   'pwd',
   'file',
   'stat',
   'du',
   'df',
   'echo',
-  'which',
-  'whereis',
   'cd'
 ]);
 const SHELL_SYNTAX = /[;&|<>`$]|\$\(|\r|\n/;
+const NO_PATH_ARGUMENTS = new Set(['echo', 'pwd']);
+const PATTERN_FIRST_ARGUMENT = new Set(['grep', 'egrep', 'fgrep', 'findstr']);
 
-/** 安全的教学终端：argv-only、沙箱路径、无 shell 和无解释器执行。 */
 export class TerminalTool extends Tool<typeof inputSchema> {
   public static readonly inputSchema = inputSchema;
   public static readonly ALLOWED_COMMANDS = Object.freeze([...SAFE_COMMANDS]);
@@ -68,11 +66,12 @@ export class TerminalTool extends Tool<typeof inputSchema> {
       inputSchema,
       parameters: [{ name: 'command', type: 'string', description: '要执行的命令', required: true }]
     });
-    this.workspace = resolve(options.workspace ?? '.');
+    const requestedWorkspace = resolve(options.workspace ?? '.');
+    mkdirSync(requestedWorkspace, { recursive: true });
+    this.workspace = realpathSync.native(requestedWorkspace);
     this.timeout = options.timeout ?? 30;
     this.maxOutputSize = options.maxOutputSize ?? 10 * 1024 * 1024;
     this.allowCd = options.allowCd ?? true;
-    mkdirSync(this.workspace, { recursive: true });
     this.currentDir = this.workspace;
   }
 
@@ -80,7 +79,10 @@ export class TerminalTool extends Tool<typeof inputSchema> {
     const command = input.command.trim();
     if (!command) return ToolResponse.error(ToolErrorCode.INVALID_PARAM, '❌ 命令不能为空');
     if (SHELL_SYNTAX.test(command))
-      return ToolResponse.error(ToolErrorCode.ACCESS_DENIED, '❌ 不允许 shell 运算符或多行命令');
+      return ToolResponse.error(
+        ToolErrorCode.ACCESS_DENIED,
+        '❌ 不允许 shell 运算符、多行命令或控制字符'
+      );
     let parts: string[];
     try {
       parts = this.parse(command);
@@ -90,52 +92,49 @@ export class TerminalTool extends Tool<typeof inputSchema> {
         `❌ 命令解析失败: ${error instanceof Error ? error.message : String(error)}`
       );
     }
-    if (!parts.length) return ToolResponse.error(ToolErrorCode.INVALID_FORMAT, '❌ 命令不能为空');
     const base = parts[0];
-    if (!base || !SAFE_COMMANDS.has(base)) {
+    if (!base || !SAFE_COMMANDS.has(base))
       return ToolResponse.error(
         ToolErrorCode.ACCESS_DENIED,
         `❌ 不允许的命令: ${base ?? ''}\n允许的命令: ${[...SAFE_COMMANDS].sort().join(', ')}`
       );
-    }
+    if (parts.slice(1).some((arg) => arg.startsWith('-')))
+      return ToolResponse.error(
+        ToolErrorCode.ACCESS_DENIED,
+        '❌ 不允许命令选项；它们可能改变只读或路径安全策略'
+      );
     if (base === 'cd') return this.handleCd(parts);
-    const pathError = this.validatePaths(parts.slice(1));
+    const pathError = this.validatePaths(base, parts.slice(1));
     if (pathError) return ToolResponse.error(ToolErrorCode.ACCESS_DENIED, pathError);
     try {
-      const result = execFileSync(base, parts.slice(1), {
-        cwd: this.currentDir,
-        shell: false,
-        timeout: this.timeout * 1000,
-        encoding: 'utf8',
-        maxBuffer: this.maxOutputSize
-      });
-      const output = String(result);
+      const output = String(
+        execFileSync(base, parts.slice(1), {
+          cwd: this.currentDir,
+          shell: false,
+          timeout: this.timeout * 1000,
+          encoding: 'utf8',
+          maxBuffer: this.maxOutputSize
+        })
+      );
       return ToolResponse.success(output || '✅ 命令执行成功（无输出）', {
         command,
         cwd: this.currentDir
       });
     } catch (error) {
-      const errorWithOutput = error as {
-        status?: number;
-        stdout?: string;
-        stderr?: string;
-        code?: string;
-      };
-      if (errorWithOutput.code === 'ETIMEDOUT')
+      const detail = error as { status?: number; stdout?: string; stderr?: string; code?: string };
+      if (detail.code === 'ETIMEDOUT')
         return ToolResponse.error(
           ToolErrorCode.TIMEOUT,
           `❌ 命令执行超时（超过 ${this.timeout} 秒）`
         );
       const output =
-        `${errorWithOutput.stdout ?? ''}${errorWithOutput.stderr ? `\n[stderr]\n${errorWithOutput.stderr}` : ''}`.slice(
+        `${detail.stdout ?? ''}${detail.stderr ? `\n[stderr]\n${detail.stderr}` : ''}`.slice(
           0,
           this.maxOutputSize
         );
-      const status =
-        errorWithOutput.status === undefined ? '' : `⚠️ 命令返回码: ${errorWithOutput.status}\n\n`;
       return ToolResponse.error(
         ToolErrorCode.EXECUTION_ERROR,
-        `${status}${output || `❌ 命令执行失败: ${String(error)}`}`
+        `${detail.status === undefined ? '' : `⚠️ 命令返回码: ${detail.status}\n\n`}${output || `❌ 命令执行失败: ${String(error)}`}`
       );
     }
   }
@@ -154,33 +153,48 @@ export class TerminalTool extends Tool<typeof inputSchema> {
     if (command.slice(consumed).trim()) throw new Error('命令解析失败');
     return parts;
   }
-  private validatePaths(args: string[]): string | undefined {
-    for (const arg of args) {
-      if (arg.startsWith('-') || !/[/.\\]/.test(arg)) continue;
-      const candidate = isAbsolute(arg) ? resolve(arg) : resolve(this.currentDir, arg);
-      const outside = relative(this.workspace, candidate).startsWith('..');
-      if (outside || (isAbsolute(arg) && !candidate.startsWith(this.workspace)))
-        return `❌ 不允许访问工作目录外的路径: ${candidate}`;
+  private withinWorkspace(path: string): boolean {
+    const value = relative(this.workspace, path);
+    return value === '' || (!value.startsWith('..') && !isAbsolute(value));
+  }
+  private validatePaths(command: string, args: string[]): string | undefined {
+    if (NO_PATH_ARGUMENTS.has(command)) return undefined;
+    const operands = PATTERN_FIRST_ARGUMENT.has(command) ? args.slice(1) : args;
+    for (const operand of operands) {
+      const lexical = isAbsolute(operand) ? resolve(operand) : resolve(this.currentDir, operand);
+      if (!this.withinWorkspace(lexical)) return `❌ 不允许访问工作目录外的路径: ${lexical}`;
+      if (existsSync(lexical)) {
+        const actual = realpathSync.native(lexical);
+        if (!this.withinWorkspace(actual))
+          return `❌ 不允许通过符号链接访问工作目录外的路径: ${actual}`;
+      }
     }
     return undefined;
   }
   private handleCd(parts: string[]): ToolResponse {
     if (!this.allowCd) return ToolResponse.error(ToolErrorCode.ACCESS_DENIED, '❌ cd 命令已禁用');
+    if (parts.length > 2)
+      return ToolResponse.error(ToolErrorCode.INVALID_PARAM, '❌ cd 只接受一个目录参数');
     const target = parts[1] ?? '.';
-    const next = resolve(this.currentDir, target === '~' ? this.workspace : target);
-    if (relative(this.workspace, next).startsWith('..'))
+    const lexical = resolve(this.currentDir, target === '~' ? this.workspace : target);
+    if (!this.withinWorkspace(lexical))
       return ToolResponse.error(
         ToolErrorCode.ACCESS_DENIED,
-        `❌ 不允许访问工作目录外的路径: ${next}`
+        `❌ 不允许访问工作目录外的路径: ${lexical}`
       );
-    if (!existsSync(next))
-      return ToolResponse.error(ToolErrorCode.NOT_FOUND, `❌ 目录不存在: ${next}`);
-    if (!statSync(next).isDirectory())
-      return ToolResponse.error(ToolErrorCode.INVALID_PARAM, `❌ 不是目录: ${next}`);
-    this.currentDir = next;
+    if (!existsSync(lexical))
+      return ToolResponse.error(ToolErrorCode.NOT_FOUND, `❌ 目录不存在: ${lexical}`);
+    const actual = realpathSync.native(lexical);
+    if (!this.withinWorkspace(actual))
+      return ToolResponse.error(
+        ToolErrorCode.ACCESS_DENIED,
+        `❌ 不允许通过符号链接访问工作目录外的路径: ${actual}`
+      );
+    if (!statSync(actual).isDirectory())
+      return ToolResponse.error(ToolErrorCode.INVALID_PARAM, `❌ 不是目录: ${actual}`);
+    this.currentDir = actual;
     return ToolResponse.success(`✅ 切换到目录: ${this.currentDir}`);
   }
-
   public getCurrentDir(): string {
     return this.currentDir;
   }

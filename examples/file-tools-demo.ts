@@ -10,8 +10,8 @@ try {
   await mkdir(join(root, 'notes'));
   await writeFile(join(root, 'notes', 'readme.txt'), 'hello workspace\n', 'utf8');
   const tools = new ToolRegistry();
-  tools.register(new ReadTool({ workspaceRoot: root, registry: tools }));
-  tools.register(new WriteTool({ workspaceRoot: root, registry: tools }));
+  tools.register(new ReadTool({ workspaceRoot: root }));
+  tools.register(new WriteTool({ workspaceRoot: root }));
   tools.register(new GlobTool({ workspaceRoot: root }));
   console.log((await tools.execute('Read', { path: 'notes/readme.txt' })).text);
   console.log((await tools.execute('Glob', { pattern: '**/*.txt' })).text);

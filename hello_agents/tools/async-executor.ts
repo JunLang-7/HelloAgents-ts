@@ -48,13 +48,13 @@ export class AsyncToolExecutor {
         if (!task?.tool_name) continue;
         const inputData = task.input_data ?? '';
         try {
-          const result = await this.executeToolAsync(task.tool_name, inputData);
+          const response = await this.registry.executeTool(task.tool_name, inputData);
           results.push({
             task_id: index,
             tool_name: task.tool_name,
             input_data: inputData,
-            result,
-            status: 'success'
+            result: response.text,
+            status: response.status === 'error' ? 'error' : 'success'
           });
         } catch (error) {
           results.push({
@@ -110,6 +110,6 @@ export function runBatchTool(
   return executor.executeToolsBatch(toolName, inputList).finally(() => executor.close());
 }
 
-/** Python `_sync` 名称的 Promise 适配；TypeScript 不阻塞事件循环。 */
-export const runParallelToolsSync = runParallelTools;
-export const runBatchToolSync = runBatchTool;
+/** Upstream spellings; TypeScript callers await the same Promise-based helpers. */
+export const run_parallel_tools = runParallelTools;
+export const run_batch_tool = runBatchTool;

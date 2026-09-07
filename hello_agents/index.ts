@@ -110,14 +110,16 @@ export {
   ToolChain,
   ToolChainManager,
   createResearchChain,
-  createSimpleChain
+  createSimpleChain,
+  create_research_chain,
+  create_simple_chain
 } from './tools/chain.js';
 export {
   AsyncToolExecutor,
   runBatchTool,
-  runBatchToolSync,
   runParallelTools,
-  runParallelToolsSync
+  run_batch_tool,
+  run_parallel_tools
 } from './tools/async-executor.js';
 export type { ToolTask, ToolTaskResult } from './tools/async-executor.js';
 export { CalculatorTool, calculate } from './tools/builtin/calculator.js';
@@ -130,10 +132,15 @@ export {
   search,
   searchHybrid,
   searchSerpapi,
-  searchTavily
+  searchTavily,
+  search_hybrid,
+  search_serpapi,
+  search_tavily
 } from './tools/builtin/search-tool.js';
 export type {
+  FetchResponse,
   SearchBackend,
+  SearchFetch,
   SearchPayload,
   SearchResult,
   SearchToolOptions
@@ -142,13 +149,6 @@ export { NoteTool } from './tools/builtin/note-tool.js';
 export { TerminalTool } from './tools/builtin/terminal-tool.js';
 export { EditTool, GlobTool, GrepTool, ReadTool, WriteTool } from './tools/builtin/file-tools.js';
 export type { FileToolOptions } from './tools/builtin/file-tools.js';
-export { CircuitBreaker } from './tools/circuit-breaker.js';
-export type {
-  CircuitBreakerOptions,
-  CircuitState,
-  CircuitStatus
-} from './tools/circuit-breaker.js';
-export type { ToolRegistryOptions } from './tools/registry.js';
 export { TokenCounter } from './context/token-counter.js';
 export type { TokenCounterOptions, TokenCounterStats } from './context/token-counter.js';
 export { HistoryManager } from './context/history.js';

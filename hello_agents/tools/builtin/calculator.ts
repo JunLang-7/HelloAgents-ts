@@ -181,7 +181,7 @@ export class CalculatorTool extends Tool<typeof CalculatorTool.inputSchema> {
     try {
       const result = evaluate(expression);
       const resultStr = numberText(result);
-      return ToolResponse.success(`计算结果: ${resultStr}`, {
+      return ToolResponse.success(resultStr, {
         expression,
         result,
         result_str: resultStr,
@@ -199,5 +199,6 @@ export class CalculatorTool extends Tool<typeof CalculatorTool.inputSchema> {
   }
 }
 /** 通过 `CalculatorTool` 执行单个表达式的便捷函数。 */
-export const calculate = async (expression: string) =>
-  new CalculatorTool().execute({ input: expression });
+/** Direct helper matches upstream: callers observe only the result string. */
+export const calculate = async (expression: string): Promise<string> =>
+  (await new CalculatorTool().execute({ input: expression })).text;

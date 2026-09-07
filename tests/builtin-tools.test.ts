@@ -11,7 +11,6 @@ import {
   GrepTool,
   ReadTool,
   ToolErrorCode,
-  ToolRegistry,
   WriteTool
 } from '../hello_agents/index.js';
 
@@ -19,7 +18,7 @@ describe('CalculatorTool', () => {
   test('matches Python V1 arithmetic/functions and rejects non-whitelisted syntax', async () => {
     const tool = new CalculatorTool();
     expect(await tool.execute({ input: 'sqrt(16) + sin(pi / 2)' })).toMatchObject({
-      text: '计算结果: 5',
+      text: '5',
       data: { result: 5, result_str: '5' }
     });
     expect((await tool.execute({ input: 'round(2.5) + round(3.5)' })).data).toMatchObject({
@@ -34,14 +33,13 @@ describe('CalculatorTool', () => {
 });
 
 describe('workspace file tools', () => {
-  test('enforces workspace boundaries, caches reads, and refuses optimistic-lock conflicts', async () => {
+  test('enforces workspace boundaries, returns read metadata, and refuses optimistic-lock conflicts', async () => {
     const root = await mkdtemp(join(tmpdir(), 'helloagents-files-'));
     const outside = join(tmpdir(), `helloagents-outside-${randomUUID()}.txt`);
     try {
-      const registry = new ToolRegistry();
-      const write = new WriteTool({ workspaceRoot: root, registry });
-      const read = new ReadTool({ workspaceRoot: root, registry });
-      const edit = new EditTool({ workspaceRoot: root, registry });
+      const write = new WriteTool({ workspaceRoot: root });
+      const read = new ReadTool({ workspaceRoot: root });
+      const edit = new EditTool({ workspaceRoot: root });
       expect((await write.execute({ path: '../escape.txt', content: 'no' })).errorInfo?.code).toBe(
         ToolErrorCode.ACCESS_DENIED
       );
@@ -53,7 +51,7 @@ describe('workspace file tools', () => {
       await write.execute({ path: 'note.txt', content: 'alpha\nbeta\n' });
       const loaded = await read.execute({ path: 'note.txt' });
       expect(loaded.data).toMatchObject({ content: 'alpha\nbeta\n', total_lines: 2 });
-      const cached = registry.getReadMetadata('note.txt');
+      const cached = loaded.data;
       expect(cached).toMatchObject({ file_size_bytes: 11, file_hash: expect.any(String) });
       await writeFile(join(root, 'note.txt'), 'changed\n', 'utf8');
       // Give the direct write a distinct mtime so the optimistic-lock check is

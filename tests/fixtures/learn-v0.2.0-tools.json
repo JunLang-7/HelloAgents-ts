@@ -1,0 +1,19 @@
+{
+  "calculator": {
+    "expression": "sqrt(16) + 2",
+    "result": "6"
+  },
+  "tool": {
+    "name": "metadata",
+    "description": "Metadata.",
+    "parameters": [
+      {
+        "name": "optional",
+        "type": "string",
+        "description": "Optional.",
+        "required": false,
+        "default": null
+      }
+    ]
+  }
+}

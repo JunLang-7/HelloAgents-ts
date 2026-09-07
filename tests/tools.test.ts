@@ -129,7 +129,7 @@ describe('Tool and ToolRegistry', () => {
     });
   });
 
-  test('registers expandable tools, parses JSON input, and retains read metadata cache behavior', async () => {
+  test('registers expandable tools, parses JSON input, and serializes null defaults', async () => {
     const registry = new ToolRegistry();
     const group = expandableTool({
       name: 'memory',
@@ -144,24 +144,20 @@ describe('Tool and ToolRegistry', () => {
       ]
     });
     registry.register(group);
-    registry.cacheReadMetadata('notes.txt', { file_size_bytes: 10 });
-
     expect(registry.list()).toEqual(['memory_add']);
     expect(registry.get('memory_add')).toBeInstanceOf(FunctionTool);
     expect(await registry.execute('memory_add', '{"content":"hello"}')).toMatchObject({
       text: 'stored hello',
       data: { output: 'stored hello' }
     });
-    expect(registry.getReadMetadata('notes.txt')).toEqual({ file_size_bytes: 10 });
-    registry.clearReadCache('notes.txt');
-    expect(registry.getReadMetadata('notes.txt')).toBeUndefined();
     expect(
       toolParameterSchema.parse({ name: 'content', type: 'string', description: 'Content.' })
     ).toEqual({
       name: 'content',
       type: 'string',
       description: 'Content.',
-      required: true
+      required: true,
+      default: null
     });
     expect((await registry.execute('none', {})).errorInfo).toEqual({
       code: ToolErrorCode.NOT_FOUND,

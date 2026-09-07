@@ -237,6 +237,8 @@ export type {
   DevLogEntry,
   DevLogToolOptions
 } from './tools/builtin/dev-log-tool.js';
+export { MemoryTool } from './tools/builtin/memory-tool.js';
+export type { MemoryToolOptions } from './tools/builtin/memory-tool.js';
 export {
   createAgent,
   createAgentFactory,

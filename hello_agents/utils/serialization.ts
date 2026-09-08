@@ -5,11 +5,14 @@ import type { PathLike } from 'node:fs';
 
 export type SerializationFormat = 'json';
 
-function assertFormat(format: string): asserts format is SerializationFormat {
+function assertFormat(
+  format: string,
+  operation: '序列化' | '反序列化' = '序列化'
+): asserts format is SerializationFormat {
   if (format !== 'json') {
     // Pickle is intentionally not exposed: Python pickle is not portable to
     // TypeScript and evaluating arbitrary pickle bytes would be unsafe.
-    throw new Error(`不支持的序列化格式: ${format}`);
+    throw new Error(`不支持的${operation}格式: ${format}`);
   }
 }
 
@@ -23,7 +26,7 @@ export function serializeObject(obj: unknown, format = 'json'): string {
 
 /** Deserialize a JSON string (or UTF-8 bytes) into a JavaScript value. */
 export function deserializeObject(data: string | Uint8Array, format = 'json'): unknown {
-  assertFormat(format);
+  assertFormat(format, '反序列化');
   return JSON.parse(typeof data === 'string' ? data : new TextDecoder().decode(data));
 }
 

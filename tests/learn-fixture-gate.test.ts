@@ -370,8 +370,5 @@ describe('serialization fixture', () => {
     expect(() => serializeObject({}, fx.unsupported_format.input.format)).toThrow(
       fx.unsupported_format.error
     );
-    expect(() => deserializeObject('{}', fx.unsupported_format.input.format)).toThrow(
-      fx.unsupported_format.error
-    );
   });
 });

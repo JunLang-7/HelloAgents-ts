@@ -91,4 +91,9 @@ describe('learn-version utility helpers', () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  test('serialization errors retain the upstream operation-specific wording', () => {
+    expect(() => serializeObject({}, 'yaml')).toThrow('不支持的序列化格式: yaml');
+    expect(() => deserializeObject('{}', 'yaml')).toThrow('不支持的反序列化格式: yaml');
+  });
 });

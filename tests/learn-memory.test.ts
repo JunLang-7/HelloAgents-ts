@@ -489,6 +489,52 @@ describe('PerceptualMemory', () => {
     expect(pm.perceptions.size).toBe(0);
   });
 
+  test('remove/clear also delete vectors written to the fallback vectorStore', () => {
+    // add()/update() write via getVectorStoreForModality(), which falls back to
+    // the shared backends.vectorStore when no per-modality stores are injected.
+    // remove()/clear() must clean that fallback too, or vectors leak (upstream
+    // never has this gap because it always holds fixed text/image/audio stores).
+    const deleted: string[][] = [];
+    const vectorStore: VectorStorePort = {
+      addVectors: () => true,
+      searchSimilar: () => [],
+      deleteMemories: (ids) => {
+        deleted.push([...ids]);
+        return true;
+      },
+      getCollectionStats: () => ({ store_type: 'fake-vec' })
+    };
+    const rows = new Map<string, StoredMemoryDoc>();
+    const docStore: DocumentStorePort = {
+      addMemory: (doc) => rows.set(doc.memory_id, doc),
+      getMemory: (id) => rows.get(id) ?? null,
+      searchMemories: () => [...rows.values()],
+      updateMemory: () => true,
+      deleteMemory: (id) => rows.delete(id),
+      getDatabaseStats: () => ({ store_type: 'fake', total_count: rows.size })
+    };
+    const pm = new PerceptualMemory(new MemoryConfig(), { vectorStore, docStore });
+
+    pm.add(
+      item('m1', 'v', {
+        memoryType: 'perceptual',
+        metadata: { modality: 'image', raw_data: 'bytes' }
+      })
+    );
+    expect(pm.remove('m1')).toBe(true);
+    expect(deleted.flat()).toContain('m1');
+
+    deleted.length = 0;
+    pm.add(
+      item('m2', 'v2', {
+        memoryType: 'perceptual',
+        metadata: { modality: 'audio', raw_data: 'bytes2' }
+      })
+    );
+    pm.clear();
+    expect(deleted.flat()).toContain('m2');
+  });
+
   test('stats expose modality counts and supported modalities', () => {
     const pm = new PerceptualMemory();
     pm.add(

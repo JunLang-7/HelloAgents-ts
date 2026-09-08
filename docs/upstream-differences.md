@@ -145,6 +145,23 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Status:** kept (approved)
 - **Reason:** TS uses zod as a single validation layer instead of per-tool manual checks. Both return an error result (`status: "error"`); only the wording differs. The fixture test asserts the error status, not the exact text.
 
+### DIFF-017 — Perceptual memory update re-embedding
+
+- **Area:** `memory/types/perceptual`
+- **Upstream:** `PerceptualMemory.update()` re-embeds via `self.vector_store.add_vectors`, but `base.py` has no `vector_store` attribute (only the `vector_stores` dict) — the `AttributeError` is swallowed by the bare `except`, so re-embedding never actually happens.
+- **TS:** `update()` re-embeds correctly through `getVectorStoreForModality()` (upstream bug fixed per obvious intent). `perceptions`/`modalityIndex` are intentionally **not** updated on a modality change, matching upstream exactly — `getByModality()` keeps serving from the same stale index on both sides.
+- **Status:** kept (approved)
+- **Reason:** Fixing the dead re-embed is a deliberate upstream-bug fix; keeping index behavior identical to upstream preserves teaching fidelity for `getByModality()`. `remove()`/`clear()` now delete vectors from both per-modality stores and the fallback `vectorStore`, so the revived re-embed cannot leak.
+
+## Known upstream dead-parameter semantics (verified, not differences)
+
+These parameters are **declared and passed but never consumed** on both sides;
+TS replicates upstream exactly and must not "fix" them into filters:
+
+- `min_importance` — threaded `memory_tool → MemoryManager.retrieve_memories → type.retrieve`, then discarded by every type's `**kwargs`. A repo-wide search finds zero consumption sites in `hello_agents/memory/types/`.
+- `time_range` — accepted by `retrieve_memories` but **not** forwarded to instances; only `EpisodicMemory.retrieve` reads it from kwargs when called directly (manager path never passes it).
+- `metadata` on MemoryTool add/update — upstream `run()` never reads a user-supplied `metadata` key (`validate_parameters` checks only required params). TS removed the zod declaration so the tool schema does not promise unsupported functionality; `.passthrough()` still accepts and ignores it, exactly like upstream.
+
 ## Fixture normalization rules
 
 Generated fixtures (`tests/fixtures/generated/*.json`) apply these

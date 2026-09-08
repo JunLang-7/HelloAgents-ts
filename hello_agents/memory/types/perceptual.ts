@@ -308,7 +308,12 @@ export class PerceptualMemory extends BaseMemory {
       removed = true;
     }
     this.backends.docStore?.deleteMemory(memoryId);
-    for (const store of Object.values(this.backends.vectorStores ?? {})) {
+    // 清理向量：add/update 可能写入模态分表（vectorStores），也可能因
+    // getVectorStoreForModality 回退而写入通用 vectorStore —— 两处都必须删，
+    // 否则残留。上游固定三集合不会回退；TS 的 port/adapter 形态需要覆盖回退目标。
+    const stores = [...Object.values(this.backends.vectorStores ?? {}), this.backends.vectorStore];
+    for (const store of stores) {
+      if (!store) continue;
       try {
         store.deleteMemories([memoryId]);
       } catch {
@@ -360,7 +365,9 @@ export class PerceptualMemory extends BaseMemory {
         .map((doc) => doc.memory_id);
       for (const id of ids) docStore.deleteMemory(id);
     }
-    for (const store of Object.values(this.backends.vectorStores ?? {})) {
+    const stores = [...Object.values(this.backends.vectorStores ?? {}), this.backends.vectorStore];
+    for (const store of stores) {
+      if (!store) continue;
       try {
         if (ids.length > 0) store.deleteMemories(ids);
       } catch {

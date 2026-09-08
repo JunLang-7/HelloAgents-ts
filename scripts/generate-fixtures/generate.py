@@ -22,6 +22,7 @@ import argparse
 import importlib
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -36,6 +37,33 @@ import mocks  # noqa: E402
 from normalizers import normalize_case, to_json  # noqa: E402
 
 UPSTREAM_SHA = "3927c6d1decb37737c4c1344fde00ccef55ab1f3"
+# Local full clone of the upstream repo used as the one true source when
+# generating fixtures. generate() refuses to run unless its HEAD matches
+# UPSTREAM_SHA, so an outdated/mispointed checkout can never silently produce
+# fixtures mislabeled with the pinned SHA.
+UPSTREAM_REF_DIR = _GEN_DIR / ".upstream-ref"
+
+
+def _verify_upstream_ref() -> str:
+    """Return the upstream-ref HEAD, failing loudly if it is not the pinned SHA."""
+    if not (UPSTREAM_REF_DIR / ".git").exists():
+        raise SystemExit(
+            f"FATAL: upstream reference clone missing at {UPSTREAM_REF_DIR}.\n"
+            f"Clone it first (e.g. `git clone --depth 1 "
+            f"https://github.com/jjyaoao/HelloAgents.git {UPSTREAM_REF_DIR}` "
+            f"then `git fetch --depth 1 origin {UPSTREAM_SHA}`)."
+        )
+    head = subprocess.check_output(
+        ["git", "-C", str(UPSTREAM_REF_DIR), "rev-parse", "HEAD"],
+        text=True,
+    ).strip()
+    if head != UPSTREAM_SHA:
+        raise SystemExit(
+            f"FATAL: upstream-ref HEAD is {head}, expected {UPSTREAM_SHA}.\n"
+            f"Checkout the pinned commit before regenerating fixtures; refusing "
+            f"to emit fixtures labeled with a SHA that was not actually used."
+        )
+    return head
 
 CASES = [
     "defaults",
@@ -98,12 +126,16 @@ def _setup_embedder() -> None:
 
 
 def generate_all(output_dir: Path) -> Dict[str, Any]:
+    # Fail fast if the local upstream checkout does not match the pinned SHA —
+    # otherwise an outdated clone would silently produce mislabeled fixtures.
+    verified_sha = _verify_upstream_ref()
+
     mocks.install_mocks()
     _setup_embedder()
 
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest: Dict[str, Any] = {
-        "upstream_sha": UPSTREAM_SHA,
+        "upstream_sha": verified_sha,
         "generated_at": "TIME",
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
         "normalization": {

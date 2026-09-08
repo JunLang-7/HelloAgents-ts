@@ -140,6 +140,10 @@ export class MemoryManager {
     minImportance = 0,
     timeRange?: readonly [Date, Date]
   ): MemoryItem[] {
+    // 与上游一致：minImportance/timeRange 会传给各类型，但上游各类型 retrieve
+    // 均以 **kwargs 接收后从不读取（全仓无消费点）；episodic 仅在直接调用时
+    // 读取 time_range/importance_threshold，manager 路径不传。因此这两个参数
+    // 在 manager→类型链路上是"声明但可能不生效"的（上游死参数语义，忠实保留）。
     const types = memoryTypes ?? Object.keys(this.memoryTypes);
     const all: MemoryItem[] = [];
     const perTypeLimit = Math.max(1, Math.floor(limit / types.length));

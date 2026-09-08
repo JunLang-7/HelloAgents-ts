@@ -17,6 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { CalculatorTool } from '../hello_agents/tools/builtin/calculator.js';
 import { MemoryTool } from '../hello_agents/tools/builtin/memory-tool.js';
 import { MemoryConfig } from '../hello_agents/memory/base.js';
+import type { ForgettableMemory } from '../hello_agents/memory/base.js';
 import { Config } from '../hello_agents/core/config.js';
 import { Message } from '../hello_agents/core/message.js';
 import { normalizeCase } from './fixture-harness/normalizer.js';
@@ -172,6 +173,21 @@ describe('memory_tool fixture', () => {
     expect(normalizeCase(result.text)).toEqual(normalizeCase(output));
   });
 
+  it('add ignores extra metadata like upstream (not declared, not stored)', async () => {
+    // Upstream run() never reads a user-supplied "metadata" key (validate is
+    // lenient, only required params are checked), so it is accepted and
+    // silently dropped. TS must behave identically: success, no metadata saved.
+    const mt = makeTool();
+    const { input, output } = fx.memory_tool.add;
+    const result = await mt.execute({ ...input, metadata: { tags: ['x'], raw_data: 'nope' } });
+    expect(normalizeCase(result.text)).toEqual(normalizeCase(output));
+    const working = mt.memoryManager.memoryTypes.working;
+    const all = (working as ForgettableMemory).getAll();
+    const saved = all[0] as { metadata: Record<string, unknown> };
+    expect(saved.metadata.tags).toBeUndefined();
+    expect(saved.metadata.raw_data).toBeUndefined();
+  });
+
   it('search returns upstream-formatted results', async () => {
     const mt = makeTool();
     await seedMemory(mt);
@@ -201,6 +217,33 @@ describe('memory_tool fixture', () => {
     await mt.execute(fx.memory_tool.add.input);
     const { input, output } = fx.memory_tool.clear_all;
     const result = await mt.execute(input);
+    expect(normalizeCase(result.text)).toEqual(normalizeCase(output));
+  });
+
+  it('update with a real id returns upstream-formatted success', async () => {
+    const mt = makeTool();
+    await seedMemory(mt);
+    const { input, output } = fx.memory_tool.update;
+    // The fixture records the real working-memory id from the upstream run;
+    // resolve the equivalent id in the TS store (working[0]) so the input
+    // actually targets an existing memory instead of the missing-id path.
+    const working = mt.memoryManager.memoryTypes.working;
+    const all = (working as ForgettableMemory).getAll();
+    expect(all.length).toBeGreaterThan(0);
+    const realId = (all[0] as { id: string }).id;
+    const result = await mt.execute({ ...input, memory_id: realId });
+    expect(normalizeCase(result.text)).toEqual(normalizeCase(output));
+  });
+
+  it('remove with a real id returns upstream-formatted success', async () => {
+    const mt = makeTool();
+    await seedMemory(mt);
+    const { input, output } = fx.memory_tool.remove;
+    const working = mt.memoryManager.memoryTypes.working;
+    const all = (working as ForgettableMemory).getAll();
+    expect(all.length).toBeGreaterThan(0);
+    const realId = (all[0] as { id: string }).id;
+    const result = await mt.execute({ ...input, memory_id: realId });
     expect(normalizeCase(result.text)).toEqual(normalizeCase(output));
   });
 

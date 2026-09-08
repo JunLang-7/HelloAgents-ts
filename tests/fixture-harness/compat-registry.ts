@@ -189,6 +189,17 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     approved: true,
     reason:
       'TS uses zod as the single validation layer instead of per-tool manual checks; both return an error result, text differs by framework. Fixture test asserts error status, not exact text.'
+  },
+  {
+    id: 'DIFF-017',
+    area: 'memory/types/perceptual',
+    upstream:
+      'PerceptualMemory.update() re-embeds via self.vector_store.add_vectors — but base.py has no vector_store attribute (only the vector_stores dict), so it raises AttributeError that the bare except swallows: re-embedding never happens upstream',
+    ts: 'update() re-embeds correctly via getVectorStoreForModality() (upstream bug fixed per obvious intent); perceptions/modalityIndex are NOT updated on modality change, matching upstream — getByModality() keeps serving from the stale index on both sides',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Fixing the dead re-embed is a deliberate upstream-bug fix; keeping the index behavior identical to upstream preserves teaching fidelity for getByModality(). Vector cleanup on remove/clear covers both per-modality stores and the fallback vectorStore so the fixed re-embed cannot leak.'
   }
 ];
 

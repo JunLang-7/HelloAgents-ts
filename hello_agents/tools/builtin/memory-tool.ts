@@ -203,10 +203,12 @@ export class MemoryTool extends Tool {
           from_type: z.string().optional(),
           to_type: z.string().optional(),
           importance_threshold: z.number().optional(),
-          // 派发路径使用但不在 get_parameters 中声明的入参（与上游一致，宽松接收）。
-          min_importance: z.number().optional(),
-          memory_types: z.array(z.string()).optional(),
-          metadata: z.record(z.string(), z.unknown()).optional()
+          // min_importance 在 search 派发路径真实使用（与上游一致：上游 run 也
+          // 读取 parameters.get("min_importance") 但不在 get_parameters 声明）。
+          // metadata / memory_types 上游 run 从不读取，刻意不声明——.passthrough()
+          // 仍会像上游 validate_parameters 一样宽松接受并忽略未知字段，避免在
+          // 工具 schema 层承诺不存在的功能。
+          min_importance: z.number().optional()
         })
         .passthrough()
     });

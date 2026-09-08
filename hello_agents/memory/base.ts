@@ -189,7 +189,13 @@ export class MemoryConfig {
   }
 }
 
-/** 各记忆类型 retrieve 的通用过滤参数（对应 Python 的 **kwargs）。 */
+/**
+ * 各记忆类型 retrieve 的通用过滤参数（对应 Python 的 **kwargs）。
+ *
+ * 与上游一致：minImportance 会被传入但类型层并不保证生效——上游各类型
+ * retrieve 均以 **kwargs 接收后从不读取（死参数语义）；TS 保留该字段仅为
+ * 模拟上游 kwargs 的"可传、可忽略"。具体类型是否消费见各自实现。
+ */
 export interface RetrieveOptions {
   userId?: string | undefined;
   minImportance?: number | undefined;

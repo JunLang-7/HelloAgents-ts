@@ -233,6 +233,14 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Status:** kept (approved)
 - **Reason:** Runtime serialization differences; explicit `int()` wrapping and unit conversion keep the public config upstream-faithful.
 
+### DIFF-028 — Cypher relationship-type identifier validation
+
+- **Area:** `memory/storage/neo4j`
+- **Upstream:** Python interpolates `relationship_type` / `relationship_types` directly into Cypher (`MERGE (from)-[r:{type}]->(to)`), treating it as an internal trusted API.
+- **TS:** `Neo4jGraphStore` is a public entry point, so `addRelationship` and `findRelatedEntities` validate every relationship type against a strict identifier whitelist (`^[A-Za-z_][A-Za-z0-9_]*$`) before interpolation, rejecting values that could alter query structure.
+- **Status:** kept (approved)
+- **Reason:** Hardening only; all valid identifiers behave exactly as upstream.
+
 ## Known upstream dead-parameter semantics (verified, not differences)
 
 These parameters are **declared and passed but never consumed** on both sides;

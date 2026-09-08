@@ -142,4 +142,36 @@ describe('Neo4jGraphStore offline behavior', () => {
     const store = new Neo4jGraphStore({ uri: 'bolt://localhost:7690' });
     expect(await store.healthCheck()).toBe(false);
   });
+
+  test('addRelationship rejects invalid relationship_type (no Cypher injection)', async () => {
+    const store = new Neo4jGraphStore({ uri: 'bolt://localhost:7690' });
+    await expect(
+      store.addRelationship({
+        from_entity_id: 'a',
+        to_entity_id: 'b',
+        relationship_type: 'WORKS ON'
+      })
+    ).rejects.toThrow('relationship_type 必须是合法 Cypher 关系类型标识符');
+    await expect(
+      store.addRelationship({
+        from_entity_id: 'a',
+        to_entity_id: 'b',
+        relationship_type: 'WORKS_ON; DETACH DELETE n'
+      })
+    ).rejects.toThrow('relationship_type 必须是合法 Cypher 关系类型标识符');
+    await expect(
+      store.addRelationship({
+        from_entity_id: 'a',
+        to_entity_id: 'b',
+        relationship_type: '1INVALID'
+      })
+    ).rejects.toThrow('relationship_type 必须是合法 Cypher 关系类型标识符');
+  });
+
+  test('findRelatedEntities rejects invalid relationship_types entries', async () => {
+    const store = new Neo4jGraphStore({ uri: 'bolt://localhost:7690' });
+    await expect(
+      store.findRelatedEntities({ entity_id: 'a', relationship_types: ['OK', 'BAD TYPE'] })
+    ).rejects.toThrow('relationship_types 必须是合法 Cypher 关系类型标识符');
+  });
 });

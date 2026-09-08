@@ -505,6 +505,11 @@ export class SQLiteDocumentStore extends DocumentStore {
     if (this._closed) return;
     this._closed = true;
     this.conn.close();
+    // 关闭后从单例注册表注销：同路径再次 getInstance() 会重新打开连接，
+    // 避免返回已关闭实例导致 `Cannot use a closed database`。
+    const absPath = resolveAbsPath(this.db_path);
+    SQLiteDocumentStore.instances.delete(absPath);
+    SQLiteDocumentStore.initializedDbs.delete(absPath);
   }
 }
 

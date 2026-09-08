@@ -299,6 +299,17 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     approved: true,
     reason:
       'Runtime serialization differences; explicit int() wrapping and unit conversion keep the public config upstream-faithful.'
+  },
+  {
+    id: 'DIFF-028',
+    area: 'memory/storage/neo4j',
+    upstream:
+      'Python interpolates relationship_type / relationship_types directly into Cypher (trusted internal API)',
+    ts: 'Neo4jGraphStore is a public entry point: relationship types validated against a strict identifier whitelist before interpolation, rejecting values that could alter query structure',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Hardening only; all valid identifiers behave exactly as upstream, invalid ones fail fast with a clear error.'
   }
 ];
 

@@ -387,11 +387,7 @@ export class LocalTransformerEmbedding extends EmbeddingModel {
           options?: Record<string, unknown>
         ) => Promise<unknown>;
       };
-      // feature-extraction 返回张量，shape=[n, tokens, hidden]
-      const extractor = await pipeline('feature-extraction', this.model_name, {
-        pooling: 'mean',
-        normalize: true
-      });
+      const extractor = await pipeline('feature-extraction', this.model_name);
       this._pipeline = extractor;
       this._backend = 'hf';
       // 探测维度
@@ -414,13 +410,19 @@ export class LocalTransformerEmbedding extends EmbeddingModel {
     await this.loadBackend();
     const single = typeof texts === 'string';
     const inputs = single ? [texts as string] : (texts as string[]);
-    const extractor = this._pipeline as (texts: string[], options?: unknown) => Promise<unknown>;
-    const output = (await extractor(inputs)) as {
+    const extractor = this._pipeline as (
+      texts: string[],
+      options?: Record<string, unknown>
+    ) => Promise<unknown>;
+    // pooling/normalize 是 feature-extraction 的调用时选项（transformers.js 文档）；
+    // 传入后输出为 mean-pooled + L2 归一化向量。
+    const output = (await extractor(inputs, { pooling: 'mean', normalize: true })) as {
       data: Float32Array | number[];
       dims: number[];
     };
-    // mean pooling 后 shape=[n, hidden]
-    const hidden = output.dims[2] ?? 0;
+    // mean pooling 后 shape 为 [hidden]（单条）或 [batch, hidden]；hidden 恒为最后一维
+    const dims = output.dims;
+    const hidden = dims.length > 0 ? (dims[dims.length - 1] ?? 0) : 0;
     const vecs: number[][] = [];
     for (let i = 0; i < inputs.length; i++) {
       const start = i * hidden;

@@ -131,6 +131,21 @@ function normalizeProperties(properties: Record<string, unknown>): Record<string
   return out;
 }
 
+/**
+ * 校验 Cypher 关系类型标识符（防注入加固：上游 Python 直接插值，TS 侧调用方
+ * 是公开入口，非法值会破坏查询结构）。
+ *
+ * 合法关系类型仅含字母/数字/下划线且不以数字开头；关系类型无法参数化，
+ * 必须插值，故先做严格白名单校验再拼入查询。
+ */
+function assertRelationshipType(value: string, field: string): void {
+  if (typeof value !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    throw new Error(
+      `${field} 必须是合法 Cypher 关系类型标识符（仅字母/数字/下划线，不以数字开头）: ${JSON.stringify(value)}`
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Neo4jGraphStore
 // ---------------------------------------------------------------------------
@@ -240,6 +255,8 @@ export class Neo4jGraphStore {
     relationship_type: string;
     properties?: Record<string, unknown> | undefined;
   }): Promise<boolean> {
+    // 先校验再连接：关系类型直接拼入 Cypher，非法值会破坏查询结构（防注入）
+    assertRelationshipType(request.relationship_type, 'relationship_type');
     await this.ensureInitialized();
     const props = {
       ...(request.properties ?? {}),
@@ -267,6 +284,11 @@ export class Neo4jGraphStore {
     max_depth?: number | undefined;
     limit?: number | undefined;
   }): Promise<Array<Record<string, unknown>>> {
+    if (request.relationship_types && request.relationship_types.length > 0) {
+      for (const relType of request.relationship_types) {
+        assertRelationshipType(relType, 'relationship_types');
+      }
+    }
     await this.ensureInitialized();
     const relFilter =
       request.relationship_types && request.relationship_types.length > 0

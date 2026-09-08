@@ -213,6 +213,40 @@ describe('SQLiteDocumentStore persistence across reopen', () => {
     expect(doc?.properties).toEqual({ note: 'kept' });
     second.close();
   });
+
+  test('getInstance after close returns a fresh usable instance (no stale closed singleton)', () => {
+    const path = join(dir, 'stale-close.db');
+    SQLiteDocumentStore.resetForTesting();
+
+    const first = SQLiteDocumentStore.getInstance(path);
+    first.addMemory({
+      memory_id: 'stale-1',
+      user_id: 'user-a',
+      content: 'before close',
+      memory_type: 'episodic',
+      timestamp: 1_700_000_200,
+      importance: 0.5,
+      properties: {}
+    });
+    first.close();
+
+    // close 后同路径 getInstance 必须返回新实例，而不是已关闭的连接
+    const second = SQLiteDocumentStore.getInstance(path);
+    expect(second).not.toBe(first);
+    expect(() =>
+      second.addMemory({
+        memory_id: 'stale-2',
+        user_id: 'user-a',
+        content: 'after reopen',
+        memory_type: 'episodic',
+        timestamp: 1_700_000_300,
+        importance: 0.6,
+        properties: {}
+      })
+    ).not.toThrow();
+    expect(second.getMemory('stale-1')?.content).toBe('before close');
+    second.close();
+  });
 });
 
 describe('DocumentStore abstraction', () => {

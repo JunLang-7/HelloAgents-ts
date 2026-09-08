@@ -1,0 +1,55 @@
+{
+  "message_assistant": {
+    "content": "test content for assistant",
+    "metadata": {},
+    "role": "assistant",
+    "timestamp": "TIME"
+  },
+  "message_roundtrip": {
+    "input": {
+      "content": "with metadata",
+      "metadata": {
+        "source": "test",
+        "tokens": 5
+      },
+      "role": "user",
+      "timestamp": "TIME"
+    },
+    "output": {
+      "content": "with metadata",
+      "metadata": {
+        "source": "test",
+        "tokens": 5
+      },
+      "role": "user",
+      "timestamp": "TIME"
+    }
+  },
+  "message_system": {
+    "content": "test content for system",
+    "metadata": {},
+    "role": "system",
+    "timestamp": "TIME"
+  },
+  "message_tool": {
+    "content": "test content for tool",
+    "metadata": {},
+    "role": "tool",
+    "timestamp": "TIME"
+  },
+  "message_user": {
+    "content": "test content for user",
+    "metadata": {},
+    "role": "user",
+    "timestamp": "TIME"
+  },
+  "message_with_metadata": {
+    "content": "with metadata",
+    "metadata": {
+      "source": "test",
+      "tokens": 5
+    },
+    "role": "user",
+    "timestamp": "TIME"
+  }
+}

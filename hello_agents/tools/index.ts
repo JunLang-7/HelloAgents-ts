@@ -59,3 +59,5 @@ export type {
 } from './builtin/search-tool.js';
 export { NoteTool } from './builtin/note-tool.js';
 export { TerminalTool } from './builtin/terminal-tool.js';
+export { MemoryTool } from './builtin/memory-tool.js';
+export type { MemoryToolOptions } from './builtin/memory-tool.js';

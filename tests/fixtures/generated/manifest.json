@@ -1,0 +1,55 @@
+{
+  "cases": {
+    "defaults": {
+      "file": "defaults.json",
+      "sources": [
+        "hello_agents/core/config.py",
+        "hello_agents/memory/base.py",
+        "hello_agents/tools/builtin/memory_tool.py",
+        "hello_agents/tools/builtin/calculator.py"
+      ]
+    },
+    "exceptions": {
+      "file": "exceptions.json",
+      "sources": [
+        "hello_agents/tools/builtin/memory_tool.py",
+        "hello_agents/tools/builtin/calculator.py"
+      ]
+    },
+    "messages": {
+      "file": "messages.json",
+      "sources": [
+        "hello_agents/core/message.py"
+      ]
+    },
+    "serialization": {
+      "file": "serialization.json",
+      "sources": [
+        "hello_agents/utils/serialization.py",
+        "hello_agents/core/message.py",
+        "hello_agents/core/config.py"
+      ]
+    },
+    "tool_returns": {
+      "file": "tool_returns.json",
+      "sources": [
+        "hello_agents/tools/builtin/memory_tool.py",
+        "hello_agents/tools/builtin/calculator.py",
+        "hello_agents/memory/manager.py",
+        "hello_agents/memory/types/working.py",
+        "hello_agents/memory/types/episodic.py"
+      ]
+    }
+  },
+  "generated_at": "TIME",
+  "normalization": {
+    "float": "round to 4 decimal places",
+    "order": "non-deterministic lists sorted by stable key",
+    "random_seed": 42,
+    "stream": "chunks collected and concatenated",
+    "time": "ISO-8601 datetimes and session_YYYYMMDD_HHMMSS → TIME",
+    "uuid": "UUID v4 → UUID_<n> (1-based, per-case)"
+  },
+  "python_version": "3.12",
+  "upstream_sha": "3927c6d1decb37737c4c1344fde00ccef55ab1f3"
+}

@@ -22,6 +22,8 @@ jobs:
       - run: bun run lint
       - run: bun run format:check
       - run: bun run test:coverage
+      - run: bun run fixture:gate
+      - run: bun run release:gate
       - run: bun run build
 
   node-smoke:

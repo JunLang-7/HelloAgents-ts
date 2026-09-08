@@ -1,0 +1,135 @@
+{
+  "pinned_commit": "3927c6d1decb37737c4c1344fde00ccef55ab1f3",
+  "config": {
+    "storage_path": "./memory_data",
+    "max_capacity": 100,
+    "importance_threshold": 0.1,
+    "decay_factor": 0.95,
+    "working_memory_capacity": 10,
+    "working_memory_tokens": 2000,
+    "working_memory_ttl_minutes": 120,
+    "perceptual_memory_modalities": ["text", "image", "audio", "video"]
+  },
+  "stats_keys": {
+    "working": [
+      "count",
+      "forgotten_count",
+      "total_count",
+      "current_tokens",
+      "max_capacity",
+      "max_tokens",
+      "max_age_minutes",
+      "session_duration_minutes",
+      "avg_importance",
+      "capacity_usage",
+      "token_usage",
+      "memory_type"
+    ],
+    "episodic": [
+      "count",
+      "forgotten_count",
+      "total_count",
+      "sessions_count",
+      "avg_importance",
+      "time_span_days",
+      "memory_type",
+      "vector_store",
+      "document_store"
+    ],
+    "semantic": [
+      "count",
+      "forgotten_count",
+      "total_count",
+      "entities_count",
+      "relations_count",
+      "graph_nodes",
+      "graph_edges",
+      "avg_importance",
+      "memory_type"
+    ],
+    "perceptual": [
+      "count",
+      "forgotten_count",
+      "total_count",
+      "perceptions_count",
+      "modality_counts",
+      "supported_modalities",
+      "avg_importance",
+      "memory_type",
+      "vector_stores",
+      "document_store"
+    ],
+    "manager": ["user_id", "enabled_types", "total_memories", "memories_by_type", "config"]
+  },
+  "memory_type_labels": {
+    "episodic": "episodic",
+    "semantic": "enhanced_semantic",
+    "perceptual": "perceptual",
+    "working": "working"
+  },
+  "importance": {
+    "plain": 0.5,
+    "keyword": 0.7,
+    "long_only": 0.6,
+    "keyword_and_long": 0.8,
+    "manager_priority_high": 0.8,
+    "manager_priority_low": 0.3
+  },
+  "tool": {
+    "name": "memory",
+    "expandable_default": false,
+    "actions": [
+      "add",
+      "search",
+      "summary",
+      "stats",
+      "update",
+      "remove",
+      "forget",
+      "consolidate",
+      "clear_all"
+    ],
+    "expanded_tools": [
+      "memory_add",
+      "memory_search",
+      "memory_summary",
+      "memory_stats",
+      "memory_update",
+      "memory_remove",
+      "memory_forget",
+      "memory_consolidate",
+      "memory_clear"
+    ],
+    "parameters": [
+      { "name": "action", "type": "string", "required": true, "default": null },
+      { "name": "content", "type": "string", "required": false, "default": null },
+      { "name": "query", "type": "string", "required": false, "default": null },
+      { "name": "memory_type", "type": "string", "required": false, "default": "working" },
+      { "name": "importance", "type": "number", "required": false, "default": null },
+      { "name": "limit", "type": "integer", "required": false, "default": 5 },
+      { "name": "memory_id", "type": "string", "required": false, "default": null },
+      { "name": "file_path", "type": "string", "required": false, "default": null },
+      { "name": "modality", "type": "string", "required": false, "default": null },
+      { "name": "strategy", "type": "string", "required": false, "default": "importance_based" },
+      { "name": "threshold", "type": "number", "required": false, "default": 0.1 },
+      { "name": "max_age_days", "type": "integer", "required": false, "default": 30 },
+      { "name": "from_type", "type": "string", "required": false, "default": "working" },
+      { "name": "to_type", "type": "string", "required": false, "default": "episodic" },
+      { "name": "importance_threshold", "type": "number", "required": false, "default": 0.7 }
+    ],
+    "messages": {
+      "validation_failed": "❌ 参数验证失败：缺少必需的参数",
+      "add_prefix": "✅ 记忆已添加 (ID: ",
+      "empty_search_prefix": "🔍 未找到与",
+      "search_prefix": "🔍 找到",
+      "updated": "✅ 记忆已更新",
+      "update_missing": "⚠️ 未找到要更新的记忆",
+      "removed": "✅ 记忆已删除",
+      "remove_missing": "⚠️ 未找到要删除的记忆",
+      "forget_prefix": "🧹 已遗忘",
+      "consolidate_prefix": "🔄 已整合",
+      "cleared": "🧽 已清空所有记忆",
+      "empty_context": "No working memories available."
+    }
+  }
+}

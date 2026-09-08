@@ -1,0 +1,98 @@
+{
+  "calculator": {
+    "float_div": {
+      "input": {
+        "expression": "10 / 3"
+      },
+      "output": "3.3333333333333335"
+    },
+    "paren": {
+      "input": {
+        "expression": "(2 + 3) * 4"
+      },
+      "output": "20"
+    },
+    "power": {
+      "input": {
+        "expression": "2 ** 10"
+      },
+      "output": "1024"
+    },
+    "simple_add": {
+      "input": {
+        "expression": "2 + 3 * 4"
+      },
+      "output": "14"
+    }
+  },
+  "memory_tool": {
+    "add": {
+      "input": {
+        "action": "add",
+        "content": "测试记忆内容：用户偏好深色模式",
+        "importance": 0.8,
+        "memory_type": "working"
+      },
+      "output": "✅ 记忆已添加 (ID: UUID_1...)"
+    },
+    "clear_all": {
+      "input": {
+        "action": "clear_all"
+      },
+      "output": "🧽 已清空所有记忆"
+    },
+    "consolidate": {
+      "input": {
+        "action": "consolidate",
+        "from_type": "working",
+        "importance_threshold": 0.7,
+        "to_type": "episodic"
+      },
+      "output": "🔄 已整合 0 条记忆为长期记忆（working → episodic，阈值=0.7）"
+    },
+    "forget": {
+      "input": {
+        "action": "forget",
+        "strategy": "importance_based",
+        "threshold": 0.1
+      },
+      "output": "🧹 已遗忘 0 条记忆（策略: importance_based）"
+    },
+    "remove": {
+      "input": {
+        "action": "remove",
+        "memory_id": "UUID_1"
+      },
+      "output": "✅ 记忆已删除"
+    },
+    "search": {
+      "input": {
+        "action": "search",
+        "limit": 5,
+        "query": "测试"
+      },
+      "output": "🔍 找到 1 条相关记忆:\n1. [工作记忆] 测试记忆内容：用户偏好深色模式 (重要性: 0.80)"
+    },
+    "stats": {
+      "input": {
+        "action": "stats"
+      },
+      "output": "📈 记忆系统统计\n总记忆数: 2\n启用的记忆类型: working, episodic, semantic\n会话ID: TIME\n对话轮次: 0"
+    },
+    "summary": {
+      "input": {
+        "action": "summary"
+      },
+      "output": "📊 记忆系统摘要\n总记忆数: 2\n当前会话: TIME\n对话轮次: 0\n\n📋 记忆类型分布:\n  • 工作记忆: 1 条 (平均重要性: 0.80)\n  • 情景记忆: 1 条 (平均重要性: 0.70)\n  • 语义记忆: 0 条 (平均重要性: 0.00)\n\n⭐ 重要记忆 (前1条):\n  1. 昨天参加了技术方案评审会议 (重要性: 0.70)"
+    },
+    "update": {
+      "input": {
+        "action": "update",
+        "content": "更新后的记忆内容",
+        "importance": 0.9,
+        "memory_id": "UUID_1"
+      },
+      "output": "✅ 记忆已更新"
+    }
+  }
+}

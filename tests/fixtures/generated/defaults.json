@@ -1,0 +1,137 @@
+{
+  "calculator_parameters": [
+    {
+      "default": null,
+      "name": "input",
+      "required": true,
+      "type": "string"
+    }
+  ],
+  "config": {
+    "debug": false,
+    "default_model": "gpt-3.5-turbo",
+    "default_provider": "openai",
+    "log_level": "INFO",
+    "max_history_length": 100,
+    "max_tokens": null,
+    "temperature": 0.7
+  },
+  "memory_config": {
+    "decay_factor": 0.95,
+    "importance_threshold": 0.1,
+    "max_capacity": 100,
+    "perceptual_memory_modalities": [
+      "text",
+      "image",
+      "audio",
+      "video"
+    ],
+    "storage_path": "./memory_data",
+    "working_memory_capacity": 10,
+    "working_memory_tokens": 2000,
+    "working_memory_ttl_minutes": 120
+  },
+  "memory_tool_actions": [
+    "add",
+    "clear_all",
+    "consolidate",
+    "forget",
+    "remove",
+    "search",
+    "stats",
+    "summary",
+    "update"
+  ],
+  "memory_tool_parameters": [
+    {
+      "default": null,
+      "name": "action",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "default": null,
+      "name": "content",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": null,
+      "name": "query",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": "working",
+      "name": "memory_type",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": null,
+      "name": "importance",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 5,
+      "name": "limit",
+      "required": false,
+      "type": "integer"
+    },
+    {
+      "default": null,
+      "name": "memory_id",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": null,
+      "name": "file_path",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": null,
+      "name": "modality",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": "importance_based",
+      "name": "strategy",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": 0.1,
+      "name": "threshold",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 30,
+      "name": "max_age_days",
+      "required": false,
+      "type": "integer"
+    },
+    {
+      "default": "working",
+      "name": "from_type",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": "episodic",
+      "name": "to_type",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": 0.7,
+      "name": "importance_threshold",
+      "required": false,
+      "type": "number"
+    }
+  ]
+}

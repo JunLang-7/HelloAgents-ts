@@ -153,6 +153,102 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Status:** kept (approved)
 - **Reason:** Fixing the dead re-embed is a deliberate upstream-bug fix; keeping index behavior identical to upstream preserves teaching fidelity for `getByModality()`. `remove()`/`clear()` now delete vectors from both per-modality stores and the fallback `vectorStore`, so the revived re-embed cannot leak.
 
+### DIFF-018 — DashScope SDK → REST-only (embeddings)
+
+- **Area:** `memory/embedding`
+- **Upstream:** `DashScopeEmbedding` uses the official `dashscope` SDK; `base_url` is optional and the SDK falls back to the hosted endpoint.
+- **TS:** No official TS SDK is used. Without `base_url`, construction throws an explicit error ("DashScope 必须提供 base_url（EMBED_BASE_URL）") instead of silently degrading; with a `base_url`, it calls the OpenAI-compatible `POST {base_url}/embeddings`.
+- **Status:** kept (approved)
+- **Reason:** The OpenAI-compatible endpoint is the documented public contract for DashScope text-embedding; requiring an explicit URL keeps the failure visible rather than silently defaulting to a hard-coded host.
+
+### DIFF-019 — sentence-transformers → transformers.js (local embeddings)
+
+- **Area:** `memory/embedding`
+- **Upstream:** `LocalTransformerEmbedding` uses `sentence-transformers` (Python).
+- **TS:** Uses `@huggingface/transformers` (feature-extraction + mean pooling + normalize), loaded on demand via dynamic import; when the package is not installed it throws with install instructions instead of failing obscurely.
+- **Status:** kept (approved)
+- **Reason:** `@huggingface/transformers` is the maintained browser/Node equivalent of `sentence-transformers` with the same ONNX runtime and model hub.
+
+### DIFF-020 — Async embedding encoders
+
+- **Area:** `memory/embedding`
+- **Upstream:** All embedders are synchronous (`encode()` returns a list).
+- **TS:** `encode()` returns `number[] | number[][] | Promise<...>` — DashScope and local-transformer backends are async (network/model runtime). `toTextEmbedder()` accepts only synchronously encodable models (TF-IDF) and throws for async ones; `createEmbeddingModelWithFallback` is `async`.
+- **Status:** kept (approved)
+- **Reason:** Node model/network backends are inherently async; the sync `TextEmbedder` port (used by memory types) is satisfied by TF-IDF, while async models are used through the async-aware APIs.
+
+### DIFF-021 — Qdrant client lifecycle
+
+- **Area:** `memory/storage/qdrant`
+- **Upstream:** `QdrantVectorStore` creates the client eagerly in `__init__` and exposes no `close()`; the Qdrant SDK manages its own HTTP session.
+- **TS:** `@qdrant/js-client-rest` has no `close()`; connection is established lazily in `ensureInitialized()`. `QdrantConnectionManager` keeps a per-config singleton and `resetForTesting()` clears it.
+- **Status:** kept (approved)
+- **Reason:** js-client-rest has no session to close; lazily connecting defers failures until first use (consistent with the async adapter design, DIFF-024).
+
+### DIFF-022 — Qdrant collection info stats
+
+- **Area:** `memory/storage/qdrant`
+- **Upstream:** `get_collection_info()` reads `vectors_count` from the collection info response.
+- **TS:** The JS `CollectionInfo` type exposes no top-level `vectors_count`; `points_count` is used to populate the count in `getCollectionInfo()`/`getCollectionStats()`.
+- **Status:** kept (approved)
+- **Reason:** The JS client's collection info schema differs; `points_count` is the closest equivalent field.
+
+### DIFF-023 — Neo4j client driver
+
+- **Area:** `memory/storage/neo4j`
+- **Upstream:** `Neo4jGraphStore` uses `neo4j` (Python driver) with `session(database=...)`.
+- **TS:** Uses `neo4j-driver` (JS), loaded on demand via dynamic import; connection-pool config (`max_connection_lifetime` / `max_connection_pool_size` / `connection_acquisition_timeout`) maps 1:1 to the driver config.
+- **Status:** kept (approved)
+- **Reason:** `neo4j-driver` is the official JS client; dynamic import keeps the heavy dependency out of the base package until the store is actually used.
+
+### DIFF-024 — Async network stores do not implement the sync ports
+
+- **Area:** `memory/storage`
+- **Upstream:** `QdrantVectorStore`/`Neo4jGraphStore` are used directly by memory types.
+- **TS:** `QdrantVectorStore`/`Neo4jGraphStore` are async classes and do **not** `implements` the synchronous `VectorStorePort`/`GraphStorePort` (#73). SQLite (sync) and TF-IDF (sync) are the injectable backends for the memory types; the async stores satisfy the #84 public-interface acceptance on their own.
+- **Status:** kept (approved)
+- **Reason:** Network backends return promises; the sync ports are satisfied by the local backends. Wiring async adapters into memory types is out of scope for #84.
+
+### DIFF-025 — Neo4j driver `executeQuery` API
+
+- **Area:** `memory/storage/neo4j`
+- **Upstream:** `session.run(...)` returns a result with `.single()` / `.records()`.
+- **TS:** `neo4j-driver` 6.x `session.run` returns a thenable `Result` with no `.single`/`.records`; the recommended `driver.executeQuery(query, params, { database })` is used instead. Delete counts use `DETACH DELETE ... RETURN count(n)` rather than the private `counters.nodes_deleted`.
+- **Status:** kept (approved)
+- **Reason:** `executeQuery` is the stable public API in 6.x; the count-return idiom avoids private counter fields.
+
+### DIFF-026 — Qdrant client timeout unit
+
+- **Area:** `memory/storage/qdrant`
+- **Upstream:** Python client `timeout` is in seconds (default 30).
+- **TS:** `@qdrant/js-client-rest` interprets `timeout` in **milliseconds**; the TS store multiplies the configured seconds by 1000 before constructing the client.
+- **Status:** kept (approved)
+- **Reason:** The JS client API unit differs; the public config keeps the upstream second semantics.
+
+### DIFF-027 — Neo4j driver numeric parameters
+
+- **Area:** `memory/storage/neo4j`
+- **Upstream:** Python driver converts ints natively; Cypher `LIMIT` accepts them.
+- **TS:** Under bun, plain JS numbers in query params serialize as floats (`LIMIT 50.0` errors); integer params are wrapped with `neo4j.int()`. Driver timeouts (`maxConnectionLifetime`, `connectionAcquisitionTimeout`) are seconds upstream but milliseconds in `neo4j-driver`, converted at construction.
+- **Status:** kept (approved)
+- **Reason:** Runtime serialization differences; explicit `int()` wrapping and unit conversion keep the public config upstream-faithful.
+
+### DIFF-028 — Cypher relationship-type identifier validation
+
+- **Area:** `memory/storage/neo4j`
+- **Upstream:** Python interpolates `relationship_type` / `relationship_types` directly into Cypher (`MERGE (from)-[r:{type}]->(to)`), treating it as an internal trusted API.
+- **TS:** `Neo4jGraphStore` is a public entry point, so `addRelationship` and `findRelatedEntities` validate every relationship type against a strict identifier whitelist (`^[A-Za-z_][A-Za-z0-9_]*$`) before interpolation, rejecting values that could alter query structure.
+- **Status:** kept (approved)
+- **Reason:** Hardening only; all valid identifiers behave exactly as upstream.
+
+### DIFF-029 — Cypher pattern-depth validation
+
+- **Area:** `memory/storage/neo4j`
+- **Upstream:** Python interpolates `max_depth` directly into the variable-length pattern (`*1..{max_depth}`) with no bounds; trusted internal API.
+- **TS:** `Neo4jGraphStore` is a public entry point, so `findRelatedEntities` constrains `max_depth` to a finite safe integer in `1..25` before interpolation. Strings cannot alter the query text; `0`/negative/non-integer values fail fast instead of producing an invalid pattern; unbounded values cannot trigger pathological traversals.
+- **Status:** kept (approved)
+- **Reason:** Hardening only; all in-range integer values behave exactly as upstream.
+
 ## Known upstream dead-parameter semantics (verified, not differences)
 
 These parameters are **declared and passed but never consumed** on both sides;
@@ -200,3 +296,8 @@ most four non-tied digits). Fixture cases MUST NOT construct values whose
   They can only be exercised once the TS embedding/vector layer exists
   (#84); vector-path fixtures are deferred until then and must be added as
   part of that issue.
+  - **#84 update:** the vector/hybrid paths are now exercised directly by
+    `tests/memory-backends.test.ts` (real SQLite + TF-IDF injected into the
+    memory types) and by `tests/storage-integration.test.ts` (real Qdrant
+    1.19.1 / Neo4j 5.14 over Docker, opt-in). Fixture-level vector coverage
+    remains deferred; see the matrix's "Real-service integration" note.

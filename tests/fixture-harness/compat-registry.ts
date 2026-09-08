@@ -200,6 +200,127 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     approved: true,
     reason:
       'Fixing the dead re-embed is a deliberate upstream-bug fix; keeping the index behavior identical to upstream preserves teaching fidelity for getByModality(). Vector cleanup on remove/clear covers both per-modality stores and the fallback vectorStore so the fixed re-embed cannot leak.'
+  },
+  {
+    id: 'DIFF-018',
+    area: 'memory/embedding',
+    upstream:
+      'DashScopeEmbedding uses the official dashscope SDK; base_url optional, SDK falls back to the hosted endpoint',
+    ts: 'No official TS SDK; without base_url construction throws an explicit error; with base_url calls OpenAI-compatible POST {base_url}/embeddings',
+    status: 'kept',
+    approved: true,
+    reason:
+      'OpenAI-compatible endpoint is the documented public contract for DashScope text-embedding; requiring an explicit URL keeps failure visible.'
+  },
+  {
+    id: 'DIFF-019',
+    area: 'memory/embedding',
+    upstream: 'LocalTransformerEmbedding uses sentence-transformers (Python)',
+    ts: 'Uses @huggingface/transformers (feature-extraction + mean pooling + normalize), loaded on demand; throws install instructions when missing',
+    status: 'kept',
+    approved: true,
+    reason:
+      '@huggingface/transformers is the maintained browser/Node equivalent with the same ONNX runtime and model hub.'
+  },
+  {
+    id: 'DIFF-020',
+    area: 'memory/embedding',
+    upstream: 'All embedders synchronous; encode() returns a list',
+    ts: 'encode() returns number[] | number[][] | Promise<...>; toTextEmbedder accepts only synchronously encodable models (TF-IDF), async models throw; createEmbeddingModelWithFallback is async',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Node model/network backends are inherently async; the sync TextEmbedder port is satisfied by TF-IDF while async models go through async-aware APIs.'
+  },
+  {
+    id: 'DIFF-021',
+    area: 'memory/storage/qdrant',
+    upstream: 'QdrantVectorStore creates the client eagerly in __init__; no close()',
+    ts: '@qdrant/js-client-rest has no close(); connection is lazy in ensureInitialized(); QdrantConnectionManager keeps a per-config singleton with resetForTesting()',
+    status: 'kept',
+    approved: true,
+    reason:
+      'js-client-rest has no session to close; lazy connection defers failures until first use.'
+  },
+  {
+    id: 'DIFF-022',
+    area: 'memory/storage/qdrant',
+    upstream: 'get_collection_info() reads vectors_count from the response',
+    ts: 'JS CollectionInfo exposes no top-level vectors_count; points_count is used to populate the count',
+    status: 'kept',
+    approved: true,
+    reason: 'The JS client collection info schema differs; points_count is the closest equivalent.'
+  },
+  {
+    id: 'DIFF-023',
+    area: 'memory/storage/neo4j',
+    upstream: 'Neo4jGraphStore uses the Python neo4j driver with session(database=...)',
+    ts: 'Uses neo4j-driver (JS), loaded on demand; pool config (max_connection_lifetime / max_connection_pool_size / connection_acquisition_timeout) maps 1:1',
+    status: 'kept',
+    approved: true,
+    reason:
+      'neo4j-driver is the official JS client; dynamic import keeps the heavy dependency out of the base package.'
+  },
+  {
+    id: 'DIFF-024',
+    area: 'memory/storage',
+    upstream: 'QdrantVectorStore/Neo4jGraphStore used directly by memory types',
+    ts: 'QdrantVectorStore/Neo4jGraphStore are async classes and do NOT implement the sync VectorStorePort/GraphStorePort; SQLite (sync) and TF-IDF (sync) are the injectable backends',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Network backends return promises; sync ports are satisfied by local backends. Wiring async adapters into memory types is out of scope for #84.'
+  },
+  {
+    id: 'DIFF-025',
+    area: 'memory/storage/neo4j',
+    upstream: 'session.run(...) returns a result with .single() / .records()',
+    ts: 'neo4j-driver 6.x session.run returns a thenable Result with no .single/.records; driver.executeQuery(query, params, { database }) used; delete counts via DETACH DELETE ... RETURN count(n)',
+    status: 'kept',
+    approved: true,
+    reason:
+      'executeQuery is the stable public API in 6.x; count-return avoids private counter fields.'
+  },
+  {
+    id: 'DIFF-026',
+    area: 'memory/storage/qdrant',
+    upstream: 'Python client timeout in seconds (default 30)',
+    ts: '@qdrant/js-client-rest interprets timeout in milliseconds; the store multiplies configured seconds by 1000',
+    status: 'kept',
+    approved: true,
+    reason: 'JS client API unit differs; the public config keeps upstream second semantics.'
+  },
+  {
+    id: 'DIFF-027',
+    area: 'memory/storage/neo4j',
+    upstream: 'Python driver converts ints natively; Cypher LIMIT accepts them',
+    ts: 'Plain JS numbers serialize as floats under bun (LIMIT 50.0 errors); integer params wrapped with neo4j.int(); driver timeouts converted from seconds to milliseconds',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Runtime serialization differences; explicit int() wrapping and unit conversion keep the public config upstream-faithful.'
+  },
+  {
+    id: 'DIFF-028',
+    area: 'memory/storage/neo4j',
+    upstream:
+      'Python interpolates relationship_type / relationship_types directly into Cypher (trusted internal API)',
+    ts: 'Neo4jGraphStore is a public entry point: relationship types validated against a strict identifier whitelist before interpolation, rejecting values that could alter query structure',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Hardening only; all valid identifiers behave exactly as upstream, invalid ones fail fast with a clear error.'
+  },
+  {
+    id: 'DIFF-029',
+    area: 'memory/storage/neo4j',
+    upstream:
+      'Python interpolates max_depth directly into the variable-length pattern (*1..{max_depth}) with no bounds; trusted internal API',
+    ts: 'findRelatedEntities constrains max_depth to a finite safe integer in 1..25 before interpolation, rejecting strings, 0/negative/non-integer values and unbounded depths',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Hardening only; all in-range integer values behave exactly as upstream, out-of-range ones fail fast.'
   }
 ];
 

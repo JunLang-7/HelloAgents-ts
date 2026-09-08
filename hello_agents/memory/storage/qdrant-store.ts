@@ -161,6 +161,8 @@ export class QdrantVectorStore {
   public readonly search_ef: number;
   public readonly search_exact: boolean;
   private client: QdrantClientLike | null = null;
+  /** 共享首次连接/建集合流程，避免并发首请求重复创建集合。 */
+  private initialization: Promise<void> | null = null;
 
   public constructor(
     config: {
@@ -188,6 +190,17 @@ export class QdrantVectorStore {
   /** 初始化客户端与集合（惰性异步；构造后需 await ensureInitialized()）。 */
   public async ensureInitialized(): Promise<void> {
     if (this.client !== null) return;
+    if (this.initialization === null) {
+      this.initialization = this.initialize().finally(() => {
+        // 成功后由 client 表示已初始化；失败后清锁，让后续调用可以重试。
+        this.initialization = null;
+      });
+    }
+    await this.initialization;
+  }
+
+  /** 执行一次客户端连接和集合初始化；由 ensureInitialized 串行化。 */
+  private async initialize(): Promise<void> {
     const QdrantClient = await loadQdrantClient();
     // DIFF-026：上游 Python 客户端 timeout 单位为秒；@qdrant/js-client-rest 为毫秒。
     const timeoutMs = this.timeout * 1000;
@@ -205,6 +218,9 @@ export class QdrantVectorStore {
       this.client = client;
       await this._ensureCollection();
     } catch (cause) {
+      // 集合初始化同样属于初始化的一部分；失败时不能留下半初始化客户端，
+      // 否则下一次 ensureInitialized 会误以为已经就绪而跳过重试。
+      if (this.client === client) this.client = null;
       const hint = this.url
         ? '请检查 QDRANT_URL 和 QDRANT_API_KEY 是否正确'
         : '本地连接失败，可考虑 Qdrant 云服务，或启动本地服务: docker run -p 6333:6333 qdrant/qdrant';

@@ -43,6 +43,7 @@ afterAll(() => {
 });
 
 const COLLECTION = `ha_test_${randomUUID().slice(0, 8)}`;
+const CONCURRENT_COLLECTION = `ha_concurrent_${randomUUID().slice(0, 8)}`;
 
 describe.skipIf(!dockerAvailable())('QdrantVectorStore real service integration', () => {
   const dim = 16;
@@ -54,6 +55,22 @@ describe.skipIf(!dockerAvailable())('QdrantVectorStore real service integration'
       distance: 'cosine',
       timeout: 10
     });
+    expect(await store.healthCheck()).toBe(true);
+  });
+
+  test('concurrent first initialization shares one collection-creation flow', async () => {
+    const store = new QdrantVectorStore({
+      collection_name: CONCURRENT_COLLECTION,
+      vector_size: dim,
+      distance: 'cosine',
+      timeout: 10
+    });
+
+    // 同一个新实例的并发首请求必须共用初始化 Promise；无锁实现会让多个
+    // 请求同时判定集合不存在，并在第二次 createCollection 时发生冲突。
+    await expect(
+      Promise.all([store.ensureInitialized(), store.ensureInitialized(), store.ensureInitialized()])
+    ).resolves.toEqual([undefined, undefined, undefined]);
     expect(await store.healthCheck()).toBe(true);
   });
 

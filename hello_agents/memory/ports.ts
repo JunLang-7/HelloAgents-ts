@@ -20,6 +20,18 @@ export interface TextEmbedder {
   readonly dimension: number;
 }
 
+/**
+ * Async text embedding port used by network/model-backed memory APIs.
+ *
+ * This is deliberately separate from {@link TextEmbedder}: a Promise-returning
+ * implementation must never be passed to the legacy synchronous methods, where
+ * a Promise would otherwise be treated as a vector at runtime.
+ */
+export interface AsyncTextEmbedder {
+  encode(text: string): Promise<number[]>;
+  readonly dimension: number;
+}
+
 /** A memory document as persisted by the authoritative document store. */
 export interface StoredMemoryDoc {
   memory_id: string;
@@ -91,6 +103,24 @@ export interface VectorStorePort {
   healthCheck?(): boolean;
 }
 
+/** Promise-based counterpart to {@link VectorStorePort}. */
+export interface AsyncVectorStorePort {
+  addVectors(request: {
+    vectors: number[][];
+    metadata: Array<Record<string, unknown>>;
+    ids: string[];
+  }): Promise<boolean | void>;
+  searchSimilar(request: {
+    queryVector: number[];
+    limit: number;
+    where?: Record<string, unknown> | undefined;
+  }): Promise<VectorSearchHit[]>;
+  deleteMemories(memoryIds: string[]): Promise<boolean | void>;
+  getCollectionStats(): Promise<Record<string, unknown>>;
+  clearCollection?(): Promise<boolean>;
+  healthCheck?(): Promise<boolean>;
+}
+
 /** Upstream `Neo4jGraphStore` surface used by `SemanticMemory`. */
 export interface GraphStorePort {
   addEntity(request: {
@@ -122,6 +152,37 @@ export interface GraphStorePort {
   healthCheck?(): boolean;
 }
 
+/** Promise-based counterpart to {@link GraphStorePort}. */
+export interface AsyncGraphStorePort {
+  addEntity(request: {
+    entity_id: string;
+    name: string;
+    entity_type: string;
+    properties?: Record<string, unknown> | undefined;
+  }): Promise<boolean>;
+  addRelationship(request: {
+    from_entity_id: string;
+    to_entity_id: string;
+    relationship_type: string;
+    properties?: Record<string, unknown> | undefined;
+  }): Promise<boolean>;
+  findRelatedEntities(request: {
+    entity_id: string;
+    relationship_types?: string[] | undefined;
+    max_depth?: number | undefined;
+    limit?: number | undefined;
+  }): Promise<Array<Record<string, unknown>>>;
+  searchEntitiesByName(request: {
+    name_pattern: string;
+    entity_types?: string[] | undefined;
+    limit?: number | undefined;
+  }): Promise<Array<Record<string, unknown>>>;
+  getEntityRelationships(entityId: string): Promise<Array<Record<string, unknown>>>;
+  getStats(): Promise<Record<string, unknown>>;
+  clearAll(): Promise<boolean>;
+  healthCheck?(): Promise<boolean>;
+}
+
 /** Injectable backend bundle; every member is optional. */
 export interface MemoryBackends {
   embedder?: TextEmbedder | undefined;
@@ -130,4 +191,21 @@ export interface MemoryBackends {
   /** Per-modality vector stores used by `PerceptualMemory`. */
   vectorStores?: Record<string, VectorStorePort> | undefined;
   graphStore?: GraphStorePort | undefined;
+}
+
+/**
+ * Async backend bundle for `addAsync`/`retrieveAsync` memory APIs.
+ *
+ * `docStore` intentionally remains the synchronous port because the bundled
+ * SQLite implementation is synchronous; async network work is represented by
+ * the other fields. The field names mirror `MemoryBackends`, but the bundle is
+ * passed separately as `asyncBackends` so TypeScript cannot accidentally accept
+ * a Promise-returning store in a legacy sync slot.
+ */
+export interface AsyncMemoryBackends {
+  embedder?: AsyncTextEmbedder | undefined;
+  docStore?: DocumentStorePort | undefined;
+  vectorStore?: AsyncVectorStorePort | undefined;
+  vectorStores?: Record<string, AsyncVectorStorePort> | undefined;
+  graphStore?: AsyncGraphStorePort | undefined;
 }

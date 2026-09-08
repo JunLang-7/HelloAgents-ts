@@ -3,9 +3,10 @@
  *
  * 运行：bun run examples/chapter08-memory.ts
  * 无需 API Key、Qdrant、Neo4j：工作/情景/感知记忆的内存路径与上游后端不可用时的
- * 兜底路径一致；语义记忆的向量/图检索由 #84 后端注入后等价。
+ * 兜底路径一致；语义记忆的向量/图检索由 #84 后端注入后等价。末尾 RAG 段仅在
+ * `QDRANT_URL` 已配置时运行，且仍需要配置一个 embedding 后端。
  */
-import { MemoryTool } from '@junlang-7/helloagents';
+import { MemoryTool, RAGTool } from '../hello_agents/tools/index.js';
 import {
   Entity,
   EpisodicMemory,
@@ -186,4 +187,35 @@ heading('6. MemoryTool 工具化使用');
     (await tool.execute({ action: 'consolidate', from_type: 'working', to_type: 'episodic' })).text
   );
   console.log((await tool.execute({ action: 'clear_all' })).text);
+}
+
+// ---------------------------------------------------------------------------
+// 7. RAGTool：加载、检索与带引用问答（需要显式配置 Qdrant/embedding）
+// ---------------------------------------------------------------------------
+heading('7. RAGTool：本地文档加载与带引用检索');
+if (!process.env.QDRANT_URL) {
+  console.log('跳过：设置 QDRANT_URL 和 embedding 配置后可运行本节。');
+} else {
+  const rag = new RAGTool({
+    qdrantUrl: process.env.QDRANT_URL,
+    ragNamespace: 'chapter08'
+  });
+  console.log(
+    (
+      await rag.execute({
+        action: 'add_text',
+        text: 'HelloAgents 的 RAG 流程将文档切分、向量索引并按引用返回检索结果。',
+        document_id: 'chapter08-rag'
+      })
+    ).text
+  );
+  console.log(
+    (
+      await rag.execute({
+        action: 'search',
+        query: 'RAG 流程如何返回结果？',
+        include_citations: true
+      })
+    ).text
+  );
 }

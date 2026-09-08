@@ -21,6 +21,10 @@ export type {
 } from './base.js';
 export { DocumentStore, SQLiteDocumentStore } from './storage/index.js';
 export type {
+  AsyncGraphStorePort,
+  AsyncMemoryBackends,
+  AsyncTextEmbedder,
+  AsyncVectorStorePort,
   DocumentSearchFilter,
   DocumentStorePort,
   GraphStorePort,

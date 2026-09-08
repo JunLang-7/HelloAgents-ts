@@ -267,6 +267,8 @@ export type {
 } from './tools/builtin/dev-log-tool.js';
 export { MemoryTool } from './tools/builtin/memory-tool.js';
 export type { MemoryToolOptions } from './tools/builtin/memory-tool.js';
+export { RAGTool } from './tools/builtin/rag-tool.js';
+export type { RagLlmLike, RagLlmMessage, RAGToolOptions } from './tools/builtin/rag-tool.js';
 export {
   createAgent,
   createAgentFactory,

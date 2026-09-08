@@ -20,6 +20,7 @@ import { MemoryConfig } from '../hello_agents/memory/base.js';
 import type { ForgettableMemory } from '../hello_agents/memory/base.js';
 import { Config } from '../hello_agents/core/config.js';
 import { Message } from '../hello_agents/core/message.js';
+import { deserializeObject, serializeObject } from '../hello_agents/utils/serialization.js';
 import { normalizeCase } from './fixture-harness/normalizer.js';
 import { loadFixture, loadManifest } from './fixture-harness/fixture-loader.js';
 
@@ -343,15 +344,34 @@ describe('messages fixture', () => {
   });
 });
 
-// ─── Serialization (pending #80) ──────────────────────────────────────────
+// ─── Serialization ───────────────────────────────────────────────────────
 
 describe('serialization fixture', () => {
-  it('serialization module not yet implemented — tracked in issue #80', () => {
-    // The serialization fixture exists as a golden reference from upstream.
-    // TS serializeObject/deserializeObject are part of issue #80 (logging,
-    // serialization, helpers). When #80 lands, replace this skip with exact
-    // assertions against tests/fixtures/generated/serialization.json.
-    const fx = loadFixture('serialization');
-    expect(fx).toBeDefined();
+  const fx = loadFixture<any>('serialization');
+
+  it('JSON round-trips with upstream pretty-print and Unicode behavior', () => {
+    // JSON object key order is observable in the pretty string. The fixture's
+    // normalized input is key-sorted; reconstruct the upstream insertion order
+    // used by the serialization case before comparing the wire representation.
+    const input = {
+      key: fx.plain_dict_roundtrip.input.key,
+      number: fx.plain_dict_roundtrip.input.number,
+      nested: fx.plain_dict_roundtrip.input.nested,
+      unicode: fx.plain_dict_roundtrip.input.unicode
+    };
+    const serialized = serializeObject(input);
+    expect(serialized).toBe(fx.plain_dict_roundtrip.serialized);
+    expect(normalizeCase(deserializeObject(serialized))).toEqual(
+      normalizeCase(fx.plain_dict_roundtrip.deserialized)
+    );
+  });
+
+  it('rejects unsupported serialization formats', () => {
+    expect(() => serializeObject({}, fx.unsupported_format.input.format)).toThrow(
+      fx.unsupported_format.error
+    );
+    expect(() => deserializeObject('{}', fx.unsupported_format.input.format)).toThrow(
+      fx.unsupported_format.error
+    );
   });
 });

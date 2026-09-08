@@ -174,10 +174,11 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     id: 'DIFF-015',
     area: 'utils/serialization',
     upstream: 'serialize_object/deserialize_object support json and pickle formats',
-    ts: 'Not yet implemented (tracked in issue #80)',
-    status: 'unsupported',
+    ts: 'JSON serialization helpers are implemented; pickle is unsupported',
+    status: 'kept',
     approved: true,
-    reason: 'Serialization helpers are part of issue #80 scope; pickle intentionally not portable'
+    reason:
+      'Python pickle is runtime-specific and unsafe to evaluate in a TypeScript package; JSON preserves the portable behavior'
   },
   {
     id: 'DIFF-016',

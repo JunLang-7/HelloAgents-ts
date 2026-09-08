@@ -152,6 +152,34 @@ export { EditTool, GlobTool, GrepTool, ReadTool, WriteTool } from './tools/built
 export type { FileToolOptions } from './tools/builtin/file-tools.js';
 export { TokenCounter } from './context/token-counter.js';
 export type { TokenCounterOptions, TokenCounterStats } from './context/token-counter.js';
+export {
+  Logger,
+  getLogger,
+  get_logger,
+  setupLogger,
+  setup_logger,
+  deserializeObject,
+  deserialize_object,
+  loadFromFile,
+  load_from_file,
+  saveToFile,
+  save_to_file,
+  serializeObject,
+  serialize_object,
+  ensureDir,
+  ensure_dir,
+  formatTime,
+  format_time,
+  getProjectRoot,
+  get_project_root,
+  mergeDicts,
+  merge_dicts,
+  safeImport,
+  safe_import,
+  validateConfig,
+  validate_config
+} from './utils/index.js';
+export type { LogLevel, LoggerHandler, SerializationFormat } from './utils/index.js';
 export { HistoryManager } from './context/history.js';
 export type { HistoryManagerOptions } from './context/history.js';
 export { ObservationTruncator } from './context/truncator.js';

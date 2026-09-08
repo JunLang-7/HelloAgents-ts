@@ -133,9 +133,9 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 
 - **Area:** `utils/serialization`
 - **Upstream:** `serialize_object`/`deserialize_object` support `json` and `pickle` formats.
-- **TS:** Not yet implemented (tracked in issue #80).
-- **Status:** unsupported
-- **Reason:** Serialization helpers are part of issue #80 scope; pickle intentionally not portable.
+- **TS:** JSON helpers are implemented; `pickle` is rejected as unsupported.
+- **Status:** kept (approved)
+- **Reason:** Python pickle is runtime-specific and unsafe to evaluate in a TypeScript package; JSON preserves the portable behavior.
 
 ### DIFF-016 — Missing-required-parameter validation
 

@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { parseOrThrow } from '../core/errors.js';
-import type { MemoryBackends } from './ports.js';
+import type { AsyncMemoryBackends, MemoryBackends } from './ports.js';
 
 const isoDateSchema = z.union([z.string(), z.number(), z.date()]).transform((value, ctx) => {
   const date = value instanceof Date ? value : new Date(value);
@@ -206,24 +206,35 @@ export interface RetrieveOptions {
 export abstract class BaseMemory {
   public readonly config: MemoryConfig;
   public readonly storage: MemoryBackends | undefined;
+  /** Optional Promise-based backends used only by explicit async methods. */
+  public readonly asyncStorage: AsyncMemoryBackends | undefined;
   public readonly memoryType: string;
   /** 注入的可选后端（#84 提供真实实现）。 */
   protected readonly backends: MemoryBackends;
+  protected readonly asyncBackends: AsyncMemoryBackends;
 
   public constructor(
     config: MemoryConfig,
     memoryType: string,
     backends: MemoryBackends = {},
     /** 上游构造参数 storage_backend（单一后端的旧式入口）。 */
-    storageBackend?: unknown
+    storageBackend?: unknown,
+    asyncBackends: AsyncMemoryBackends = {}
   ) {
     this.config = config;
     this.memoryType = memoryType;
     this.backends = backends;
     this.storage = Object.keys(backends).length > 0 ? backends : undefined;
+    this.asyncBackends = asyncBackends;
+    this.asyncStorage = Object.keys(asyncBackends).length > 0 ? asyncBackends : undefined;
     if (storageBackend !== undefined && this.storage === undefined) {
       this.storage = { docStore: storageBackend as never };
     }
+  }
+
+  /** Whether this instance has an explicitly configured async backend bundle. */
+  protected hasAsyncBackends(): boolean {
+    return Object.keys(this.asyncBackends).length > 0;
   }
 
   /** 添加记忆项，返回记忆 ID。 */

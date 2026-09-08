@@ -205,9 +205,25 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 
 - **Area:** `memory/storage`
 - **Upstream:** `QdrantVectorStore`/`Neo4jGraphStore` are used directly by memory types.
-- **TS:** `QdrantVectorStore`/`Neo4jGraphStore` are async classes and do **not** `implements` the synchronous `VectorStorePort`/`GraphStorePort` (#73). SQLite (sync) and TF-IDF (sync) are the injectable backends for the memory types; the async stores satisfy the #84 public-interface acceptance on their own.
+- **TS:** `QdrantVectorStore`/`Neo4jGraphStore` are async classes and do **not** `implements` the synchronous `VectorStorePort`/`GraphStorePort`. The memory types expose explicit async methods consuming a separate `AsyncMemoryBackends` bundle, while legacy synchronous methods continue to use the sync ports.
 - **Status:** kept (approved)
-- **Reason:** Network backends return promises; the sync ports are satisfied by the local backends. Wiring async adapters into memory types is out of scope for #84.
+- **Reason:** Network backends return promises; a separate Promise-based port prevents a Promise from being mistaken for a vector in the legacy synchronous API.
+
+### DIFF-030 — Explicit async memory APIs
+
+- **Area:** `memory/types`
+- **Upstream:** `EpisodicMemory`, `PerceptualMemory`, and `SemanticMemory` expose synchronous `add`/`retrieve`/lifecycle methods.
+- **TS:** The three classes additionally expose `addAsync()` and `retrieveAsync()` and accept `asyncBackends` in their constructor options. The async path awaits Promise-based embedders, Qdrant vector stores, and Neo4j graph stores; when no async vector/graph store is configured, the methods delegate to the unchanged synchronous path.
+- **Status:** kept (approved)
+- **Reason:** Qdrant/Neo4j and local transformer embeddings are asynchronous in Node. Explicit opt-in APIs provide real backend integration without changing the teaching-line synchronous contract.
+
+### DIFF-031 — Native RAG document loading and injected model seams
+
+- **Area:** `memory/rag/pipeline`
+- **Upstream:** Uses Python MarkItDown/langdetect and constructs the default LLM for `tldr_summarize`.
+- **TS:** Reads only declared native text formats (including HTML conversion); PDF, Office, OCR, image, audio, and archive formats return no chunks unless a future explicit adapter is added. Language remains `unknown`. Reranking, query expansion, HyDE, and summarization are injectable seams; `tldrSummarize` creates the configured LLM only when invoked.
+- **Status:** kept (approved)
+- **Reason:** The Node package has no equivalent bundled MarkItDown/OCR stack and must not load optional models or make network requests at package import time.
 
 ### DIFF-025 — Neo4j driver `executeQuery` API
 

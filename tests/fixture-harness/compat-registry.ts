@@ -266,11 +266,31 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     id: 'DIFF-024',
     area: 'memory/storage',
     upstream: 'QdrantVectorStore/Neo4jGraphStore used directly by memory types',
-    ts: 'QdrantVectorStore/Neo4jGraphStore are async classes and do NOT implement the sync VectorStorePort/GraphStorePort; SQLite (sync) and TF-IDF (sync) are the injectable backends',
+    ts: 'QdrantVectorStore/Neo4jGraphStore are async classes and do NOT implement the sync VectorStorePort/GraphStorePort; explicit async memory APIs consume them through AsyncMemoryBackends while legacy sync APIs remain unchanged',
     status: 'kept',
     approved: true,
     reason:
-      'Network backends return promises; sync ports are satisfied by local backends. Wiring async adapters into memory types is out of scope for #84.'
+      'Network backends return promises, so they use a separate Promise-based port; this prevents a Promise from being mistaken for a vector in the legacy synchronous API.'
+  },
+  {
+    id: 'DIFF-030',
+    area: 'memory/types',
+    upstream: 'Memory types expose synchronous add/retrieve/update/remove methods',
+    ts: 'EpisodicMemory, PerceptualMemory and SemanticMemory additionally expose addAsync/retrieveAsync and accept asyncBackends; async methods await Promise-based embedders/vector/graph stores',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Qdrant/Neo4j and local transformer embeddings are asynchronous in Node. Explicit opt-in APIs provide real backend integration without changing the teaching-line synchronous contract.'
+  },
+  {
+    id: 'DIFF-031',
+    area: 'memory/rag/pipeline',
+    upstream: 'MarkItDown/langdetect document loading and default LLM-backed tldr_summarize',
+    ts: 'Only native text formats are loaded; unsupported binary formats yield no chunks, language is unknown, and rerank/query-expansion/HyDE/summarization are lazy injectable seams',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Node has no bundled MarkItDown/OCR equivalent, and package import must not load optional models or perform network I/O.'
   },
   {
     id: 'DIFF-025',

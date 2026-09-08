@@ -61,3 +61,5 @@ export { NoteTool } from './builtin/note-tool.js';
 export { TerminalTool } from './builtin/terminal-tool.js';
 export { MemoryTool } from './builtin/memory-tool.js';
 export type { MemoryToolOptions } from './builtin/memory-tool.js';
+export { RAGTool } from './builtin/rag-tool.js';
+export type { RagLlmLike, RagLlmMessage, RAGToolOptions } from './builtin/rag-tool.js';

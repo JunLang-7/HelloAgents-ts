@@ -12,7 +12,12 @@
  *    意图实现为“缓存有效期 1 小时”。
  */
 import { BaseMemory, MemoryConfig, MemoryItem, type RetrieveOptions } from '../base.js';
-import type { MemoryBackends, VectorSearchHit } from '../ports.js';
+import type {
+  AsyncMemoryBackends,
+  MemoryBackends,
+  StoredMemoryDoc,
+  VectorSearchHit
+} from '../ports.js';
 
 /** 情景记忆中的单个情景。 */
 export class Episode {
@@ -73,11 +78,22 @@ export class EpisodicMemory extends BaseMemory {
   public patternsCache: Map<string, Array<Record<string, unknown>>>;
   public lastPatternAnalysis: Date | null;
 
-  public constructor(config?: MemoryConfig, backends?: MemoryBackends);
-  public constructor(options?: { config?: MemoryConfig; backends?: MemoryBackends });
   public constructor(
-    configOrOptions?: MemoryConfig | { config?: MemoryConfig; backends?: MemoryBackends },
-    backends: MemoryBackends = {}
+    config?: MemoryConfig,
+    backends?: MemoryBackends,
+    asyncBackends?: AsyncMemoryBackends
+  );
+  public constructor(options?: {
+    config?: MemoryConfig;
+    backends?: MemoryBackends;
+    asyncBackends?: AsyncMemoryBackends;
+  });
+  public constructor(
+    configOrOptions?:
+      | MemoryConfig
+      | { config?: MemoryConfig; backends?: MemoryBackends; asyncBackends?: AsyncMemoryBackends },
+    backends: MemoryBackends = {},
+    asyncBackends: AsyncMemoryBackends = {}
   ) {
     const config =
       configOrOptions instanceof MemoryConfig
@@ -85,11 +101,66 @@ export class EpisodicMemory extends BaseMemory {
         : (configOrOptions?.config ?? new MemoryConfig());
     const resolved =
       configOrOptions instanceof MemoryConfig ? backends : (configOrOptions?.backends ?? {});
-    super(config, 'episodic', resolved);
+    const resolvedAsync =
+      configOrOptions instanceof MemoryConfig
+        ? asyncBackends
+        : (configOrOptions?.asyncBackends ?? {});
+    super(config, 'episodic', resolved, undefined, resolvedAsync);
     this.episodes = [];
     this.sessions = new Map();
     this.patternsCache = new Map();
     this.lastPatternAnalysis = null;
+    this.restorePersistedCache();
+  }
+
+  /**
+   * Rebuild the in-memory episode cache from the authoritative document store.
+   *
+   * Memory instances are intentionally cache-backed, but a new process starts
+   * with an empty cache.  The synchronous document-store port makes a small,
+   * eager restore possible without changing the public synchronous API or
+   * re-writing restored rows through add().
+   */
+  private restorePersistedCache(): void {
+    const docStore = this.backends.docStore ?? this.asyncBackends.docStore;
+    if (!docStore) return;
+
+    let docs: StoredMemoryDoc[];
+    try {
+      docs = docStore.searchMemories({ memory_type: 'episodic', limit: 10_000 });
+    } catch {
+      // A document-store failure must not make the degraded in-memory path
+      // unusable, matching the other optional-backend error handling.
+      return;
+    }
+
+    for (const doc of docs) {
+      if (doc.memory_type !== 'episodic') continue;
+      if (this.episodes.some((episode) => episode.episodeId === doc.memory_id)) continue;
+
+      const properties = doc.properties ?? {};
+      const sessionId =
+        typeof properties.session_id === 'string' ? properties.session_id : 'default_session';
+      const context =
+        typeof properties.context === 'object' && properties.context !== null
+          ? { ...(properties.context as Record<string, unknown>) }
+          : {};
+      const outcome = typeof properties.outcome === 'string' ? properties.outcome : undefined;
+      const episode = new Episode({
+        episodeId: doc.memory_id,
+        userId: doc.user_id,
+        sessionId,
+        timestamp: new Date(doc.timestamp * 1000),
+        content: doc.content,
+        context,
+        outcome,
+        importance: doc.importance
+      });
+      this.episodes.push(episode);
+      const ids = this.sessions.get(sessionId) ?? [];
+      ids.push(episode.episodeId);
+      this.sessions.set(sessionId, ids);
+    }
   }
 
   public add(memoryItem: MemoryItem): string {
@@ -149,6 +220,68 @@ export class EpisodicMemory extends BaseMemory {
     return memoryItem.id;
   }
 
+  /**
+   * Async counterpart for real Qdrant/model backends. The synchronous `add`
+   * method intentionally remains unchanged; callers must opt into this method
+   * when injecting `asyncBackends`.
+   */
+  public async addAsync(memoryItem: MemoryItem): Promise<string> {
+    const vectorStore = this.asyncBackends.vectorStore;
+    if (!vectorStore && !this.asyncBackends.docStore) return this.add(memoryItem);
+
+    const sessionId = (memoryItem.metadata.session_id as string) ?? 'default_session';
+    const context = (memoryItem.metadata.context as Record<string, unknown>) ?? {};
+    const outcome = memoryItem.metadata.outcome as string | undefined;
+    const participants = (memoryItem.metadata.participants as unknown[]) ?? [];
+    const tags = (memoryItem.metadata.tags as unknown[]) ?? [];
+    const episode = new Episode({
+      episodeId: memoryItem.id,
+      userId: memoryItem.userId,
+      sessionId,
+      timestamp: memoryItem.timestamp,
+      content: memoryItem.content,
+      context,
+      outcome,
+      importance: memoryItem.importance
+    });
+    this.episodes.push(episode);
+    const list = this.sessions.get(sessionId) ?? [];
+    list.push(episode.episodeId);
+    this.sessions.set(sessionId, list);
+    (this.asyncBackends.docStore ?? this.backends.docStore)?.addMemory({
+      memory_id: memoryItem.id,
+      user_id: memoryItem.userId,
+      content: memoryItem.content,
+      memory_type: 'episodic',
+      timestamp: Math.floor(memoryItem.timestamp.getTime() / 1000),
+      importance: memoryItem.importance,
+      properties: { session_id: sessionId, context, outcome, participants, tags }
+    });
+
+    if (vectorStore) {
+      try {
+        const vector = await this.encodeAsync(memoryItem.content);
+        await vectorStore.addVectors({
+          vectors: [vector],
+          metadata: [
+            {
+              memory_id: memoryItem.id,
+              user_id: memoryItem.userId,
+              memory_type: 'episodic',
+              importance: memoryItem.importance,
+              session_id: sessionId,
+              content: memoryItem.content
+            }
+          ],
+          ids: [memoryItem.id]
+        });
+      } catch {
+        // A failed optional vector write must not discard the authoritative row.
+      }
+    }
+    return memoryItem.id;
+  }
+
   public retrieve(query: string, limit = 5, options: EpisodicRetrieveOptions = {}): MemoryItem[] {
     const userId = options.userId;
     const sessionId = options.sessionId;
@@ -202,6 +335,7 @@ export class EpisodicMemory extends BaseMemory {
       if (sessionId && meta.session_id !== sessionId) continue;
       const doc = docStore?.getMemory(memId);
       if (!doc) continue;
+      if (userId && doc.user_id !== userId) continue;
 
       const vecScore = hit.score;
       const recency = 1 / (1 + Math.max(0, (Date.now() / 1000 - doc.timestamp) / 86_400));
@@ -247,6 +381,115 @@ export class EpisodicMemory extends BaseMemory {
 
     results.sort((a, b) => b[0] - a[0]);
     return results.slice(0, limit).map(([, item]) => item);
+  }
+
+  /** Async vector retrieval; filtering and ranking stay identical to retrieve(). */
+  public async retrieveAsync(
+    query: string,
+    limit = 5,
+    options: EpisodicRetrieveOptions = {}
+  ): Promise<MemoryItem[]> {
+    const vectorStore = this.asyncBackends.vectorStore;
+    if (!vectorStore) return this.retrieve(query, limit, options);
+    const userId = options.userId;
+    const sessionId = options.sessionId;
+    const timeRange = options.timeRange;
+    const importanceThreshold = options.importanceThreshold;
+    let candidateIds: Set<string> | null = null;
+    const docStore = this.asyncBackends.docStore ?? this.backends.docStore;
+    if (docStore && (timeRange !== undefined || importanceThreshold !== undefined)) {
+      const docs = docStore.searchMemories({
+        ...(userId ? { user_id: userId } : {}),
+        memory_type: 'episodic',
+        ...(timeRange
+          ? {
+              start_time: Math.floor(timeRange[0].getTime() / 1000),
+              end_time: Math.floor(timeRange[1].getTime() / 1000)
+            }
+          : {}),
+        ...(importanceThreshold !== undefined ? { importance_threshold: importanceThreshold } : {}),
+        limit: 1000
+      });
+      candidateIds = new Set(docs.map((doc) => doc.memory_id));
+    }
+
+    let hits: VectorSearchHit[] = [];
+    try {
+      const vector = await this.encodeAsync(query);
+      const where: Record<string, unknown> = { memory_type: 'episodic' };
+      if (userId) where.user_id = userId;
+      hits = await vectorStore.searchSimilar({
+        queryVector: vector,
+        limit: Math.max(limit * 5, 20),
+        where
+      });
+    } catch {
+      // Fall through to the same in-memory keyword path as retrieve().
+    }
+
+    const results: Array<[number, MemoryItem]> = [];
+    const seen = new Set<string>();
+    for (const hit of hits) {
+      const meta = hit.metadata ?? {};
+      const memId = typeof meta.memory_id === 'string' ? meta.memory_id : undefined;
+      if (!memId || seen.has(memId)) continue;
+      const episode = this.episodes.find((item) => item.episodeId === memId);
+      if (episode && episode.context.forgotten === true) continue;
+      if (candidateIds && !candidateIds.has(memId)) continue;
+      if (sessionId && meta.session_id !== sessionId) continue;
+      const doc = docStore?.getMemory(memId);
+      if (!doc || (userId && doc.user_id !== userId)) continue;
+      const vecScore = hit.score;
+      const recency = 1 / (1 + Math.max(0, (Date.now() / 1000 - doc.timestamp) / 86_400));
+      const combined = (vecScore * 0.8 + recency * 0.2) * (0.8 + doc.importance * 0.4);
+      results.push([
+        combined,
+        new MemoryItem({
+          id: doc.memory_id,
+          content: doc.content,
+          memoryType: doc.memory_type,
+          userId: doc.user_id,
+          timestamp: new Date(doc.timestamp * 1000),
+          importance: doc.importance,
+          metadata: {
+            ...doc.properties,
+            relevance_score: combined,
+            vector_score: vecScore,
+            recency_score: recency
+          }
+        })
+      ]);
+      seen.add(memId);
+    }
+    if (results.length === 0) {
+      const queryLower = query.toLowerCase();
+      for (const episode of this.filterEpisodes(userId, sessionId, timeRange)) {
+        if (!episode.content.toLowerCase().includes(queryLower)) continue;
+        const recency = recencyScore(episode.timestamp);
+        const combined = (0.5 * 0.8 + recency * 0.2) * (0.8 + episode.importance * 0.4);
+        results.push([
+          combined,
+          new MemoryItem({
+            id: episode.episodeId,
+            content: episode.content,
+            memoryType: 'episodic',
+            userId: episode.userId,
+            timestamp: episode.timestamp,
+            importance: episode.importance,
+            metadata: { ...episode.metadata, relevance_score: combined }
+          })
+        ]);
+      }
+    }
+    results.sort((a, b) => b[0] - a[0]);
+    return results.slice(0, limit).map(([, item]) => item);
+  }
+
+  private async encodeAsync(text: string): Promise<number[]> {
+    if (this.asyncBackends.embedder) return this.asyncBackends.embedder.encode(text);
+    const sync = this.backends.embedder?.encode(text);
+    if (sync) return sync;
+    throw new Error('Async memory backend requires an embedder');
   }
 
   public update(
@@ -307,6 +550,61 @@ export class EpisodicMemory extends BaseMemory {
     return updated || docUpdated;
   }
 
+  /** Async update counterpart; uses only the explicitly async vector port. */
+  public async updateAsync(
+    memoryId: string,
+    content?: string,
+    importance?: number,
+    metadata?: Record<string, unknown>
+  ): Promise<boolean> {
+    const vectorStore = this.asyncBackends.vectorStore;
+    if (!vectorStore) return this.update(memoryId, content, importance, metadata);
+    let updated = false;
+    for (const episode of this.episodes) {
+      if (episode.episodeId !== memoryId) continue;
+      if (content !== undefined) episode.content = content;
+      if (importance !== undefined) episode.importance = importance;
+      if (metadata !== undefined) {
+        const nestedContext = metadata.context as Record<string, unknown> | undefined;
+        if (nestedContext) Object.assign(episode.context, nestedContext);
+        if ('outcome' in metadata) episode.outcome = metadata.outcome as string | undefined;
+      }
+      updated = true;
+      break;
+    }
+    const docStore = this.asyncBackends.docStore ?? this.backends.docStore;
+    const docUpdated =
+      docStore?.updateMemory({
+        memory_id: memoryId,
+        ...(content !== undefined ? { content } : {}),
+        ...(importance !== undefined ? { importance } : {}),
+        ...(metadata !== undefined ? { properties: metadata } : {})
+      }) ?? false;
+    if (content !== undefined) {
+      try {
+        const vector = await this.encodeAsync(content);
+        const doc = docStore?.getMemory(memoryId);
+        await vectorStore.addVectors({
+          vectors: [vector],
+          metadata: [
+            {
+              memory_id: memoryId,
+              user_id: doc?.user_id ?? '',
+              memory_type: 'episodic',
+              importance: doc?.importance ?? importance ?? 0.5,
+              session_id: (doc?.properties as Record<string, unknown> | undefined)?.session_id,
+              content
+            }
+          ],
+          ids: [memoryId]
+        });
+      } catch {
+        // Keep update result independent from optional vector refresh failures.
+      }
+    }
+    return updated || docUpdated;
+  }
+
   public remove(memoryId: string): boolean {
     let removed = false;
     const index = this.episodes.findIndex((episode) => episode.episodeId === memoryId);
@@ -328,6 +626,33 @@ export class EpisodicMemory extends BaseMemory {
       this.backends.vectorStore?.deleteMemories([memoryId]);
     } catch {
       // 忽略向量库删除异常。
+    }
+    return removed || docDeleted;
+  }
+
+  public async removeAsync(memoryId: string): Promise<boolean> {
+    const vectorStore = this.asyncBackends.vectorStore;
+    if (!vectorStore) return this.remove(memoryId);
+    let removed = false;
+    const index = this.episodes.findIndex((episode) => episode.episodeId === memoryId);
+    if (index >= 0) {
+      const [episode] = this.episodes.splice(index, 1);
+      if (episode) {
+        const ids = this.sessions.get(episode.sessionId);
+        if (ids) {
+          const at = ids.indexOf(memoryId);
+          if (at >= 0) ids.splice(at, 1);
+          if (ids.length === 0) this.sessions.delete(episode.sessionId);
+        }
+      }
+      removed = true;
+    }
+    const docDeleted =
+      (this.asyncBackends.docStore ?? this.backends.docStore)?.deleteMemory(memoryId) ?? false;
+    try {
+      await vectorStore.deleteMemories([memoryId]);
+    } catch {
+      // Optional vector cleanup failure does not hide local/document deletion.
     }
     return removed || docDeleted;
   }

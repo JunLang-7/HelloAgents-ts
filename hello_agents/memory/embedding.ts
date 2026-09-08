@@ -25,7 +25,7 @@
  *   （`@huggingface/transformers`），行为（特征提取 + mean pooling）保持一致。
  */
 
-import type { TextEmbedder } from './ports.js';
+import type { AsyncTextEmbedder, TextEmbedder } from './ports.js';
 
 /**
  * 嵌入模型基类（上游 `EmbeddingModel`）。
@@ -62,6 +62,27 @@ export function toTextEmbedder(model: EmbeddingModel): TextEmbedder {
     );
   }
   return { encode: (text: string) => model.encode(text) as number[], dimension: model.dimension };
+}
+
+/**
+ * Bridge an embedding model to the explicit async memory port.
+ *
+ * Unlike `toTextEmbedder`, this adapter awaits both synchronous and asynchronous
+ * implementations and rejects batch-shaped results. This keeps the async
+ * memory APIs type-safe while allowing TF-IDF and network/model embedders to be
+ * used through one Promise-based contract.
+ */
+export function toAsyncTextEmbedder(model: EmbeddingModel): AsyncTextEmbedder {
+  return {
+    dimension: model.dimension,
+    encode: async (text: string): Promise<number[]> => {
+      const encoded = await model.encode(text);
+      if (!Array.isArray(encoded) || (encoded.length > 0 && Array.isArray(encoded[0]))) {
+        throw new Error('Embedding model returned a batch where a single vector was required');
+      }
+      return encoded as number[];
+    }
+  };
 }
 
 // ---------------------------------------------------------------------------

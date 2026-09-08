@@ -12,7 +12,13 @@
 import { createHash } from 'node:crypto';
 
 import { BaseMemory, MemoryConfig, MemoryItem, type RetrieveOptions } from '../base.js';
-import type { MemoryBackends, VectorSearchHit, VectorStorePort } from '../ports.js';
+import type {
+  AsyncMemoryBackends,
+  MemoryBackends,
+  StoredMemoryDoc,
+  VectorSearchHit,
+  VectorStorePort
+} from '../ports.js';
 
 /** 感知数据实体。 */
 export class Perception {
@@ -80,11 +86,22 @@ export class PerceptualMemory extends BaseMemory {
   public audioDim: number;
   public encoders: Record<string, Encoder>;
 
-  public constructor(config?: MemoryConfig, backends?: MemoryBackends);
-  public constructor(options?: { config?: MemoryConfig; backends?: MemoryBackends });
   public constructor(
-    configOrOptions?: MemoryConfig | { config?: MemoryConfig; backends?: MemoryBackends },
-    backends: MemoryBackends = {}
+    config?: MemoryConfig,
+    backends?: MemoryBackends,
+    asyncBackends?: AsyncMemoryBackends
+  );
+  public constructor(options?: {
+    config?: MemoryConfig;
+    backends?: MemoryBackends;
+    asyncBackends?: AsyncMemoryBackends;
+  });
+  public constructor(
+    configOrOptions?:
+      | MemoryConfig
+      | { config?: MemoryConfig; backends?: MemoryBackends; asyncBackends?: AsyncMemoryBackends },
+    backends: MemoryBackends = {},
+    asyncBackends: AsyncMemoryBackends = {}
   ) {
     const config =
       configOrOptions instanceof MemoryConfig
@@ -92,16 +109,71 @@ export class PerceptualMemory extends BaseMemory {
         : (configOrOptions?.config ?? new MemoryConfig());
     const resolved =
       configOrOptions instanceof MemoryConfig ? backends : (configOrOptions?.backends ?? {});
-    super(config, 'perceptual', resolved);
+    const resolvedAsync =
+      configOrOptions instanceof MemoryConfig
+        ? asyncBackends
+        : (configOrOptions?.asyncBackends ?? {});
+    super(config, 'perceptual', resolved, undefined, resolvedAsync);
     this.perceptions = new Map();
     this.perceptualMemories = [];
     this.modalityIndex = new Map();
     this.supportedModalities = new Set(config.perceptualMemoryModalities);
-    this.vectorDim = this.backends.embedder?.dimension ?? 384;
+    this.vectorDim =
+      this.backends.embedder?.dimension ?? this.asyncBackends.embedder?.dimension ?? 384;
     // CLIP/CLAP 未移植，维度退化为文本维度（与上游缺依赖时一致）。
     this.imageDim = this.vectorDim;
     this.audioDim = this.vectorDim;
     this.encoders = this.initEncoders();
+    this.restorePersistedCache();
+  }
+
+  /** Rebuild the cache used by retrieval and modality indexes after restart. */
+  private restorePersistedCache(): void {
+    const docStore = this.backends.docStore ?? this.asyncBackends.docStore;
+    if (!docStore) return;
+
+    let docs: StoredMemoryDoc[];
+    try {
+      docs = docStore.searchMemories({ memory_type: 'perceptual', limit: 10_000 });
+    } catch {
+      return;
+    }
+
+    for (const doc of docs) {
+      if (doc.memory_type !== 'perceptual') continue;
+      if (this.perceptualMemories.some((memory) => memory.id === doc.memory_id)) continue;
+
+      const properties = { ...(doc.properties ?? {}) };
+      const modality = typeof properties.modality === 'string' ? properties.modality : 'text';
+      const perceptionId =
+        typeof properties.perception_id === 'string'
+          ? properties.perception_id
+          : `perception_${doc.memory_id}`;
+      properties.perception_id = perceptionId;
+      properties.modality = modality;
+      const memory = new MemoryItem({
+        id: doc.memory_id,
+        content: doc.content,
+        memoryType: 'perceptual',
+        userId: doc.user_id,
+        timestamp: new Date(doc.timestamp * 1000),
+        importance: doc.importance,
+        metadata: properties
+      });
+      const rawData = properties.raw_data ?? doc.content;
+      const perception = new Perception(
+        perceptionId,
+        rawData,
+        modality,
+        this.encodeData(rawData, modality),
+        { source: 'memory_system' }
+      );
+      this.perceptions.set(perceptionId, perception);
+      const ids = this.modalityIndex.get(modality) ?? [];
+      ids.push(perceptionId);
+      this.modalityIndex.set(modality, ids);
+      this.perceptualMemories.push(memory);
+    }
   }
 
   public add(memoryItem: MemoryItem): string {
@@ -156,6 +228,62 @@ export class PerceptualMemory extends BaseMemory {
     return memoryItem.id;
   }
 
+  /** Async counterpart for Qdrant/model-backed perception writes. */
+  public async addAsync(memoryItem: MemoryItem): Promise<string> {
+    const modality = (memoryItem.metadata.modality as string) ?? 'text';
+    const rawData = memoryItem.metadata.raw_data ?? memoryItem.content;
+    if (!this.supportedModalities.has(modality)) throw new Error(`不支持的模态类型: ${modality}`);
+    const vectorStore = this.getAsyncVectorStoreForModality(modality);
+    if (!vectorStore && !this.asyncBackends.docStore) return this.add(memoryItem);
+
+    const encoding = await this.encodeDataAsync(rawData, modality);
+    const perception = new Perception(`perception_${memoryItem.id}`, rawData, modality, encoding, {
+      source: 'memory_system'
+    });
+    this.perceptions.set(perception.perceptionId, perception);
+    const ids = this.modalityIndex.get(modality) ?? [];
+    ids.push(perception.perceptionId);
+    this.modalityIndex.set(modality, ids);
+    memoryItem.metadata.perception_id = perception.perceptionId;
+    memoryItem.metadata.modality = modality;
+    this.perceptualMemories.push(memoryItem);
+    (this.asyncBackends.docStore ?? this.backends.docStore)?.addMemory({
+      memory_id: memoryItem.id,
+      user_id: memoryItem.userId,
+      content: memoryItem.content,
+      memory_type: 'perceptual',
+      timestamp: Math.floor(memoryItem.timestamp.getTime() / 1000),
+      importance: memoryItem.importance,
+      properties: {
+        perception_id: perception.perceptionId,
+        modality,
+        context: memoryItem.metadata.context ?? {},
+        tags: memoryItem.metadata.tags ?? []
+      }
+    });
+    if (vectorStore) {
+      try {
+        await vectorStore.addVectors({
+          vectors: [encoding],
+          metadata: [
+            {
+              memory_id: memoryItem.id,
+              user_id: memoryItem.userId,
+              memory_type: 'perceptual',
+              modality,
+              importance: memoryItem.importance,
+              content: memoryItem.content
+            }
+          ],
+          ids: [memoryItem.id]
+        });
+      } catch {
+        // Keep cache/document state usable if the optional vector write fails.
+      }
+    }
+    return memoryItem.id;
+  }
+
   public retrieve(query: string, limit = 5, options: PerceptualRetrieveOptions = {}): MemoryItem[] {
     const userId = typeof options.userId === 'string' ? options.userId : undefined;
     const targetModality =
@@ -192,6 +320,7 @@ export class PerceptualMemory extends BaseMemory {
       if (targetModality && meta.modality !== targetModality) continue;
       const doc = docStore?.getMemory(memId);
       if (!doc) continue;
+      if (userId && doc.user_id !== userId) continue;
       const recency = 1 / (1 + Math.max(0, (nowSec - doc.timestamp) / 86_400));
       const combined = (hit.score * 0.8 + recency * 0.2) * (0.8 + doc.importance * 0.4);
       results.push([
@@ -218,6 +347,7 @@ export class PerceptualMemory extends BaseMemory {
     if (results.length === 0) {
       const queryLower = query.toLowerCase();
       for (const memory of this.perceptualMemories) {
+        if (userId && memory.userId !== userId) continue;
         if (targetModality && memory.metadata.modality !== targetModality) continue;
         if (!(memory.content ?? '').toLowerCase().includes(queryLower)) continue;
         const recency =
@@ -227,6 +357,83 @@ export class PerceptualMemory extends BaseMemory {
       }
     }
 
+    results.sort((a, b) => b[0] - a[0]);
+    return results.slice(0, limit).map(([, item]) => item);
+  }
+
+  /** Async counterpart for Qdrant retrieval; sync keyword fallback is retained. */
+  public async retrieveAsync(
+    query: string,
+    limit = 5,
+    options: PerceptualRetrieveOptions = {}
+  ): Promise<MemoryItem[]> {
+    const targetModality =
+      typeof options.targetModality === 'string' ? options.targetModality : undefined;
+    const queryModality =
+      (typeof options.queryModality === 'string' ? options.queryModality : undefined) ??
+      targetModality ??
+      'text';
+    const vectorStore = this.getAsyncVectorStoreForModality(targetModality ?? queryModality);
+    if (!vectorStore) return this.retrieve(query, limit, options);
+    const userId = typeof options.userId === 'string' ? options.userId : undefined;
+    let hits: VectorSearchHit[] = [];
+    try {
+      const queryVector = await this.encodeDataAsync(query, queryModality);
+      const where: Record<string, unknown> = { memory_type: 'perceptual' };
+      if (userId) where.user_id = userId;
+      if (targetModality) where.modality = targetModality;
+      hits = await vectorStore.searchSimilar({
+        queryVector,
+        limit: Math.max(limit * 5, 20),
+        where
+      });
+    } catch {
+      // Fall back to local keyword matching below.
+    }
+    const docStore = this.asyncBackends.docStore ?? this.backends.docStore;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const results: Array<[number, MemoryItem]> = [];
+    const seen = new Set<string>();
+    for (const hit of hits) {
+      const meta = hit.metadata ?? {};
+      const memId = typeof meta.memory_id === 'string' ? meta.memory_id : undefined;
+      if (!memId || seen.has(memId)) continue;
+      if (targetModality && meta.modality !== targetModality) continue;
+      const doc = docStore?.getMemory(memId);
+      if (!doc || (userId && doc.user_id !== userId)) continue;
+      const recency = 1 / (1 + Math.max(0, (nowSec - doc.timestamp) / 86_400));
+      const combined = (hit.score * 0.8 + recency * 0.2) * (0.8 + doc.importance * 0.4);
+      results.push([
+        combined,
+        new MemoryItem({
+          id: doc.memory_id,
+          content: doc.content,
+          memoryType: doc.memory_type,
+          userId: doc.user_id,
+          timestamp: new Date(doc.timestamp * 1000),
+          importance: doc.importance,
+          metadata: {
+            ...doc.properties,
+            relevance_score: combined,
+            vector_score: hit.score,
+            recency_score: recency
+          }
+        })
+      ]);
+      seen.add(memId);
+    }
+    if (results.length === 0) {
+      const queryLower = query.toLowerCase();
+      for (const memory of this.perceptualMemories) {
+        if (userId && memory.userId !== userId) continue;
+        if (targetModality && memory.metadata.modality !== targetModality) continue;
+        if (!memory.content.toLowerCase().includes(queryLower)) continue;
+        const recency =
+          1 / (1 + Math.max(0, (nowSec - memory.timestamp.getTime() / 1000) / 86_400));
+        const combined = (0.5 * 0.8 + recency * 0.2) * (0.8 + memory.importance * 0.4);
+        results.push([combined, memory]);
+      }
+    }
     results.sort((a, b) => b[0] - a[0]);
     return results.slice(0, limit).map(([, item]) => item);
   }
@@ -567,6 +774,23 @@ export class PerceptualMemory extends BaseMemory {
   public getVectorStoreForModality(modality?: string): VectorStorePort | undefined {
     const mod = (modality ?? 'text').toLowerCase();
     return this.backends.vectorStores?.[mod] ?? this.backends.vectorStore;
+  }
+
+  private getAsyncVectorStoreForModality(modality?: string) {
+    const mod = (modality ?? 'text').toLowerCase();
+    return this.asyncBackends.vectorStores?.[mod] ?? this.asyncBackends.vectorStore;
+  }
+
+  private async encodeDataAsync(data: unknown, modality: string): Promise<number[]> {
+    const mod = modality.toLowerCase();
+    if (mod === 'text' && this.asyncBackends.embedder) {
+      const vector = await this.asyncBackends.embedder.encode(String(data));
+      const targetDim = this.getDimForModality(modality);
+      if (vector.length < targetDim)
+        return [...vector, ...new Array(targetDim - vector.length).fill(0)];
+      return vector.length > targetDim ? vector.slice(0, targetDim) : vector;
+    }
+    return this.encodeData(data, modality);
   }
 
   public getDimForModality(modality?: string): number {

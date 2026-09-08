@@ -12,7 +12,13 @@
  * 内层条件块中，仅更新内容或缺少嵌入时会错误返回 False；这里按意图返回。
  */
 import { BaseMemory, MemoryConfig, MemoryItem, type RetrieveOptions } from '../base.js';
-import type { GraphStorePort, MemoryBackends, VectorSearchHit } from '../ports.js';
+import type {
+  AsyncMemoryBackends,
+  AsyncGraphStorePort,
+  GraphStorePort,
+  MemoryBackends,
+  VectorSearchHit
+} from '../ports.js';
 
 /** 知识图谱实体（PERSON/ORG/PRODUCT/SKILL/CONCEPT/MISC 等）。 */
 export class Entity {
@@ -123,11 +129,22 @@ export class SemanticMemory extends BaseMemory {
   public semanticMemories: MemoryItem[];
   public memoryEmbeddings: Map<string, number[]>;
 
-  public constructor(config?: MemoryConfig, backends?: MemoryBackends);
-  public constructor(options?: { config?: MemoryConfig; backends?: MemoryBackends });
   public constructor(
-    configOrOptions?: MemoryConfig | { config?: MemoryConfig; backends?: MemoryBackends },
-    backends: MemoryBackends = {}
+    config?: MemoryConfig,
+    backends?: MemoryBackends,
+    asyncBackends?: AsyncMemoryBackends
+  );
+  public constructor(options?: {
+    config?: MemoryConfig;
+    backends?: MemoryBackends;
+    asyncBackends?: AsyncMemoryBackends;
+  });
+  public constructor(
+    configOrOptions?:
+      | MemoryConfig
+      | { config?: MemoryConfig; backends?: MemoryBackends; asyncBackends?: AsyncMemoryBackends },
+    backends: MemoryBackends = {},
+    asyncBackends: AsyncMemoryBackends = {}
   ) {
     const config =
       configOrOptions instanceof MemoryConfig
@@ -135,7 +152,11 @@ export class SemanticMemory extends BaseMemory {
         : (configOrOptions?.config ?? new MemoryConfig());
     const resolved =
       configOrOptions instanceof MemoryConfig ? backends : (configOrOptions?.backends ?? {});
-    super(config, 'semantic', resolved);
+    const resolvedAsync =
+      configOrOptions instanceof MemoryConfig
+        ? asyncBackends
+        : (configOrOptions?.asyncBackends ?? {});
+    super(config, 'semantic', resolved, undefined, resolvedAsync);
     this.entities = new Map();
     this.relations = [];
     this.semanticMemories = [];
@@ -171,6 +192,56 @@ export class SemanticMemory extends BaseMemory {
       });
     }
 
+    memoryItem.metadata.entities = entities.map((entity) => entity.entityId);
+    memoryItem.metadata.relations = relations.map(
+      (relation) => `${relation.fromEntity}-${relation.relationType}-${relation.toEntity}`
+    );
+    this.semanticMemories.push(memoryItem);
+    return memoryItem.id;
+  }
+
+  /** Async write path for real Qdrant + Neo4j backends. */
+  public async addAsync(memoryItem: MemoryItem): Promise<string> {
+    const vectorStore = this.asyncBackends.vectorStore;
+    const graphStore = this.asyncBackends.graphStore;
+    if (!vectorStore && !graphStore) return this.add(memoryItem);
+
+    let embedding: number[] | undefined;
+    try {
+      embedding = await this.encodeAsync(memoryItem.content);
+      this.memoryEmbeddings.set(memoryItem.id, embedding);
+    } catch {
+      // Embedding is optional when only the graph backend is configured.
+    }
+    const entities = this.extractEntities(memoryItem.content);
+    const relations = this.extractRelations(memoryItem.content, entities);
+    for (const entity of entities) await this.addEntityToGraphAsync(entity, memoryItem, graphStore);
+    for (const relation of relations)
+      await this.addRelationToGraphAsync(relation, memoryItem, graphStore);
+
+    if (embedding && vectorStore) {
+      try {
+        await vectorStore.addVectors({
+          vectors: [embedding],
+          metadata: [
+            {
+              memory_id: memoryItem.id,
+              user_id: memoryItem.userId,
+              content: memoryItem.content,
+              memory_type: memoryItem.memoryType,
+              timestamp: Math.floor(memoryItem.timestamp.getTime() / 1000),
+              importance: memoryItem.importance,
+              entities: entities.map((entity) => entity.entityId),
+              entity_count: entities.length,
+              relation_count: relations.length
+            }
+          ],
+          ids: [memoryItem.id]
+        });
+      } catch {
+        // Keep memory cache usable if the optional vector write fails.
+      }
+    }
     memoryItem.metadata.entities = entities.map((entity) => entity.entityId);
     memoryItem.metadata.relations = relations.map(
       (relation) => `${relation.fromEntity}-${relation.relationType}-${relation.toEntity}`
@@ -225,6 +296,156 @@ export class SemanticMemory extends BaseMemory {
         );
       });
       return resultMemories.slice(0, limit);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Async hybrid retrieval path for Promise-based vector and graph stores. */
+  public async retrieveAsync(
+    query: string,
+    limit = 5,
+    options: RetrieveOptions = {}
+  ): Promise<MemoryItem[]> {
+    if (!this.asyncBackends.vectorStore && !this.asyncBackends.graphStore)
+      return this.retrieve(query, limit, options);
+    const userId = typeof options.userId === 'string' ? options.userId : undefined;
+    const [vectorResults, graphResults] = await Promise.all([
+      this.vectorSearchAsync(query, limit * 2, userId),
+      this.graphSearchAsync(query, limit * 2, userId)
+    ]);
+    const combined = this.combineAndRank(vectorResults, graphResults, limit);
+    const scores = combined.map((result) => result.combined_score);
+    const maxScore = scores.length > 0 ? Math.max(...scores) : 0;
+    const exps = scores.map((score) => Math.exp(score - maxScore));
+    const denom = exps.reduce((sum, value) => sum + value, 0) || 1;
+    return combined
+      .map((result, index) => {
+        const timestamp =
+          typeof result.timestamp === 'string'
+            ? new Date(result.timestamp)
+            : typeof result.timestamp === 'number'
+              ? new Date(result.timestamp * 1000)
+              : new Date();
+        return new MemoryItem({
+          id: result.memory_id,
+          content: result.content,
+          memoryType: 'semantic',
+          userId: result.user_id ?? 'default',
+          timestamp,
+          importance: result.importance,
+          metadata: {
+            ...result.metadata,
+            combined_score: result.combined_score,
+            vector_score: result.vector_score,
+            graph_score: result.graph_score,
+            probability: (exps[index] ?? 0) / denom
+          }
+        });
+      })
+      .filter((memory) => memory.metadata.forgotten !== true)
+      .slice(0, limit);
+  }
+
+  private async encodeAsync(text: string): Promise<number[]> {
+    if (this.asyncBackends.embedder) return this.asyncBackends.embedder.encode(text);
+    const sync = this.backends.embedder?.encode(text);
+    if (sync) return sync;
+    throw new Error('Async memory backend requires an embedder');
+  }
+
+  private async vectorSearchAsync(
+    query: string,
+    limit: number,
+    userId?: string
+  ): Promise<Array<Record<string, unknown>>> {
+    const store = this.asyncBackends.vectorStore;
+    if (!store) return this.vectorSearch(query, limit, userId);
+    try {
+      const where: Record<string, unknown> = { memory_type: 'semantic' };
+      if (userId) where.user_id = userId;
+      const results = await store.searchSimilar({
+        queryVector: await this.encodeAsync(query),
+        limit,
+        where
+      });
+      return results.map((result: VectorSearchHit) => ({
+        id: result.id,
+        memory_id: result.metadata.memory_id ?? result.id,
+        score: result.score,
+        ...result.metadata
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async graphSearchAsync(
+    query: string,
+    limit: number,
+    userId?: string
+  ): Promise<Array<Record<string, unknown>>> {
+    const graphStore = this.asyncBackends.graphStore;
+    if (!graphStore) return this.graphSearch(query, limit, userId);
+    try {
+      let queryEntities = this.extractEntities(query);
+      if (queryEntities.length === 0) {
+        const byName = await graphStore.searchEntitiesByName({ name_pattern: query, limit: 10 });
+        queryEntities = byName
+          .slice(0, 3)
+          .map(
+            (entry) =>
+              new Entity(
+                String(entry.id ?? ''),
+                String(entry.name ?? ''),
+                String(entry.type ?? 'MISC')
+              )
+          );
+      }
+      const relatedMemoryIds = new Set<string>();
+      for (const entity of queryEntities) {
+        const related = await graphStore.findRelatedEntities({
+          entity_id: entity.entityId,
+          max_depth: 2,
+          limit: 20
+        });
+        for (const row of related)
+          if ('memory_id' in row) relatedMemoryIds.add(String(row.memory_id));
+        const relationships = await graphStore.getEntityRelationships(entity.entityId);
+        for (const row of relationships) {
+          const relationship = row.relationship as Record<string, unknown> | undefined;
+          if (relationship && 'memory_id' in relationship)
+            relatedMemoryIds.add(String(relationship.memory_id));
+        }
+      }
+      const results: Array<Record<string, unknown>> = [];
+      for (const memoryId of [...relatedMemoryIds].slice(0, limit * 2)) {
+        const memory = this.findMemoryById(memoryId);
+        if (!memory || (userId && memory.userId !== userId)) continue;
+        const metadata = {
+          content: memory.content,
+          user_id: memory.userId,
+          memory_type: memory.memoryType,
+          importance: memory.importance,
+          timestamp: Math.floor(memory.timestamp.getTime() / 1000),
+          entities: (memory.metadata.entities as string[]) ?? []
+        };
+        const score = this.calculateGraphRelevance(metadata, queryEntities);
+        results.push({
+          id: memoryId,
+          memory_id: memoryId,
+          content: metadata.content,
+          similarity: score,
+          user_id: metadata.user_id,
+          memory_type: metadata.memory_type,
+          importance: metadata.importance,
+          timestamp: metadata.timestamp,
+          entities: metadata.entities
+        });
+      }
+      return results
+        .sort((a, b) => (b.similarity as number) - (a.similarity as number))
+        .slice(0, limit);
     } catch {
       return [];
     }
@@ -503,6 +724,63 @@ export class SemanticMemory extends BaseMemory {
         });
       }
       if (success) this.relations.push(relation);
+      return success;
+    } catch {
+      return false;
+    }
+  }
+
+  private async addEntityToGraphAsync(
+    entity: Entity,
+    memoryItem: MemoryItem,
+    graphStore?: AsyncGraphStorePort
+  ): Promise<boolean> {
+    try {
+      const properties = {
+        name: entity.name,
+        description: entity.description,
+        frequency: entity.frequency,
+        memory_id: memoryItem.id,
+        user_id: memoryItem.userId,
+        importance: memoryItem.importance,
+        ...entity.properties
+      };
+      const success = graphStore
+        ? await graphStore.addEntity({
+            entity_id: entity.entityId,
+            name: entity.name,
+            entity_type: entity.entityType,
+            properties
+          })
+        : true;
+      if (success) this.addOrUpdateEntity(entity);
+      return success;
+    } catch {
+      return false;
+    }
+  }
+
+  private async addRelationToGraphAsync(
+    relation: Relation,
+    memoryItem: MemoryItem,
+    graphStore?: AsyncGraphStorePort
+  ): Promise<boolean> {
+    try {
+      const success = graphStore
+        ? await graphStore.addRelationship({
+            from_entity_id: relation.fromEntity,
+            to_entity_id: relation.toEntity,
+            relationship_type: relation.relationType,
+            properties: {
+              strength: relation.strength,
+              memory_id: memoryItem.id,
+              user_id: memoryItem.userId,
+              importance: memoryItem.importance,
+              evidence: relation.evidence
+            }
+          })
+        : true;
+      if (success) this.addOrUpdateRelation(relation);
       return success;
     } catch {
       return false;

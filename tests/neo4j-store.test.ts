@@ -174,4 +174,21 @@ describe('Neo4jGraphStore offline behavior', () => {
       store.findRelatedEntities({ entity_id: 'a', relationship_types: ['OK', 'BAD TYPE'] })
     ).rejects.toThrow('relationship_types 必须是合法 Cypher 关系类型标识符');
   });
+
+  test('findRelatedEntities rejects invalid max_depth (no Cypher pattern injection)', async () => {
+    const store = new Neo4jGraphStore({ uri: 'bolt://localhost:7690' });
+    const badDepths: unknown[] = [0, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY, 1_000_000, '3'];
+    for (const depth of badDepths) {
+      await expect(
+        store.findRelatedEntities({ entity_id: 'a', max_depth: depth as number })
+      ).rejects.toThrow('max_depth 必须是 1~25 的有限整数');
+    }
+    // 合法值（含默认）不抛校验错：offline 下应因无法连接而失败，而非校验错误
+    await expect(store.findRelatedEntities({ entity_id: 'a', max_depth: 3 })).rejects.not.toThrow(
+      'max_depth 必须是 1~25 的有限整数'
+    );
+    await expect(store.findRelatedEntities({ entity_id: 'a' })).rejects.not.toThrow(
+      'max_depth 必须是 1~25 的有限整数'
+    );
+  });
 });

@@ -146,6 +146,28 @@ function assertRelationshipType(value: string, field: string): void {
   }
 }
 
+/** 遍历深度上限：防止非法或代价过高的 Cypher 变长模式（上游无上限，属防注入加固）。 */
+const MAX_RELATIONSHIP_DEPTH = 25;
+
+/**
+ * 校验 Cypher 变长模式深度 `*1..{n}`（防注入/防爆炸加固）。
+ * 直接插值的值必须是 1..MAX_RELATIONSHIP_DEPTH 的有限整数：
+ * 字符串会改变查询文本，0/负数/非整数产生非法模式，极大值导致代价过高的遍历。
+ */
+function assertMaxDepth(value: number): void {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > MAX_RELATIONSHIP_DEPTH
+  ) {
+    throw new Error(
+      `max_depth 必须是 1~${MAX_RELATIONSHIP_DEPTH} 的有限整数（防止非法或代价过高的遍历）: ${JSON.stringify(value)}`
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Neo4jGraphStore
 // ---------------------------------------------------------------------------
@@ -289,12 +311,14 @@ export class Neo4jGraphStore {
         assertRelationshipType(relType, 'relationship_types');
       }
     }
+    // max_depth 直接拼入 Cypher 模式长度，插值前限制为有限安全整数（防注入/防爆炸）
+    const maxDepth = request.max_depth ?? 2;
+    assertMaxDepth(maxDepth);
     await this.ensureInitialized();
     const relFilter =
       request.relationship_types && request.relationship_types.length > 0
         ? `:${request.relationship_types.join('|')}`
         : '';
-    const maxDepth = request.max_depth ?? 2;
     const limit = request.limit ?? 50;
     const query = `MATCH path = (start:Entity {id: $entity_id})-[r${relFilter}*1..${maxDepth}]-(related:Entity)
       WHERE start.id <> related.id

@@ -310,6 +310,17 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     approved: true,
     reason:
       'Hardening only; all valid identifiers behave exactly as upstream, invalid ones fail fast with a clear error.'
+  },
+  {
+    id: 'DIFF-029',
+    area: 'memory/storage/neo4j',
+    upstream:
+      'Python interpolates max_depth directly into the variable-length pattern (*1..{max_depth}) with no bounds; trusted internal API',
+    ts: 'findRelatedEntities constrains max_depth to a finite safe integer in 1..25 before interpolation, rejecting strings, 0/negative/non-integer values and unbounded depths',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Hardening only; all in-range integer values behave exactly as upstream, out-of-range ones fail fast.'
   }
 ];
 

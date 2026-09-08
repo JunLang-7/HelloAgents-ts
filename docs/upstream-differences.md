@@ -241,6 +241,14 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Status:** kept (approved)
 - **Reason:** Hardening only; all valid identifiers behave exactly as upstream.
 
+### DIFF-029 — Cypher pattern-depth validation
+
+- **Area:** `memory/storage/neo4j`
+- **Upstream:** Python interpolates `max_depth` directly into the variable-length pattern (`*1..{max_depth}`) with no bounds; trusted internal API.
+- **TS:** `Neo4jGraphStore` is a public entry point, so `findRelatedEntities` constrains `max_depth` to a finite safe integer in `1..25` before interpolation. Strings cannot alter the query text; `0`/negative/non-integer values fail fast instead of producing an invalid pattern; unbounded values cannot trigger pathological traversals.
+- **Status:** kept (approved)
+- **Reason:** Hardening only; all in-range integer values behave exactly as upstream.
+
 ## Known upstream dead-parameter semantics (verified, not differences)
 
 These parameters are **declared and passed but never consumed** on both sides;

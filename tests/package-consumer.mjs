@@ -52,9 +52,15 @@ const gaiaSub = await import('${packageName}/evaluation/benchmarks/gaia');
 const dgSub = await import('${packageName}/evaluation/benchmarks/data-generation');
 if (typeof evaluation.BFCLEvaluator !== 'function' || typeof evaluation.GAIAEvaluator !== 'function') process.exit(11);
 if (typeof bfclSub.BFCLDataset !== 'function' || typeof gaiaSub.GAIADataset !== 'function' || typeof dgSub.WinRateEvaluator !== 'function') process.exit(12);
+// #77: rl subpath must resolve from a clean tarball (datasets/rewards/trainers/utils).
+const rl = await import('${packageName}/rl');
+const rlTool = await import('${packageName}/tools');
+if (typeof rl.GSM8KDataset !== 'function' || typeof rl.MathRewardFunction !== 'function' || typeof rl.SFTTrainerWrapper !== 'function') process.exit(13);
+if (typeof rl.TRL_AVAILABLE !== 'boolean') process.exit(14);
+if (typeof rlTool.RLTrainingTool !== 'function') process.exit(15);
 let optionalRejected = false;
-try { await import('${packageName}/rl'); } catch { optionalRejected = true; }
-if (!optionalRejected) process.exit(13);`;
+try { await import('${packageName}/adapters'); } catch { optionalRejected = true; }
+if (!optionalRejected) process.exit(16);`;
 
 function run(command, arguments_, cwd) {
   return execFileSync(command, arguments_, {

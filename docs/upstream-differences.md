@@ -511,3 +511,35 @@ most four non-tied digits). Fixture cases MUST NOT construct values whose
   verification. The gate runs real commands — never mocked.
 - **Status:** kept (approved)
 - **Reason:** makes the external-tool dependency explicit and verifiable.
+
+### DIFF-046 — RL training is a Python-bridge backend, not an in-process TS implementation
+
+- **Area:** `rl.trainers`, `rl.utils`, `tools.builtin.rl_training_tool`
+- **Upstream:** `check_trl_installation()` imports `trl` in-process and the
+  trainer wrappers call TRL directly.
+- **TS:** a `TrainingBackend` adapter boundary (`available()` / `train()`)
+  real-probes the interpreter; the default `PythonTrainingBackend` bridges to a
+  Python interpreter via `spawnSync` with an embedded training script (SFT via
+  `SFTTrainer`+`SFTConfig`, GRPO via `GRPOTrainer` with the three reward
+  functions). When the backend is missing, construction raises
+  `TrainingBackendUnavailableError` carrying the install guide and the tool
+  returns `BACKEND_UNAVAILABLE` — never a fake completion. `TRL_AVAILABLE` is
+  probed once at module load, like upstream.
+- **Status:** kept (approved)
+- **Reason:** keeps heavy Python/TRL dependencies out of the TS package and the
+  CI matrix, while preserving a truthful capability flag and real training.
+
+### DIFF-047 — Remote GSM8K download is not embedded in the TS package
+
+- **Area:** `rl.datasets`
+- **Upstream:** `GSM8KDataset` calls `datasets.load_dataset("openai/gsm8k")`
+  and downloads from HuggingFace at construction.
+- **TS:** the dataset loader reads local JSON/JSONL files only; without a local
+  `data_dir` it raises an explicit error naming the upstream source
+  (`openai/gsm8k`) with download instructions. Dataset shaping, `####` answer
+  splitting, SFT/RL formatting and chat-template injection are fully local and
+  deterministic.
+- **Status:** kept (approved)
+- **Reason:** the TS package does not carry a HuggingFace downloader; keeping the
+  download explicit avoids silent network access and makes fixtures
+  reproducible.

@@ -121,6 +121,11 @@
       "types": "./dist/evaluation/benchmarks/data-generation/index.d.ts",
       "import": "./dist/evaluation/benchmarks/data-generation/index.js",
       "default": "./dist/evaluation/benchmarks/data-generation/index.js"
+    },
+    "./rl": {
+      "types": "./dist/rl/index.d.ts",
+      "import": "./dist/rl/index.js",
+      "default": "./dist/rl/index.js"
     }
   },
   "types": "./dist/index.d.ts",

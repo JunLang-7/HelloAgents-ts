@@ -485,6 +485,27 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     status: 'kept',
     approved: true,
     reason: 'Makes the external-tool dependency explicit and verifiable'
+  },
+  {
+    id: 'DIFF-046',
+    area: 'rl/trainers + rl/utils (training backend)',
+    upstream: 'check_trl_installation imports trl in-process; wrappers call TRL directly',
+    ts: 'TrainingBackend adapter boundary real-probes the interpreter; PythonTrainingBackend spawnSync-bridges an embedded SFT/GRPO script; missing backend raises TrainingBackendUnavailableError with install guide and tool returns BACKEND_UNAVAILABLE, never a fake completion; TRL_AVAILABLE probed once at module load',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Keeps heavy Python/TRL deps out of the TS package and CI while preserving a truthful capability flag and real training'
+  },
+  {
+    id: 'DIFF-047',
+    area: 'rl/datasets (GSM8K source)',
+    upstream:
+      'GSM8KDataset calls datasets.load_dataset("openai/gsm8k") and downloads from HuggingFace',
+    ts: 'Local JSON/JSONL loading only; without data_dir raises an explicit error naming openai/gsm8k with download instructions; shaping, #### splitting, SFT/RL formatting and chat-template injection are deterministic local logic',
+    status: 'kept',
+    approved: true,
+    reason:
+      'No HuggingFace downloader in the TS package; explicit download avoids silent network access and keeps fixtures reproducible'
   }
 ];
 

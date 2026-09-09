@@ -37,9 +37,17 @@ if (typeof CoreLLM !== 'function' || typeof coreCreateConfig !== 'function') pro
 if (typeof MemoryManager !== 'function' || typeof MemoryWorkingMemory !== 'function' || typeof memoryManager.retrieveMemories !== 'function' || working.add.length !== 1) process.exit(5);
 if (typeof CalculatorTool !== 'function' || typeof ToolsToolRegistry !== 'function') process.exit(6);
 if (typeof UtilsLogger !== 'function') process.exit(7);
+// #75: protocol subpaths must resolve from a clean tarball (MCP/A2A/ANP).
+const protocols = await import('${packageName}/protocols');
+const mcpSub = await import('${packageName}/protocols/mcp');
+const a2aSub = await import('${packageName}/protocols/a2a');
+const anpSub = await import('${packageName}/protocols/anp');
+if (typeof protocols.MCPServer !== 'function' || typeof protocols.A2AServer !== 'function' || typeof protocols.ANPDiscovery !== 'function') process.exit(8);
+if (typeof mcpSub.createContext !== 'function' || typeof mcpSub.MCPClient !== 'function') process.exit(9);
+if (typeof a2aSub.A2AClient !== 'function' || typeof anpSub.registerService !== 'function') process.exit(10);
 let optionalRejected = false;
-try { await import('${packageName}/protocols'); } catch { optionalRejected = true; }
-if (!optionalRejected) process.exit(8);`;
+try { await import('${packageName}/evaluation'); } catch { optionalRejected = true; }
+if (!optionalRejected) process.exit(11);`;
 
 function run(command, arguments_, cwd) {
   return execFileSync(command, arguments_, {

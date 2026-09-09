@@ -46,6 +46,26 @@
       "import": "./dist/memory/types/index.js",
       "default": "./dist/memory/types/index.js"
     },
+    "./protocols": {
+      "types": "./dist/protocols/index.d.ts",
+      "import": "./dist/protocols/index.js",
+      "default": "./dist/protocols/index.js"
+    },
+    "./protocols/mcp": {
+      "types": "./dist/protocols/mcp/index.d.ts",
+      "import": "./dist/protocols/mcp/index.js",
+      "default": "./dist/protocols/mcp/index.js"
+    },
+    "./protocols/a2a": {
+      "types": "./dist/protocols/a2a/index.d.ts",
+      "import": "./dist/protocols/a2a/index.js",
+      "default": "./dist/protocols/a2a/index.js"
+    },
+    "./protocols/anp": {
+      "types": "./dist/protocols/anp/index.d.ts",
+      "import": "./dist/protocols/anp/index.js",
+      "default": "./dist/protocols/anp/index.js"
+    },
     "./agents": {
       "types": "./dist/agents/index.d.ts",
       "import": "./dist/agents/index.js",
@@ -98,7 +118,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "bun test",
-    "test:coverage": "bun test --coverage",
+    "test:coverage": "bun test --coverage --parallel",
     "build:js": "tsc -p tsconfig.emit.json",
     "build:types": "tsc -p tsconfig.build.json",
     "build": "bun run build:js && bun run build:types",

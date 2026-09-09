@@ -54,7 +54,9 @@ describe('learn-version utility helpers', () => {
   });
 
   test('getProjectRoot points at the package root', () => {
-    expect(getProjectRoot().endsWith('/HelloAgents-ts')).toBe(true);
+    // 语义断言（路径无关）：根目录应直接包含 package.json。
+    const root = getProjectRoot();
+    expect(readFileSync(join(root, 'package.json'), 'utf8')).toContain('"name"');
   });
 
   test('mergeDicts recursively merges plain objects without mutating inputs', () => {

@@ -16,15 +16,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.0
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run lint
       - run: bun run format:check
-      - run: bun run test:coverage
+      - run: timeout 240 bun run test:coverage --timeout 30000
+        env:
+          # Docker 真实后端测试在下方独立、串行的门禁中执行；覆盖率任务
+          # 使用并行 worker，避免与镜像拉取/固定端口争用。
+          HELLOAGENTS_DB_INTEGRATION: '0'
       - run: bun run fixture:gate
       - run: bun run release:gate
       - run: bun run build
+
+  database-integration:
+    name: Qdrant and Neo4j integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      # 固定端口（6333/7474/7687）的 Docker 用例必须串行运行；不计入
+      # coverage，避免慢速镜像拉取拖住质量门禁。
+      - run: timeout 840 bun test --parallel=1 --timeout 300000 tests/qdrant-store.test.ts tests/neo4j-store.test.ts tests/async-memory-backends.test.ts tests/rag-qdrant.integration.test.ts
 
   node-smoke:
     name: Node ${{ matrix.node }} package smoke test
@@ -37,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.0
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}

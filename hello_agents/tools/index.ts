@@ -63,3 +63,5 @@ export { MemoryTool } from './builtin/memory-tool.js';
 export type { MemoryToolOptions } from './builtin/memory-tool.js';
 export { RAGTool } from './builtin/rag-tool.js';
 export type { RagLlmLike, RagLlmMessage, RAGToolOptions } from './builtin/rag-tool.js';
+export { A2ATool, ANPTool, MCPTool, MCP_SERVER_ENV_MAP } from './builtin/protocol-tools.js';
+export { MCPWrappedTool } from './builtin/mcp-wrapper-tool.js';

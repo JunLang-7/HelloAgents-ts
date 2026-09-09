@@ -79,24 +79,27 @@ function parseMatrix(content: string): MatrixRow[] {
 
 /** Extract module basename tokens from a matrix "destination" cell.
  * Handles backtick paths, `;` separators, and `{a,b,c}` brace expansion. */
+/** 递归展开路径中的 `{a,b}` 片段（支持嵌套，如 `x/{a,b/{c,d}}.ts`）。 */
+function expandBraces(path: string): string[] {
+  const brace = path.match(/\{([^{}]*)\}/);
+  if (!brace) return [path];
+  const results: string[] = [];
+  for (const member of brace[1].split(',')) {
+    results.push(...expandBraces(path.replace(brace[0], member)));
+  }
+  return results;
+}
+
 function extractModuleTokens(destination: string): string[] {
   const tokens = new Set<string>();
   const backtickPaths = destination.match(/`[^`]*\.ts`/g) ?? [];
   for (const raw of backtickPaths) {
-    // Strip backticks and split on ; , whitespace.
-    for (const part of raw
-      .replaceAll('`', '')
-      .split(/[;,\s]+/)
-      .filter(Boolean)) {
-      // Expand {a,b} against the surrounding name (best-effort: also push
-      // each brace member on its own).
-      const brace = part.match(/\{([^}]+)\}/);
-      if (brace) {
-        for (const member of brace[1].split(',')) {
-          const expanded = part.replace(brace[0], member);
-          tokens.add(basename(expanded).replace(/\.ts$/, ''));
-        }
-      } else {
+    const cleaned = raw.replaceAll('`', '');
+    // Expand {a,b} BEFORE splitting on separators: the brace member list
+    // itself is comma-separated, so a naive split would break `{a,b}.ts`
+    // into unbalanced fragments. Nested braces are expanded recursively.
+    for (const expanded of expandBraces(cleaned)) {
+      for (const part of expanded.split(/[;,\s]+/).filter(Boolean)) {
         tokens.add(basename(part).replace(/\.ts$/, ''));
       }
     }

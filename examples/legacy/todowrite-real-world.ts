@@ -1,5 +1,5 @@
-import { TodoWriteTool } from '@junlang-7/helloagents';
-import { heading } from './_shared.js';
+import { TodoWriteTool } from '../../hello_agents/tools/builtin/todo-write-tool.js';
+import { heading } from '../_shared.js';
 
 heading('TodoWrite real-world workflow');
 const todos = await TodoWriteTool.create({

@@ -363,6 +363,27 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     approved: true,
     reason:
       'The async boundary follows the TS RAG pipeline (DIFF-024 family); the returned string contract is unchanged.'
+  },
+
+  {
+    id: 'DIFF-034',
+    area: 'package',
+    upstream:
+      'Root __init__ exports core + agents + tool system; subpackages have their own __init__ barrels',
+    ts: 'Root entry exports teaching symbols only; 1.x-only capabilities stay importable by file path; subpath exports declared for agents/context/core/memory/tools/utils',
+    status: 'kept',
+    approved: true,
+    reason:
+      '#81 acceptance 1/2/6 requires entrypoint separation without deleting 1.x code; subpath exports preserve upstream subpackage access.'
+  },
+  {
+    id: 'DIFF-035',
+    area: 'memory',
+    upstream: 'memory/__init__.py exports the teaching WorkingMemory only',
+    ts: 'Root entry exports the teaching memory WorkingMemory; the 1.x context/working-memory implementation is reachable only by file path',
+    status: 'kept',
+    approved: true,
+    reason: '#81 acceptance 3: a same-name API must not masquerade as the teaching implementation.'
   }
 ];
 

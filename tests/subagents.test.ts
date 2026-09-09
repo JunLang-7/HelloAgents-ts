@@ -2,24 +2,28 @@ import { describe, expect, test } from 'bun:test';
 import { z } from 'zod';
 
 import {
-  CustomFilter,
-  FullAccessFilter,
   FunctionTool,
   HelloAgentsLLM,
   MockAdapter,
-  IsolatedSubagent,
   PlanAndSolveAgent,
-  ReadOnlyFilter,
   ReActAgent,
   ReflectionAgent,
   SimpleAgent,
-  TaskTool,
   ToolErrorCode,
-  ToolRegistry,
+  ToolRegistry
+} from '../hello_agents/index.js';
+import {
+  CustomFilter,
+  FullAccessFilter,
+  ReadOnlyFilter
+} from '../hello_agents/tools/tool-filter.js';
+import { TaskTool } from '../hello_agents/tools/builtin/task-tool.js';
+import {
+  IsolatedSubagent,
   createAgent,
   createAgentFactory
-} from '../hello_agents/index.js';
-import type { SubagentRunner } from '../hello_agents/index.js';
+} from '../hello_agents/agents/factory.js';
+import type { SubagentRunner } from '../hello_agents/agents/factory.js';
 
 const config = { model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test' };
 

@@ -1,7 +1,12 @@
 /**
- * HelloAgents TypeScript 公共包入口。
+ * HelloAgents TypeScript 教学版公共包入口（#81 入口收敛）。
  *
- * 具体导出由对应的兼容性 Issue 维护。保留统一入口可以持续验证包契约。
+ * 根入口只导出教学符号：与上游 `hello_agents/__init__.py` 对应的核心/Agent/工具
+ * 符号，以及上游子包中的教学能力（memory / context / utils / tools 等）。
+ * 1.x 专属能力（Session 持久化、Skills、subagents、TodoWrite/DevLog、文件工具、
+ * SSE、provider 适配器等）不属于教学面，不在此导出；对应文件保留供内部引用与
+ * 回归测试。子路径入口：`@junlang-7/helloagents/{agents,context,core,memory,
+ * tools,utils}`。WorkingMemory 为教学版 `memory` 实现（1.x 同名实现不冒充）。
  */
 import pkg from '../package.json' with { type: 'json' };
 
@@ -19,18 +24,9 @@ export {
   ToolError,
   ToolException
 } from './core/errors.js';
-export { SkillError } from './core/errors.js';
 export { HelloAgentsLLM, SUPPORTED_PROVIDERS } from './core/llm.js';
 export type { HelloAgentsLLMOptions, LLMInvokeOptions, SupportedProvider } from './core/llm.js';
 export { MockAdapter } from './adapters/mock.js';
-export {
-  AnthropicAdapter,
-  GeminiAdapter,
-  OpenAIAdapter,
-  createAdapter
-} from './adapters/providers.js';
-export type { FetchLike } from './adapters/providers.js';
-export { llmMessageSchema, toolChoiceSchema } from './adapters/base.js';
 export type {
   AdapterCallOptions,
   AdapterConfig,
@@ -71,15 +67,6 @@ export {
   eventTypeSchema
 } from './core/lifecycle.js';
 export type { AgentEventJSON, EventType, LifecycleHook } from './core/lifecycle.js';
-export { StreamBuffer, streamToJsonLines, streamToSse } from './core/streaming.js';
-export { SessionData, parseSessionData, sessionDataSchema } from './core/session-data.js';
-export type { SessionDataJSON } from './core/session-data.js';
-export { SessionStore } from './core/session-store.js';
-export type {
-  SaveSessionOptions,
-  SessionStoreOptions,
-  SessionSummary
-} from './core/session-store.js';
 export { ToolErrorCode, getAllToolErrorCodes, isToolErrorCode } from './tools/errors.js';
 export type { ToolErrorCode as ToolErrorCodeValue } from './tools/errors.js';
 export { ToolResponse, ToolStatus, toolResponseSchema } from './tools/response.js';
@@ -148,8 +135,6 @@ export type {
 } from './tools/builtin/search-tool.js';
 export { NoteTool } from './tools/builtin/note-tool.js';
 export { TerminalTool } from './tools/builtin/terminal-tool.js';
-export { EditTool, GlobTool, GrepTool, ReadTool, WriteTool } from './tools/builtin/file-tools.js';
-export type { FileToolOptions } from './tools/builtin/file-tools.js';
 export { TokenCounter } from './context/token-counter.js';
 export type { TokenCounterOptions, TokenCounterStats } from './context/token-counter.js';
 export {
@@ -188,8 +173,8 @@ export type {
   TruncationReason,
   TruncationResult
 } from './context/truncator.js';
-export { WorkingMemory } from './context/working-memory.js';
-export type { WorkingMemoryItem, WorkingMemoryOptions } from './context/working-memory.js';
+export { WorkingMemory } from './memory/index.js';
+export type { WorkingMemoryOptions } from './memory/types/working.js';
 export { ContextBuilder, ContextConfig, ContextPacket, countTokens } from './context/builder.js';
 export type {
   MemoryToolLike,
@@ -248,46 +233,10 @@ export {
   withTraceFinalization
 } from './observability/trace-logger.js';
 export type { TraceEvent, TraceLoggerOptions, TraceStats } from './observability/trace-logger.js';
-export { SkillLoader } from './skills/loader.js';
-export type { Skill, SkillLoaderOptions, SkillMetadata, SkillResources } from './skills/loader.js';
-export { SkillTool } from './tools/builtin/skill-tool.js';
-export { CustomFilter, FullAccessFilter, ReadOnlyFilter } from './tools/tool-filter.js';
-export type { CustomFilterOptions, ToolFilter, ToolFilterMode } from './tools/tool-filter.js';
-export { TaskTool } from './tools/builtin/task-tool.js';
-export type { TaskToolOptions } from './tools/builtin/task-tool.js';
-export { TodoWriteTool } from './tools/builtin/todo-write-tool.js';
-export type {
-  TodoItem,
-  TodoStatus,
-  TodoWriteToolOptions
-} from './tools/builtin/todo-write-tool.js';
-export { DEV_LOG_CATEGORIES, DevLogTool } from './tools/builtin/dev-log-tool.js';
-export type {
-  DevLogCategory,
-  DevLogEntry,
-  DevLogToolOptions
-} from './tools/builtin/dev-log-tool.js';
 export { MemoryTool } from './tools/builtin/memory-tool.js';
 export type { MemoryToolOptions } from './tools/builtin/memory-tool.js';
 export { RAGTool } from './tools/builtin/rag-tool.js';
 export type { RagLlmLike, RagLlmMessage, RAGToolOptions } from './tools/builtin/rag-tool.js';
-export {
-  createAgent,
-  createAgentFactory,
-  defaultSubagentFactory,
-  IsolatedSubagent
-} from './agents/factory.js';
-export type {
-  AgentFactory,
-  AgentFactoryOptions,
-  AgentType,
-  CreatedAgent,
-  CreateAgentOptions,
-  SubagentMetadata,
-  SubagentResult,
-  SubagentRunOptions,
-  SubagentRunner
-} from './agents/factory.js';
 
 export const version = pkg.version;
 export {

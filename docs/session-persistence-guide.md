@@ -3,7 +3,9 @@
 Configure a `SessionStore` and pass it to the base `Agent` implementation:
 
 ```ts
-import { Message, SessionStore } from '@junlang-7/helloagents';
+// 1.x-only capability — not exported from the teaching entrypoint (#81).
+import { Message } from '../hello_agents/index.js';
+import { SessionStore } from '../hello_agents/core/session-store.js';
 
 const sessions = new SessionStore({ sessionDir: './memory/sessions' });
 const path = await sessions.save({

@@ -7,10 +7,10 @@ import {
   HistoryManager,
   ObservationTruncator,
   TokenCounter,
-  WorkingMemory,
   countTokens
 } from '../hello_agents/index.js';
 import type { MemoryToolLike, RagToolLike } from '../hello_agents/index.js';
+import { WorkingMemory } from '../hello_agents/context/working-memory.js';
 import { Message } from '../hello_agents/core/message.js';
 
 describe('TokenCounter', () => {

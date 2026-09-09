@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 
 const packageEntry = await import('../dist/index.js');
+const { streamToSse } = await import('../dist/core/streaming.js');
+const { SessionStore } = await import('../dist/core/session-store.js');
+const { OpenAIAdapter } = await import('../dist/adapters/providers.js');
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 assert.equal(packageEntry.version, pkg.version);
@@ -36,7 +39,7 @@ const llm = new packageEntry.HelloAgentsLLM({
   adapter
 });
 assert.equal(await llm.invoke([{ role: 'user', content: 'hello' }]), 'Node LLM');
-const openAiAdapter = new packageEntry.OpenAIAdapter(
+const openAiAdapter = new OpenAIAdapter(
   {
     model: 'test-model',
     apiKey: 'test-key',
@@ -90,12 +93,12 @@ async function* nodeEvents() {
   yield packageEntry.AgentEvent.create('llm_chunk', 'node-agent', { chunk: 'Node stream' });
 }
 const nodeSse = [];
-for await (const value of packageEntry.streamToSse(nodeEvents())) nodeSse.push(value);
+for await (const value of streamToSse(nodeEvents())) nodeSse.push(value);
 assert.equal(nodeSse[0]?.startsWith('event: llm_chunk'), true);
 const nodeSessionDirectory = await import('node:fs/promises').then(({ mkdtemp }) =>
   mkdtemp('/tmp/helloagents-node-session-')
 );
-const nodeStore = new packageEntry.SessionStore({ sessionDir: nodeSessionDirectory });
+const nodeStore = new SessionStore({ sessionDir: nodeSessionDirectory });
 const nodeSession = await nodeStore.save({
   agentConfig: {},
   history: [],

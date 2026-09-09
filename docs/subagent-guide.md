@@ -4,7 +4,9 @@
 filter. Build the default factory explicitly:
 
 ```ts
-import { TaskTool, createAgentFactory } from '@junlang-7/helloagents';
+// 1.x-only capability — not exported from the teaching entrypoint (#81).
+import { TaskTool } from '../hello_agents/tools/builtin/task-tool.js';
+import { createAgentFactory } from '../hello_agents/agents/factory.js';
 
 const task = new TaskTool({ agentFactory: createAgentFactory({ llm, toolRegistry: tools }) });
 const result = await task.execute({

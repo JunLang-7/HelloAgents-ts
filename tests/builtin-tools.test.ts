@@ -4,15 +4,14 @@ import { mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CalculatorTool, ToolErrorCode } from '../hello_agents/index.js';
 import {
-  CalculatorTool,
   EditTool,
   GlobTool,
   GrepTool,
   ReadTool,
-  ToolErrorCode,
   WriteTool
-} from '../hello_agents/index.js';
+} from '../hello_agents/tools/builtin/file-tools.js';
 
 describe('CalculatorTool', () => {
   test('matches Python V1 arithmetic/functions and rejects non-whitelisted syntax', async () => {

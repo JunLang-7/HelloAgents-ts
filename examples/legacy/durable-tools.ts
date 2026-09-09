@@ -1,4 +1,5 @@
-import { DevLogTool, TodoWriteTool } from '@junlang-7/helloagents';
+import { TodoWriteTool } from '../../hello_agents/tools/builtin/todo-write-tool.js';
+import { DevLogTool } from '../../hello_agents/tools/builtin/dev-log-tool.js';
 
 const todos = await TodoWriteTool.create({ projectRoot: process.cwd() });
 await todos.execute({

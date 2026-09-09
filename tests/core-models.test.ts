@@ -13,9 +13,9 @@ import {
   parseConfig,
   parseLLMResponse,
   parseLLMToolResponse,
-  parseSessionData,
   parseStreamStats
 } from '../hello_agents/index.js';
+import { parseSessionData } from '../hello_agents/core/session-data.js';
 
 test('parses the versioned Python V1 core wire fixture without field renaming', () => {
   const message = Message.fromJSON(fixture.message);

@@ -1,5 +1,6 @@
-import { AgentEvent, streamToJsonLines } from '@junlang-7/helloagents';
-import { heading } from './_shared.js';
+import { AgentEvent } from '../../hello_agents/index.js';
+import { streamToJsonLines } from '../../hello_agents/core/streaming.js';
+import { heading } from '../_shared.js';
 
 heading('SSE server payload');
 async function* events(): AsyncIterable<AgentEvent> {

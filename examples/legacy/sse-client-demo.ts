@@ -1,5 +1,6 @@
-import { streamToSse, AgentEvent } from '@junlang-7/helloagents';
-import { heading } from './_shared.js';
+import { AgentEvent } from '../../hello_agents/index.js';
+import { streamToSse } from '../../hello_agents/core/streaming.js';
+import { heading } from '../_shared.js';
 
 heading('SSE client');
 async function* events(): AsyncIterable<AgentEvent> {

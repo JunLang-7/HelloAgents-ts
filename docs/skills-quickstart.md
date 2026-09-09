@@ -4,7 +4,10 @@ Skills are directories containing a `SKILL.md` document. `SkillLoader` scans
 frontmatter first and loads the body only when requested:
 
 ```ts
-import { SkillLoader, SkillTool, ToolRegistry } from '@junlang-7/helloagents';
+// 1.x-only capability — not exported from the teaching entrypoint (#81).
+import { ToolRegistry } from '../hello_agents/index.js';
+import { SkillLoader } from '../hello_agents/skills/loader.js';
+import { SkillTool } from '../hello_agents/tools/builtin/skill-tool.js';
 
 const loader = await SkillLoader.create({ skillsDir: './skills' });
 console.log(loader.listSkills());

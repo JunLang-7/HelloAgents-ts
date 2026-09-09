@@ -3,7 +3,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DevLogTool, TodoWriteTool, ToolErrorCode, ToolRegistry } from '../hello_agents/index.js';
+import { ToolErrorCode, ToolRegistry } from '../hello_agents/index.js';
+import { DevLogTool } from '../hello_agents/tools/builtin/dev-log-tool.js';
+import { TodoWriteTool } from '../hello_agents/tools/builtin/todo-write-tool.js';
 
 describe('TodoWriteTool', () => {
   test('validates transitions, maintains a single in-progress item, persists atomically, and restores', async () => {

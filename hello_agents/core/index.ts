@@ -1,5 +1,6 @@
 export { Agent } from './agent.js';
-export { Config } from './config.js';
+export { Config, createConfig, createConfigFromEnv, parseConfig } from './config.js';
+export type { ConfigInput, ConfigValues, ResolvedConfig } from './config.js';
 export {
   AgentException,
   ConfigException,

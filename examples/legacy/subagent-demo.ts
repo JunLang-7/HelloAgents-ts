@@ -1,6 +1,8 @@
-import { createAgentFactory, TaskTool, ToolRegistry } from '@junlang-7/helloagents';
+import { ToolRegistry } from '../../hello_agents/index.js';
+import { TaskTool } from '../../hello_agents/tools/builtin/task-tool.js';
+import { createAgentFactory } from '../../hello_agents/agents/factory.js';
 import { z } from 'zod';
-import { heading, mockLlm } from './_shared.js';
+import { heading, mockLlm } from '../_shared.js';
 
 heading('subagent');
 const tools = new ToolRegistry().registerFunction({

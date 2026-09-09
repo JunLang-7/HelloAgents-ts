@@ -1,14 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import {
-  AgentEvent,
-  HelloAgentsLLM,
-  MockAdapter,
-  SimpleAgent,
-  StreamBuffer,
-  streamToJsonLines,
-  streamToSse
-} from '../hello_agents/index.js';
+import { AgentEvent, HelloAgentsLLM, MockAdapter, SimpleAgent } from '../hello_agents/index.js';
+import { StreamBuffer, streamToJsonLines, streamToSse } from '../hello_agents/core/streaming.js';
 
 const config = { model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test' };
 

@@ -72,6 +72,28 @@ const inputSchema = z
 
 type RagInput = z.output<typeof inputSchema>;
 
+/**
+ * 除 `action` 外的工具输入（上游 action 工具与 `run({action, ...})` 的公开输入；
+ * zod v4 output 带索引签名，`Omit` 不可靠，故显式声明）。
+ */
+export interface RagSearchInput {
+  file_path?: string | undefined;
+  text?: string | undefined;
+  question?: string | undefined;
+  query?: string | undefined;
+  document_id?: string | undefined;
+  namespace?: string | undefined;
+  chunk_size?: number | undefined;
+  chunk_overlap?: number | undefined;
+  limit?: number | undefined;
+  min_score?: number | undefined;
+  enable_advanced_search?: boolean | undefined;
+  include_citations?: boolean | undefined;
+  max_chars?: number | undefined;
+  confirm?: boolean | undefined;
+  [key: string]: unknown;
+}
+
 const PARAMETERS = [
   {
     name: 'action',
@@ -321,7 +343,7 @@ export class RAGTool extends Tool<typeof inputSchema> {
     return this.llmPromise;
   }
 
-  private targetNamespace(input: RagInput): string {
+  private targetNamespace(input: RagSearchInput): string {
     return namespaceValue(input.namespace, this.ragNamespace);
   }
 
@@ -340,7 +362,7 @@ export class RAGTool extends Tool<typeof inputSchema> {
     await indexChunks({ store, embedder, chunks, ragNamespace: namespace });
   }
 
-  private async addDocument(input: RagInput): Promise<ToolResponse> {
+  private async addDocument(input: RagSearchInput): Promise<ToolResponse> {
     const filePath = textValue(input.file_path);
     if (!filePath)
       return ToolResponse.error(ToolErrorCode.INVALID_PARAM, '❌ add_document 需要 file_path');
@@ -364,7 +386,7 @@ export class RAGTool extends Tool<typeof inputSchema> {
     );
   }
 
-  private async addText(input: RagInput): Promise<ToolResponse> {
+  private async addText(input: RagSearchInput): Promise<ToolResponse> {
     const text = textValue(input.text);
     if (!text.trim())
       return ToolResponse.error(ToolErrorCode.INVALID_PARAM, '❌ add_text 需要非空 text');
@@ -403,7 +425,7 @@ export class RAGTool extends Tool<typeof inputSchema> {
     }
   }
 
-  private async retrieve(input: RagInput): Promise<RagSearchItem[]> {
+  private async retrieve(input: RagSearchInput): Promise<RagSearchItem[]> {
     const query = textValue(input.query || input.question).trim();
     if (!query) return [];
     const namespace = this.targetNamespace(input);
@@ -423,7 +445,11 @@ export class RAGTool extends Tool<typeof inputSchema> {
       : await searchVectorsExpanded({ ...options, enableMqe: false, enableHyde: false });
   }
 
-  private async search(input: RagInput): Promise<ToolResponse> {
+  /**
+   * 搜索知识库（上游 `run({action: 'search', ...})` 的公开入口；
+   * #74 ContextBuilder 经此注入组合工具结果）。
+   */
+  public async search(input: RagSearchInput): Promise<ToolResponse> {
     const query = textValue(input.query || input.question).trim();
     if (!query) return ToolResponse.error(ToolErrorCode.INVALID_PARAM, '❌ search 需要 query');
     const results = await this.retrieve(input);
@@ -440,7 +466,7 @@ export class RAGTool extends Tool<typeof inputSchema> {
     });
   }
 
-  private async ask(input: RagInput): Promise<ToolResponse> {
+  private async ask(input: RagSearchInput): Promise<ToolResponse> {
     const question = textValue(input.question || input.query).trim();
     if (!question) return ToolResponse.error(ToolErrorCode.INVALID_PARAM, '❌ ask 需要 question');
     const results = await this.retrieve({ ...input, query: question });
@@ -481,7 +507,7 @@ export class RAGTool extends Tool<typeof inputSchema> {
     });
   }
 
-  private async stats(input: RagInput): Promise<ToolResponse> {
+  private async stats(input: RagSearchInput): Promise<ToolResponse> {
     const store = await this.getStore();
     if (!store.getCollectionStats) {
       return ToolResponse.error(ToolErrorCode.EXECUTION_ERROR, '❌ 当前向量存储不支持统计信息');
@@ -497,7 +523,7 @@ export class RAGTool extends Tool<typeof inputSchema> {
     );
   }
 
-  private async clear(input: RagInput): Promise<ToolResponse> {
+  private async clear(input: RagSearchInput): Promise<ToolResponse> {
     if (input.confirm !== true) {
       return ToolResponse.error(
         ToolErrorCode.INVALID_PARAM,

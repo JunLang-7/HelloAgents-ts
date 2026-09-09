@@ -385,6 +385,18 @@ describe('AIDataset', () => {
     expect(problems[1]?.answer).toBe('12');
   });
 
+  test('官方 AIME JSONL 可按 real 本地快照加载', () => {
+    const dataPath = writeFixture(
+      'aime25-test.jsonl',
+      '{"id":"0","problem":"Find 5+2.","answer":7}\n' +
+        '{"id":"1","problem":"Compute 3*4.","answer":12}\n'
+    );
+    const dataset = new AIDataset({ datasetType: 'real', dataPath });
+    const problems = dataset.load();
+    expect(problems).toHaveLength(2);
+    expect(problems.map((problem) => problem.answer)).toEqual(['7', '12']);
+  });
+
   test('real 数据集（AIME 下载）明确抛错并指引本地文件', () => {
     const dataset = new AIDataset({ datasetType: 'real', year: 2025 });
     expect(() => dataset.load()).toThrow(/huggingface_hub|本地文件/);

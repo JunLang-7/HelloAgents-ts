@@ -470,12 +470,14 @@ most four non-tied digits). Fixture cases MUST NOT construct values whose
 - **Upstream:** GAIA `loadFromRemote` uses `huggingface_hub.snapshot_download`
   (gated, needs HF_TOKEN); `AIDataset.loadRealData` downloads
   `math-ai/aime25`.
-- **TS:** no `huggingface_hub` equivalent is bundled. GAIA remote loading
-  returns an empty dataset with an explicit local-data-directory guide;
-  AIME real-data loading throws with a clear Python-download guide. This is
-  deliberately opt-in and never enters the default test network path.
-- **Status:** unsupported
-- **Reason:** portability; users download once via Python/local files.
+- **TS:** no `huggingface_hub` equivalent is bundled, so remote loading remains
+  unavailable. Downloaded AIME JSON/JSONL snapshots can be supplied through
+  `AIDataset.dataPath`; downloaded GAIA JSON and official `metadata.parquet`
+  snapshots can be supplied through `GAIADataset.localDataDir` and loaded with
+  `await loadAsync()`. This never enters the default test network path.
+- **Status:** partially supported
+- **Reason:** portability; users download once via Python/local files, then load
+  the snapshot without requiring a Python runtime.
 
 ### DIFF-043 — Evaluation tools inject the agent at construction
 

@@ -1,9 +1,9 @@
 /**
  * AIME 数据集加载模块（对齐上游 `evaluation/benchmarks/data_generation/dataset.py`）。
  *
- * 支持加载本地生成的题目数据（JSON）。上游的 HuggingFace AIME 真题下载
- * （`math-ai/aime25`，经 `snapshot_download`）在 TS 端不提供等价实现，
- * 返回明确报错，详见 DIFF-042。
+ * 支持加载本地题目数据（JSON / JSONL），包括下载后的 AIME 官方快照。上游的
+ * HuggingFace AIME 真题下载（`math-ai/aime25`，经 `snapshot_download`）在 TS
+ * 端不提供等价实现，详见 DIFF-042。
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -22,7 +22,7 @@ export interface AimeProblem {
 export interface AIDatasetOptions {
   /** 数据集类型：`generated`（生成的）或 `real`（真题）。 */
   datasetType?: 'generated' | 'real';
-  /** 本地数据路径（generated 类型必填）。 */
+  /** 本地数据路径（JSON 数组或 JSONL；generated 类型必填，real 类型可选）。 */
   dataPath?: string;
   /** AIME 年份（real 类型用；TS 端不支持远程下载）。 */
   year?: number;
@@ -48,6 +48,31 @@ function numberField(item: Record<string, unknown>, keys: string[]): number | nu
     if (typeof item[key] === 'number') return item[key];
   }
   return null;
+}
+
+/** 解析 JSON 数组或 JSONL；跳过空行与不合法行。 */
+function readLocalRows(filePath: string): Array<Record<string, unknown>> {
+  const content = readFileSync(filePath, 'utf8');
+  if (filePath.toLowerCase().endsWith('.jsonl')) {
+    const rows: Array<Record<string, unknown>> = [];
+    let skipped = 0;
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const value: unknown = JSON.parse(trimmed);
+        if (isRecord(value)) rows.push(value);
+        else skipped += 1;
+      } catch {
+        skipped += 1;
+      }
+    }
+    if (skipped > 0) console.log(`⚠️ 跳过了 ${skipped} 条无效 JSONL 记录`);
+    return rows;
+  }
+  const value: unknown = JSON.parse(content);
+  if (!Array.isArray(value)) throw new Error(`Expected a JSON array at: ${filePath}`);
+  return value.filter(isRecord);
 }
 
 export class AIDataset {
@@ -78,13 +103,10 @@ export class AIDataset {
       throw new Error(`Data file not found: ${this.dataPath}`);
     }
     console.log(`📥 加载生成数据: ${this.dataPath}`);
-    const data: unknown = JSON.parse(readFileSync(this.dataPath, 'utf8'));
-    if (!Array.isArray(data)) {
-      throw new Error(`Expected a JSON array at: ${this.dataPath}`);
-    }
+    const data = readLocalRows(this.dataPath);
     const problems: AimeProblem[] = [];
     data.forEach((raw, idx) => {
-      const item = isRecord(raw) ? raw : {};
+      const item = raw;
       problems.push({
         problem_id: typeof item.id === 'string' ? item.id : `gen_${idx}`,
         problem: stringField(item, ['problem', 'question']),
@@ -102,15 +124,16 @@ export class AIDataset {
   /**
    * 从 HuggingFace 加载 AIME 真题（上游 `snapshot_download`）。
    *
-   * TS 端不内置 `huggingface_hub` 等价实现：明确报错并给出指引（本地文件 /
-   * Python 环境），见 DIFF-042。
+   * 本地 AIME 快照可通过 `dataPath` 读取（支持官方 JSONL）。TS 端不内置
+   * `huggingface_hub` 等价实现，未提供本地文件时会给出下载指引，见 DIFF-042。
    */
   public loadRealData(): AimeProblem[] {
+    if (this.dataPath) return this.loadGeneratedData();
     if (!this.year) throw new Error('year is required for real dataset');
     throw new Error(
       `TS 端不支持从 HuggingFace 下载 AIME 真题（math-ai/aime25 需要 huggingface_hub 与 HF 凭据）。` +
         `请先通过 Python ` +
-        `\`huggingface_hub.snapshot_download\` 下载，再以 datasetType="generated" + dataPath 加载本地文件。`
+        `\`huggingface_hub.snapshot_download\` 下载，再以 dataPath 加载本地文件。`
     );
   }
 

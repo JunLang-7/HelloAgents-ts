@@ -155,6 +155,7 @@
     "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run build && bun run test:node && bun run test:package"
   },
   "dependencies": {
+    "hyparquet": "^1.30.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

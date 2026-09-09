@@ -167,7 +167,7 @@ export class GAIAEvaluator {
     console.log(`   难度级别: ${this.level ?? '全部'}`);
     console.log(`   匹配模式: ${this.strictMode ? '严格' : '宽松'}`);
 
-    const dataset = this.dataset.load();
+    const dataset = await this.dataset.loadAsync();
     if (dataset.length === 0) {
       console.log('   ⚠️ 数据集为空,跳过评估');
       return this.createEmptyResults(agent);

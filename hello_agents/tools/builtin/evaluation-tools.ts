@@ -377,7 +377,7 @@ export class GAIAEvaluationTool extends Tool<typeof gaiaInputSchema> {
       ...(level === undefined ? {} : { level }),
       ...(effectiveDataDir === undefined ? {} : { localDataDir: effectiveDataDir })
     });
-    const datasetItems = dataset.load();
+    const datasetItems = await dataset.loadAsync();
     if (datasetItems.length === 0) throw new Error('数据集加载失败或为空');
     const evaluator = new GAIAEvaluator({
       dataset,

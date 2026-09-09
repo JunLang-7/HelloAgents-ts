@@ -1,13 +1,14 @@
 /**
  * GAIA 数据集加载模块（对齐上游 `evaluation/benchmarks/gaia/dataset.py`）。
  *
- * 支持从本地数据目录加载 GAIA 数据。上游的 HuggingFace `snapshot_download`
- * 远程下载（gated dataset，需 HF_TOKEN 与访问权限）在 TS 端不提供等价
- * 实现：远程路径返回空数据并给出明确指引，详见 DIFF-042。
+ * 支持从本地数据目录加载 GAIA 数据，包括官方快照中的 `metadata.parquet`。
+ * 上游的 HuggingFace `snapshot_download` 远程下载（gated dataset，需 HF_TOKEN
+ * 与访问权限）在 TS 端不提供等价实现；远程路径会给出本地数据目录指引，详见
+ * DIFF-042。
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join, relative } from 'node:path';
 
 /** GAIA 标准化样本。 */
 export interface GaiaItem {
@@ -102,6 +103,38 @@ export function collectJsonFiles(
   return out;
 }
 
+/** 收集官方下载目录中的 GAIA metadata.parquet（每个 split 只取聚合元数据）。 */
+function collectGaiaParquetFiles(dir: string, split: string): string[] {
+  const files: string[] = [];
+  const visit = (current: string): void => {
+    let entries: string[];
+    try {
+      entries = readdirSync(current);
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const filePath = join(current, entry);
+      let stat;
+      try {
+        stat = statSync(filePath);
+      } catch {
+        continue;
+      }
+      if (stat.isDirectory()) visit(filePath);
+      else if (
+        stat.isFile() &&
+        basename(filePath) === 'metadata.parquet' &&
+        relative(dir, filePath).split('/').includes(split)
+      ) {
+        files.push(filePath);
+      }
+    }
+  };
+  visit(dir);
+  return files;
+}
+
 export class GAIADataset {
   public readonly datasetName: string;
   public readonly split: string;
@@ -118,9 +151,15 @@ export class GAIADataset {
     this.isLocal = Boolean(this.localDataDir && existsSync(this.localDataDir));
   }
 
-  /** 加载数据集（本地目录优先；远程路径明确报不可用）。 */
+  /**
+   * 同步加载 JSON 本地数据集（本地目录优先；远程路径明确报不可用）。
+   * 官方 Parquet 快照需要使用 `await loadAsync()`。
+   */
   public load(): GaiaItem[] {
     if (this.isLocal) {
+      if (collectGaiaParquetFiles(this.localDataDir!, this.split).length > 0) {
+        throw new Error('GAIA official Parquet snapshots require await dataset.loadAsync()');
+      }
       this.data = this.loadFromLocal();
     } else {
       this.data = this.loadFromRemote();
@@ -128,6 +167,24 @@ export class GAIADataset {
     if (this.level !== undefined) {
       this.data = this.data.filter((item) => item.level === this.level);
     }
+    console.log('✅ GAIA数据集加载完成');
+    console.log(`   数据源: ${this.datasetName}`);
+    console.log(`   分割: ${this.split}`);
+    console.log(`   级别: ${this.level ?? '全部'}`);
+    console.log(`   样本数: ${this.data.length}`);
+    return this.data;
+  }
+
+  /**
+   * 异步加载本地官方快照：JSON 文件保持同步路径，metadata.parquet 使用
+   * `hyparquet` 读取。GAIAEvaluator 与 GAIAEvaluationTool 会自动走此路径。
+   */
+  public async loadAsync(): Promise<GaiaItem[]> {
+    if (!this.isLocal) return this.load();
+    const parquetFiles = collectGaiaParquetFiles(this.localDataDir!, this.split);
+    this.data =
+      parquetFiles.length > 0 ? await this.loadFromParquet(parquetFiles) : this.loadFromLocal();
+    if (this.level !== undefined) this.data = this.data.filter((item) => item.level === this.level);
     console.log('✅ GAIA数据集加载完成');
     console.log(`   数据源: ${this.datasetName}`);
     console.log(`   分割: ${this.split}`);
@@ -163,16 +220,35 @@ export class GAIADataset {
     return data;
   }
 
+  /** 读取官方 `metadata.parquet`，不加载题目可能附带的大型二进制文件。 */
+  private async loadFromParquet(parquetFiles: string[]): Promise<GaiaItem[]> {
+    const { asyncBufferFromFile, parquetReadObjects } = await import('hyparquet');
+    const data: GaiaItem[] = [];
+    for (const parquetFile of parquetFiles) {
+      try {
+        const file = await asyncBufferFromFile(parquetFile);
+        const rows = await parquetReadObjects({ file });
+        for (const row of rows) {
+          if (isRecord(row)) data.push(standardizeGaiaItem(row));
+        }
+        console.log(`   加载 Parquet: ${basename(parquetFile)} (${rows.length} 样本)`);
+      } catch (error) {
+        console.log(`   ⚠️ 加载 Parquet 失败: ${basename(parquetFile)} - ${String(error)}`);
+      }
+    }
+    return data;
+  }
+
   /**
    * 远程加载（上游 HuggingFace gated 下载）。
    *
    * TS 端不内置 `huggingface_hub.snapshot_download` 等价实现：返回空数据并
-   * 给出明确指引（本地数据目录 / Python 环境），见 DIFF-042。
+   * 给出明确指引（本地 JSON 或官方 Parquet 快照 / Python 环境），见 DIFF-042。
    */
   public loadFromRemote(): GaiaItem[] {
     console.log(`   ⚠️ GAIA 是 HuggingFace gated 数据集（需 HF_TOKEN 与访问权限）`);
     console.log('   TS 端不支持远程 snapshot_download 下载；请提供本地数据目录：');
-    console.log('     new GAIADataset({ localDataDir: "path/to/gaia/json" })');
+    console.log('     new GAIADataset({ localDataDir: "path/to/gaia/snapshot" })');
     console.log('   或在 Python 环境中使用 huggingface_hub 下载后通过本地目录加载。');
     return [];
   }

@@ -134,18 +134,24 @@ export class StdioJsonRpcTransport implements MCPTransport {
   private readonly command: string;
   private readonly args: string[];
   private readonly env: NodeJS.ProcessEnv | undefined;
+  private readonly requestTimeoutMs: number;
   private child: ChildProcessWithoutNullStreams | undefined;
   private pending = new Map<number | string, (response: JsonRpcResponse) => void>();
   private nextId = 1;
   private closed = false;
 
-  public constructor(command: string[], env?: NodeJS.ProcessEnv) {
+  public constructor(
+    command: string[],
+    env?: NodeJS.ProcessEnv,
+    options: { requestTimeoutMs?: number } = {}
+  ) {
     if (command.length === 0) throw new Error('Stdio transport requires a command');
     const head = command[0];
     if (!head) throw new Error('Stdio transport requires a command');
     this.command = head;
     this.args = command.slice(1);
     this.env = env;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 15000;
   }
 
   public async connect(): Promise<void> {
@@ -196,11 +202,14 @@ export class StdioJsonRpcTransport implements MCPTransport {
       this.pending.clear();
     });
     // 握手：等待 initialize 完成（客户端协议版本协商）。
-    await this.request('initialize', {
+    const handshake = await this.request('initialize', {
       protocolVersion: '2025-03-26',
       capabilities: {},
       clientInfo: { name: 'helloagents-ts', version: '0.2.0' }
     });
+    if (handshake.error) {
+      throw new Error(`MCP initialize failed: ${handshake.error.message}`);
+    }
     // MCP 生命周期规范：初始化成功后必须发送 notifications/initialized。
     this.sendNotification('notifications/initialized');
   }
@@ -245,9 +254,22 @@ export class StdioJsonRpcTransport implements MCPTransport {
     const id = this.nextId++;
     const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
     return new Promise((resolve, reject) => {
-      this.pending.set(id, resolve);
+      // 兜底超时：子进程 error/exit 事件并非在所有平台/版本上都可靠触发
+      // （例如 bun 1.3.14 x64 Linux 对 ENOENT spawn 不派发 'error'），
+      // 无响应的请求绝不能无限挂起。
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(
+          new Error(`MCP stdio request '${method}' timed out after ${this.requestTimeoutMs}ms`)
+        );
+      }, this.requestTimeoutMs);
+      this.pending.set(id, (response) => {
+        clearTimeout(timer);
+        resolve(response);
+      });
       child.stdin.write(`${JSON.stringify(request)}\n`, (error) => {
         if (error) {
+          clearTimeout(timer);
           this.pending.delete(id);
           reject(error);
         }

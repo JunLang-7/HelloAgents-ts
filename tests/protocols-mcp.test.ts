@@ -156,10 +156,26 @@ describe('MCP stdio transport（真实子进程 + JSON-RPC 2.0，fixture 验证�
     await transport.close();
   });
 
-  test('stdio child process failure surfaces as a client error', async () => {
-    const client = new MCPClient([process.execPath, '/nonexistent/script-that-does-not-exist.mjs']);
-    await expect(client.listTools()).rejects.toThrow();
-    await client.close().catch(() => {});
+  test('stdio server errors surface as client errors', async () => {
+    // 用确定性错误响应（而非 spawn 失败/进程崩溃）覆盖客户端错误传播：
+    // bun 1.3.14 x64 Linux 对 spawn ENOENT 不派发 'error'、对快速退出
+    // 的子进程 'exit' 事件时序也不可靠；request 层 15s 兜底超时保证永不挂起。
+    const script = [
+      "const { createInterface } = require('node:readline');",
+      'const rl = createInterface({ input: process.stdin });',
+      "rl.on('line', (line) => {",
+      '  const req = JSON.parse(line);',
+      "  if (req.method === 'initialize') {",
+      "    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: { protocolVersion: '2025-03-26', capabilities: {}, serverInfo: { name: 'probe', version: '1' } } }) + '\\n');",
+      '  } else {',
+      "    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: req.id, error: { code: -32601, message: 'boom' } }) + '\\n');",
+      '  }',
+      '});',
+      "rl.on('close', () => process.exit(0));"
+    ].join('');
+    const client = new MCPClient([process.execPath, '-e', script]);
+    await expect(client.listTools()).rejects.toThrow(/MCP tools\/list failed: boom/);
+    await client.close();
   });
 
   test('client sends notifications/initialized after the handshake (MCP lifecycle)', async () => {
@@ -171,7 +187,7 @@ describe('MCP stdio transport（真实子进程 + JSON-RPC 2.0，fixture 验证�
       "rl.on('line', (line) => {",
       '  const req = JSON.parse(line);',
       '  if (req.id === undefined) {',
-      "    fs.appendFileSync(process.argv[1], req.method + '\\n');",
+      "    fs.appendFileSync(process.env.MCP_NOTIFY_FILE, req.method + '\\n');",
       "  } else if (req.method === 'initialize') {",
       "    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: { protocolVersion: '2025-03-26', capabilities: {}, serverInfo: { name: 'probe', version: '1' } } }) + '\\n');",
       '  } else {',
@@ -180,7 +196,9 @@ describe('MCP stdio transport（真实子进程 + JSON-RPC 2.0，fixture 验证�
       '});',
       "rl.on('close', () => process.exit(0));"
     ].join('');
-    const client = new MCPClient([process.execPath, '-e', script, notifyFile]);
+    const client = new MCPClient([process.execPath, '-e', script], [], {
+      env: { ...process.env, MCP_NOTIFY_FILE: notifyFile }
+    });
     await client.ping();
     // 通知写入异步完成，短暂等待后断言。
     await new Promise((resolve2) => setTimeout(resolve2, 150));

@@ -35,7 +35,12 @@ export function portOpen(port: number): Promise<boolean> {
 }
 
 export function runDocker(args: string[]): void {
-  execSync(`docker ${args.join(' ')}`, { stdio: 'ignore', timeout: 180_000 });
+  try {
+    execSync(`docker ${args.join(' ')}`, { stdio: 'ignore', timeout: 180_000 });
+  } catch {
+    // 并行测试可能已抢先启动同一端口服务（check-then-run 的 TOCTOU）：
+    // 吞掉启动失败，由调用方的 waitFor 复用已就绪的现有服务。
+  }
 }
 
 export async function waitFor(

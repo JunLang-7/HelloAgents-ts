@@ -5,7 +5,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CalculatorTool, ToolErrorCode } from '../hello_agents/index.js';
-import { EditTool, GlobTool, GrepTool, ReadTool, WriteTool } from '../hello_agents/tools/builtin/file-tools.js';
+import {
+  EditTool,
+  GlobTool,
+  GrepTool,
+  ReadTool,
+  WriteTool
+} from '../hello_agents/tools/builtin/file-tools.js';
 
 describe('CalculatorTool', () => {
   test('matches Python V1 arithmetic/functions and rejects non-whitelisted syntax', async () => {

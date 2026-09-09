@@ -368,7 +368,8 @@ export const COMPAT_DIFFS: CompatDiff[] = [
   {
     id: 'DIFF-034',
     area: 'package',
-    upstream: 'Root __init__ exports core + agents + tool system; subpackages have their own __init__ barrels',
+    upstream:
+      'Root __init__ exports core + agents + tool system; subpackages have their own __init__ barrels',
     ts: 'Root entry exports teaching symbols only; 1.x-only capabilities stay importable by file path; subpath exports declared for agents/context/core/memory/tools/utils',
     status: 'kept',
     approved: true,

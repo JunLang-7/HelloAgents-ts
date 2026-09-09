@@ -14,10 +14,7 @@ export type {
   SimpleAgentOptions
 } from './simple-agent.js';
 export { FunctionCallAgent } from './function-call-agent.js';
-export type {
-  FunctionCallAgentOptions,
-  FunctionCallRunOptions
-} from './function-call-agent.js';
+export type { FunctionCallAgentOptions, FunctionCallRunOptions } from './function-call-agent.js';
 export { ToolAwareSimpleAgent } from './tool-aware-agent.js';
 export type { ToolAwareSimpleAgentOptions, ToolCallInfo } from './tool-aware-agent.js';
 export {

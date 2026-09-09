@@ -45,9 +45,16 @@ const anpSub = await import('${packageName}/protocols/anp');
 if (typeof protocols.MCPServer !== 'function' || typeof protocols.A2AServer !== 'function' || typeof protocols.ANPDiscovery !== 'function') process.exit(8);
 if (typeof mcpSub.createContext !== 'function' || typeof mcpSub.MCPClient !== 'function') process.exit(9);
 if (typeof a2aSub.A2AClient !== 'function' || typeof anpSub.registerService !== 'function') process.exit(10);
+// #76: evaluation subpaths must resolve from a clean tarball.
+const evaluation = await import('${packageName}/evaluation');
+const bfclSub = await import('${packageName}/evaluation/benchmarks/bfcl');
+const gaiaSub = await import('${packageName}/evaluation/benchmarks/gaia');
+const dgSub = await import('${packageName}/evaluation/benchmarks/data-generation');
+if (typeof evaluation.BFCLEvaluator !== 'function' || typeof evaluation.GAIAEvaluator !== 'function') process.exit(11);
+if (typeof bfclSub.BFCLDataset !== 'function' || typeof gaiaSub.GAIADataset !== 'function' || typeof dgSub.WinRateEvaluator !== 'function') process.exit(12);
 let optionalRejected = false;
-try { await import('${packageName}/evaluation'); } catch { optionalRejected = true; }
-if (!optionalRejected) process.exit(11);`;
+try { await import('${packageName}/rl'); } catch { optionalRejected = true; }
+if (!optionalRejected) process.exit(13);`;
 
 function run(command, arguments_, cwd) {
   return execFileSync(command, arguments_, {

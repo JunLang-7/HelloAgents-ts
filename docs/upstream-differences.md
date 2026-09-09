@@ -436,3 +436,76 @@ most four non-tied digits). Fixture cases MUST NOT construct values whose
     memory types) and by `tests/storage-integration.test.ts` (real Qdrant
     1.19.1 / Neo4j 5.14 over Docker, opt-in). Fixture-level vector coverage
     remains deferred; see the matrix's "Real-service integration" note.
+
+## Evaluation module (#76)
+
+### DIFF-040 — BFCLDataset upstream constructor bug is fixed
+
+- **Area:** `evaluation.benchmarks.bfcl.BFCLDataset`
+- **Upstream:** `BFCLEvaluator.__init__` forwards `local_data_dir` to
+  `BFCLDataset`, whose constructor has no such parameter — instantiating the
+  evaluator raises `TypeError` immediately.
+- **TS:** `BFCLDataset` accepts `dataDir` (and no dead `local_data_dir`);
+  `BFCLEvaluator` never forwards unknown options. The documented contract
+  (data directory + category) works.
+- **Status:** fixed
+- **Reason:** upstream bug; TS follows the documented constructor contract.
+
+### DIFF-041 — AST matching uses normalized structure instead of `ast.dump`
+
+- **Area:** `evaluation.benchmarks.bfcl.metrics`
+- **Upstream:** Python `ast.parse` / `ast.dump` compare full call-expression
+  AST dumps (including quoting and numeric literal text).
+- **TS:** `parseCallExpression` / `normalizeLiteral` normalize each call into
+  `{name, args: [[key, value]]}` with Python-compatible literal coercion
+  (quoted strings, ints, floats, booleans, null), then compare JSON equality;
+  non-parseable candidates decay to Jaccard `stringSimilarity`.
+- **Status:** kept (approved)
+- **Reason:** no Python `ast` in the TS runtime; the normalized structure is
+  the comparable semantic equivalent.
+
+### DIFF-042 — Remote datasets are not downloaded
+
+- **Area:** `evaluation.benchmarks.gaia` / `data_generation`
+- **Upstream:** GAIA `loadFromRemote` uses `huggingface_hub.snapshot_download`
+  (gated, needs HF_TOKEN); `AIDataset.loadRealData` downloads
+  `math-ai/aime25`.
+- **TS:** no `huggingface_hub` equivalent is bundled. GAIA remote loading
+  returns an empty dataset with an explicit local-data-directory guide;
+  AIME real-data loading throws with a clear Python-download guide. This is
+  deliberately opt-in and never enters the default test network path.
+- **Status:** unsupported
+- **Reason:** portability; users download once via Python/local files.
+
+### DIFF-043 — Evaluation tools inject the agent at construction
+
+- **Area:** `tools.builtin.{bfcl_evaluation,gaia_evaluation,llm_judge,win_rate}_tool`
+- **Upstream:** tools receive the Python `agent` object as a direct `run(agent=...)`
+  positional argument.
+- **TS:** the agent (and LLM for judge/win-rate tools) is injected via tool
+  options at construction; tool input carries only serializable parameters
+  (category/max_samples/paths/…). This keeps Zod JSON input schemas
+  serializable and tools callable through `ToolRegistry`.
+- **Status:** kept (approved)
+- **Reason:** zod schemas cannot serialize live agent/LLM instances.
+
+### DIFF-044 — WinRate sampling supports injected RNG
+
+- **Area:** `evaluation.benchmarks.data_generation.win_rate`
+- **Upstream:** `random.sample` / `random.choice` with an unseeded global
+  `random`; runs are not reproducible.
+- **TS:** `WinRateEvaluator` / `WinRateTool` accept an injectable `rng`
+  (default `Math.random`); a fixed `rng` makes sampling reproducible.
+- **Status:** kept (approved)
+- **Reason:** reproducibility is required for tests and auditable evaluations.
+
+### DIFF-045 — BFCL CLI version gate is explicit
+
+- **Area:** `evaluation.benchmarks.bfcl.integration`
+- **Upstream:** the official-eval step assumes `bfcl` is installed.
+- **TS:** `BFCLIntegration` parses `bfcl --version`, gates on
+  `>= 0.4.0` (`semverGte`), and reports a clear install guide when the CLI is
+  missing or too old; `HELLOAGENTS_BFCL_BIN` overrides the binary for
+  verification. The gate runs real commands — never mocked.
+- **Status:** kept (approved)
+- **Reason:** makes the external-tool dependency explicit and verifiable.

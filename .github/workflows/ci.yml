@@ -22,6 +22,10 @@ jobs:
       - run: bun run lint
       - run: bun run format:check
       - run: timeout 240 bun run test:coverage --timeout 30000
+        env:
+          # CI runner 自带 Docker：真实 Qdrant/Neo4j 服务集成测试
+          # 依赖拉取镜像且并发下不稳定，统一在本地/专门环境执行。
+          HELLOAGENTS_DB_INTEGRATION: '0'
       - run: bun run fixture:gate
       - run: bun run release:gate
       - run: bun run build

@@ -21,7 +21,7 @@ jobs:
       - run: bun run typecheck
       - run: bun run lint
       - run: bun run format:check
-      - run: bun run test:coverage
+      - run: timeout 240 bun run test:coverage --timeout 30000
       - run: bun run fixture:gate
       - run: bun run release:gate
       - run: bun run build

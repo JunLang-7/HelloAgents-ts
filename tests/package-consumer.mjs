@@ -10,7 +10,13 @@ const temporaryDirectory = mkdtempSync(join(tmpdir(), 'helloagents-package-'));
 const packageJson = JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8'));
 const packageName = packageJson.name;
 const expectedVersion = packageJson.version;
-const importCheck = `import { AgentEvent, DevLogTool, FunctionTool, HelloAgentsLLM, Message, MockAdapter, ReActAgent, SessionStore, SimpleAgent, TodoWriteTool, TokenCounter, ToolRegistry, createConfig, create_research_chain, metadata, run_batch_tool, run_parallel_tools, search_hybrid, search_serpapi, search_tavily, streamToJsonLines, version } from '${packageName}';
+const importCheck = `import { AgentEvent, FunctionTool, HelloAgentsLLM, Message, MockAdapter, ReActAgent, SimpleAgent, TokenCounter, ToolRegistry, WorkingMemory, createConfig, create_research_chain, metadata, run_batch_tool, run_parallel_tools, search_hybrid, search_serpapi, search_tavily, version } from '${packageName}';
+import { SimpleAgent as AgentsSimpleAgent, ReActAgent as AgentsReActAgent } from '${packageName}/agents';
+import { ContextBuilder, ContextConfig, ContextPacket, TokenCounter as ContextTokenCounter, countTokens } from '${packageName}/context';
+import { HelloAgentsLLM as CoreLLM, createConfig as coreCreateConfig } from '${packageName}/core';
+import { MemoryManager, WorkingMemory as MemoryWorkingMemory } from '${packageName}/memory';
+import { CalculatorTool, ToolRegistry as ToolsToolRegistry } from '${packageName}/tools';
+import { Logger as UtilsLogger } from '${packageName}/utils';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { z } from 'zod';
 const message = Message.fromJSON({ role: 'user', content: 'consumer', timestamp: '2026-08-12T12:34:56.123456', metadata: {} });
@@ -21,10 +27,19 @@ const counter = new TokenCounter({ tokenize: (text) => [...text].length });
 const agent = new SimpleAgent({ name: 'consumer-agent', llm });
 const react = new ReActAgent({ name: 'consumer-react', llm: new HelloAgentsLLM({ model: 'test-model', apiKey: 'test-key', baseUrl: 'https://provider.test', adapter: new MockAdapter({ invoke: () => ({ content: 'Action: Finish[consumer ReAct]', model: 'test-model', usage: {}, latency_ms: 0 }) }) }) });
 async function* events() { yield AgentEvent.create('llm_chunk', 'consumer-agent', { chunk: 'consumer stream' }); }
-const jsonLines = []; for await (const line of streamToJsonLines(events())) jsonLines.push(line);
-const sessionDirectory = await mkdtemp('/tmp/helloagents-consumer-'); const store = new SessionStore({ sessionDir: sessionDirectory }); const session = await store.save({ agentConfig: {}, history: [], toolSchemaHash: 'consumer', readCache: {}, metadata: {} }); const sessionOk = (await store.load(session)).sessionId.length > 0; await rm(sessionDirectory, { recursive: true, force: true });
-const durableDirectory = await mkdtemp('/tmp/helloagents-consumer-durable-'); const todo = await TodoWriteTool.create({ projectRoot: durableDirectory }); const todoOk = (await todo.execute({ todos: [{ content: 'consumer durable todo', status: 'in_progress' }] })).status === 'success' && (await TodoWriteTool.create({ projectRoot: durableDirectory })).todos.length === 1; const log = await DevLogTool.create({ sessionId: 'consumer', agentName: 'consumer', projectRoot: durableDirectory }); const logOk = (await log.execute({ action: 'append', category: 'test', content: 'consumer durable log' })).status === 'success' && (await DevLogTool.create({ sessionId: 'consumer', agentName: 'consumer', projectRoot: durableDirectory })).logEntries.length === 1; await rm(durableDirectory, { recursive: true, force: true });
-if (version !== '${expectedVersion}' || metadata.name !== '${packageName}' || createConfig().contextWindow !== 128000 || create_research_chain().name !== 'research_and_calculate' || typeof run_parallel_tools !== 'function' || typeof run_batch_tool !== 'function' || typeof search_tavily !== 'function' || typeof search_serpapi !== 'function' || typeof search_hybrid !== 'function' || message.toJSON().timestamp !== '2026-08-12T12:34:56.123456' || (await llm.invoke([{ role: 'user', content: 'hello' }])) !== 'consumer LLM' || (await registry.execute('echo', { input: 'consumer tool' })).toJSON().data.output !== 'consumer tool' || counter.count('consumer 🌍') !== 10 || (await agent.run('consumer agent')) !== 'consumer LLM' || (await react.run('consumer ReAct')) !== 'consumer ReAct' || jsonLines.length !== 1 || !sessionOk || !todoOk || !logOk) process.exit(1);`;
+const working = new WorkingMemory();
+const memoryManager = new MemoryManager({ enablePerceptual: false });
+memoryManager.addMemory('consumer memory');
+if (version !== '${expectedVersion}' || metadata.name !== '${packageName}' || createConfig().contextWindow !== 128000 || create_research_chain().name !== 'research_and_calculate' || typeof run_parallel_tools !== 'function' || typeof run_batch_tool !== 'function' || typeof search_tavily !== 'function' || typeof search_serpapi !== 'function' || typeof search_hybrid !== 'function' || message.toJSON().timestamp !== '2026-08-12T12:34:56.123456' || (await llm.invoke([{ role: 'user', content: 'hello' }])) !== 'consumer LLM' || (await registry.execute('echo', { input: 'consumer tool' })).toJSON().data.output !== 'consumer tool' || counter.count('consumer 🌍') !== 10 || (await agent.run('consumer agent')) !== 'consumer LLM' || (await react.run('consumer ReAct')) !== 'consumer ReAct') process.exit(1);
+if (typeof AgentsSimpleAgent !== 'function' || typeof AgentsReActAgent !== 'function') process.exit(2);
+if (typeof ContextBuilder !== 'function' || typeof ContextConfig !== 'function' || typeof ContextPacket !== 'function' || typeof ContextTokenCounter !== 'function' || typeof countTokens !== 'function') process.exit(3);
+if (typeof CoreLLM !== 'function' || typeof coreCreateConfig !== 'function') process.exit(4);
+if (typeof MemoryManager !== 'function' || typeof MemoryWorkingMemory !== 'function' || typeof memoryManager.retrieveMemories !== 'function' || working.add.length !== 1) process.exit(5);
+if (typeof CalculatorTool !== 'function' || typeof ToolsToolRegistry !== 'function') process.exit(6);
+if (typeof UtilsLogger !== 'function') process.exit(7);
+let optionalRejected = false;
+try { await import('${packageName}/protocols'); } catch { optionalRejected = true; }
+if (!optionalRejected) process.exit(8);`;
 
 function run(command, arguments_, cwd) {
   return execFileSync(command, arguments_, {
@@ -51,7 +66,19 @@ try {
     'package.json',
     'dist/index.js',
     'dist/index.d.ts',
-    'dist/index.js.map'
+    'dist/index.js.map',
+    'dist/agents/index.js',
+    'dist/agents/index.d.ts',
+    'dist/context/index.js',
+    'dist/context/index.d.ts',
+    'dist/core/index.js',
+    'dist/core/index.d.ts',
+    'dist/memory/index.js',
+    'dist/memory/index.d.ts',
+    'dist/tools/index.js',
+    'dist/tools/index.d.ts',
+    'dist/utils/index.js',
+    'dist/utils/index.d.ts'
   ]) {
     assert.equal(packedPaths.has(requiredPath), true, `package must include ${requiredPath}`);
   }

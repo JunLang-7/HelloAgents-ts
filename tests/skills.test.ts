@@ -3,13 +3,10 @@ import { access, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import {
-  SkillError,
-  SkillLoader,
-  SkillTool,
-  ToolErrorCode,
-  ToolRegistry
-} from '../hello_agents/index.js';
+import { ToolErrorCode, ToolRegistry } from '../hello_agents/index.js';
+import { SkillError } from '../hello_agents/core/errors.js';
+import { SkillLoader } from '../hello_agents/skills/loader.js';
+import { SkillTool } from '../hello_agents/tools/builtin/skill-tool.js';
 
 async function writeSkill(
   root: string,

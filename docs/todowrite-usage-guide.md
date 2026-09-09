@@ -3,7 +3,8 @@
 Create a durable todo tool and update the list through its structured actions:
 
 ```ts
-import { TodoWriteTool } from '@junlang-7/helloagents';
+// 1.x-only capability — not exported from the teaching entrypoint (#81).
+import { TodoWriteTool } from '../hello_agents/tools/builtin/todo-write-tool.js';
 
 const todos = await TodoWriteTool.create({ projectRoot: process.cwd() });
 await todos.execute({

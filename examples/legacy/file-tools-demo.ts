@@ -1,8 +1,9 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GlobTool, ReadTool, ToolRegistry, WriteTool } from '@junlang-7/helloagents';
-import { heading } from './_shared.js';
+import { ToolRegistry } from '../../hello_agents/index.js';
+import { GlobTool, ReadTool, WriteTool } from '../../hello_agents/tools/builtin/file-tools.js';
+import { heading } from '../_shared.js';
 
 heading('workspace file tools');
 const root = await mkdtemp(join(tmpdir(), 'helloagents-example-'));

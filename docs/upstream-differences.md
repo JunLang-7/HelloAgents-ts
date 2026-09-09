@@ -281,6 +281,37 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Status:** kept (approved)
 - **Reason:** The async boundary follows the TS RAG pipeline (DIFF-024 family); the returned string contract is unchanged.
 
+### DIFF-034 — teaching entrypoint convergence & subpath exports
+
+- **Area:** `package` (root entry + subpath exports)
+- **Upstream:** `hello_agents/__init__.py` exports the core symbols, six agents
+  and the tool system; every subpackage has its own `__init__.py` barrel and
+  there is no separate 1.x surface.
+- **TS:** the root entry now exports only teaching symbols (upstream-aligned).
+  1.x-only capabilities (Session persistence, Skills, subagents, TodoWrite/
+  DevLog, file tools, SSE/streaming, provider adapters, tool filters) are no
+  longer re-exported from the root; their modules remain importable by file
+  path for the retained regression tests. Subpath exports are declared for
+  `@junlang-7/helloagents/{agents,context,core,memory,tools,utils}` and each
+  maps to its teaching barrel in `dist/`.
+- **Status:** kept (approved)
+- **Reason:** #81 acceptance ①/②/⑥ requires entrypoint separation without
+  deleting the 1.x code; subpath exports preserve the upstream subpackage
+  access model and deep-import compatibility.
+
+### DIFF-035 — WorkingMemory same-name resolution
+
+- **Area:** `memory` / `context`
+- **Upstream:** `memory/__init__.py` exports the teaching WorkingMemory
+  (`memory/types/working.py`); no same-name symbol exists elsewhere.
+- **TS:** the root entry previously exported a 1.x `context/working-memory.ts`
+  under the same name. It now exports the teaching `memory` implementation
+  (also from the `memory` subpath); the 1.x implementation remains reachable
+  only via `hello_agents/context/working-memory.js`.
+- **Status:** kept (approved)
+- **Reason:** #81 acceptance ③ — a same-name API must not masquerade as the
+  teaching implementation.
+
 ## Known upstream dead-parameter semantics (verified, not differences)
 
 These parameters are **declared and passed but never consumed** on both sides;

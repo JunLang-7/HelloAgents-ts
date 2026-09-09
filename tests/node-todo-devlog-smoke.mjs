@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DevLogTool, TodoWriteTool } from '../dist/index.js';
+import { TodoWriteTool } from '../dist/tools/builtin/todo-write-tool.js';
+import { DevLogTool } from '../dist/tools/builtin/dev-log-tool.js';
 
 const root = await mkdtemp(join(tmpdir(), 'helloagents-node-todo-devlog-'));
 try {

@@ -1,7 +1,8 @@
-import { Message, SessionStore } from '@junlang-7/helloagents';
+import { Message } from '../../hello_agents/index.js';
+import { SessionStore } from '../../hello_agents/core/session-store.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { heading } from './_shared.js';
+import { heading } from '../_shared.js';
 
 heading('session persistence');
 const directory = join('/tmp', 'helloagents-session-example');

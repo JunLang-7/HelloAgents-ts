@@ -1,5 +1,7 @@
-import { SkillLoader, SkillTool, ToolRegistry } from '@junlang-7/helloagents';
-import { heading } from './_shared.js';
+import { ToolRegistry } from '../../hello_agents/index.js';
+import { SkillLoader } from '../../hello_agents/skills/loader.js';
+import { SkillTool } from '../../hello_agents/tools/builtin/skill-tool.js';
+import { heading } from '../_shared.js';
 
 heading('skills');
 const loader = await SkillLoader.create({ skillsDir: './skills' });

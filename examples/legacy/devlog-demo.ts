@@ -1,5 +1,5 @@
-import { DevLogTool } from '@junlang-7/helloagents';
-import { heading } from './_shared.js';
+import { DevLogTool } from '../../hello_agents/tools/builtin/dev-log-tool.js';
+import { heading } from '../_shared.js';
 
 heading('development log');
 const log = await DevLogTool.create({

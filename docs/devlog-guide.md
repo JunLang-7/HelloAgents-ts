@@ -4,7 +4,9 @@
 stable session and agent identity:
 
 ```ts
-import { DevLogTool } from '@junlang-7/helloagents';
+// 1.x-only capability — not exported from the teaching entrypoint (#81);
+// reference the source file directly inside the repository.
+import { DevLogTool } from '../hello_agents/tools/builtin/dev-log-tool.js';
 
 const log = await DevLogTool.create({
   sessionId: 'release-1',

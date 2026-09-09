@@ -112,11 +112,12 @@ describe('#81 teaching entrypoint boundary', () => {
       './evaluation/benchmarks',
       './evaluation/benchmarks/bfcl',
       './evaluation/benchmarks/gaia',
-      './evaluation/benchmarks/data-generation'
+      './evaluation/benchmarks/data-generation',
+      './rl'
     ]) {
       expect(declared).toContain(sub);
     }
-    for (const optional of ['./rl', './adapters', './skills']) {
+    for (const optional of ['./adapters', './skills']) {
       expect(declared).not.toContain(optional);
     }
     // The root export object must map to dist paths (types + import + default).

@@ -77,3 +77,12 @@ export type {
   LLMJudgeToolOptions,
   WinRateToolOptions
 } from './builtin/evaluation-tools.js';
+export { RLTrainingTool } from './builtin/rl-training-tool.js';
+export type { RLTrainingToolOptions } from './builtin/rl-training-tool.js';
+export {
+  trainWithSft,
+  trainWithGrpo,
+  loadDataset,
+  createRewardFunction,
+  evaluateModel
+} from './builtin/rl-training-tool.js';

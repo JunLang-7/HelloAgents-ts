@@ -202,6 +202,19 @@ describe('BFCL dataset 与 evaluator（本地 fixture）', () => {
     expect(first.result).toContain('get_current_weather');
   });
 
+  test('多调用匹配必须一对一，重复预测不能替代缺失调用', () => {
+    const evaluator = new BFCLEvaluator();
+    const predicted = [
+      { name: 'weather', arguments: { city: '北京' } },
+      { name: 'weather', arguments: { city: '北京' } }
+    ];
+    const v4Expected = [{ weather: { city: ['北京'] } }, { calendar: { date: ['今天'] } }];
+    const stringExpected = ['weather(city="北京")', 'calendar(date="今天")'];
+
+    expect(evaluator.evaluateBfclV4Format(predicted, v4Expected)).toEqual([false, 0.5]);
+    expect(evaluator.evaluateStringFormat(predicted, stringExpected)).toEqual([false, 0.5]);
+  });
+
   test('空数据集返回空汇总而非抛错', async () => {
     const emptyDir = join(fixtureRoot, 'bfcl-empty');
     mkdirSync(join(emptyDir, 'possible_answer'), { recursive: true });
@@ -312,6 +325,16 @@ describe('GAIA dataset 与 evaluator（本地 fixture + 远程 opt-in）', () =>
     // 非法 level 回退 1（对齐上游默认）
     const bad = standardizeGaiaItem({ task_id: 'x', Level: 'abc' });
     expect(bad.level).toBe(1);
+  });
+
+  test('snake_case 元数据和工具列表不会被空的 Title Case 回退覆盖', () => {
+    const item = standardizeGaiaItem({
+      task_id: 'snake',
+      annotator_metadata: { source: 'local' },
+      tools: ['python', 'browser']
+    });
+    expect(item.annotator_metadata).toEqual({ source: 'local' });
+    expect(item.tools).toEqual(['python', 'browser']);
   });
 
   test('本地 fixture 评估命中精确匹配并导出官方格式', async () => {
@@ -501,8 +524,26 @@ describe('Evaluation 工具（ToolRegistry 可调用）', () => {
     });
     const registry = new ToolRegistry();
     registry.register(tool);
-    const response = await registry.execute('bfcl_evaluation', { category: 'simple_python' });
+    const response = await registry.execute('bfcl_evaluation', {
+      category: 'simple_python',
+      run_official_eval: false
+    });
+    expect(response.status).toBe('success');
     expect(response.text).toContain('总体准确率');
+  });
+
+  test('BFCLEvaluationTool：官方 CLI 不可用时返回 partial 而非 success', async () => {
+    const tool = new BFCLEvaluationTool({
+      agent: fakeAgent,
+      bfclDataDir: makeBfclDataDir(),
+      projectRoot: fixtureRoot,
+      bin: 'definitely-missing-bfcl-binary'
+    });
+    const registry = new ToolRegistry();
+    registry.register(tool);
+    const response = await registry.execute('bfcl_evaluation', { category: 'simple_python' });
+    expect(response.status).toBe('partial');
+    expect(response.text).toContain('官方评估未执行');
   });
 
   test('GAIAEvaluationTool 可从注册表调用', async () => {

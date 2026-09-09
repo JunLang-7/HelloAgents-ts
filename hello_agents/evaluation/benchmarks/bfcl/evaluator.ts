@@ -318,16 +318,19 @@ export class BFCLEvaluator {
   ): [boolean, number] {
     if (predicted.length !== expected.length) return [false, 0.0];
     let matches = 0;
+    const matchedExpected = new Set<number>();
     for (const predCall of predicted) {
       if (!isRecord(predCall) || typeof predCall.name !== 'string') continue;
       const predFuncName = predCall.name;
       const predArgs = isRecord(predCall.arguments) ? predCall.arguments : {};
-      for (const expCall of expected) {
+      for (const [index, expCall] of expected.entries()) {
+        if (matchedExpected.has(index)) continue;
         if (!isRecord(expCall)) continue;
         for (const [expFuncName, expParams] of Object.entries(expCall)) {
           if (expFuncName !== predFuncName) continue;
           if (this.compareParameters(predArgs, isRecord(expParams) ? expParams : {})) {
             matches += 1;
+            matchedExpected.add(index);
             break;
           }
         }
@@ -384,10 +387,13 @@ export class BFCLEvaluator {
     }
     if (predictedStrs.length !== expected.length) return [false, 0.0];
     let matches = 0;
+    const matchedExpected = new Set<number>();
     for (const predStr of predictedStrs) {
-      for (const expStr of expected) {
+      for (const [index, expStr] of expected.entries()) {
+        if (matchedExpected.has(index)) continue;
         if (astStringsMatch(predStr, expStr)) {
           matches += 1;
+          matchedExpected.add(index);
           break;
         }
       }

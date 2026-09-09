@@ -150,22 +150,37 @@ export class BFCLEvaluationTool extends Tool<typeof bfclInputSchema> {
     const outputFile = join(outputDir, `BFCL_v4_${input.category}_result.json`);
     evaluator.exportToBfclFormat(results, outputFile);
 
+    let officialEvaluation: { success: boolean; message: string } | undefined;
     if (input.run_official_eval) {
       const modelName = input.model_name ?? 'Qwen/Qwen3-8B';
-      this.runOfficialEvaluation(outputFile, modelName, input.category);
+      officialEvaluation = this.runOfficialEvaluation(outputFile, modelName, input.category);
     }
 
     results.agent_name = this.agent.name ?? 'Unknown';
     results.category = input.category;
     const report = this.generateReport(results as never);
+    const data = {
+      ...(results as unknown as Record<string, unknown>),
+      ...(officialEvaluation === undefined ? {} : { official_evaluation: officialEvaluation })
+    };
+    if (officialEvaluation && !officialEvaluation.success) {
+      return ToolResponse.partial(
+        `${report}\n\n⚠️ BFCL 本地评估已完成，但官方评估未执行：${officialEvaluation.message}`,
+        data
+      );
+    }
     return ToolResponse.fromObject({
       status: 'success',
       text: report,
-      data: results as unknown as Record<string, unknown>
+      data
     });
   }
 
-  private runOfficialEvaluation(sourceFile: string, modelName: string, category: string): void {
+  private runOfficialEvaluation(
+    sourceFile: string,
+    modelName: string,
+    category: string
+  ): { success: boolean; message: string } {
     console.log('\n' + '='.repeat(60));
     console.log('步骤3: 运行BFCL官方评估');
     console.log('='.repeat(60));
@@ -176,11 +191,11 @@ export class BFCLEvaluationTool extends Tool<typeof bfclInputSchema> {
     if (!integration.isInstalled()) {
       console.log('\n❌ 未找到bfcl命令');
       console.log('   请先安装: pip install bfcl-eval');
-      return;
+      return { success: false, message: '未找到 bfcl 命令；请先安装 pip install bfcl-eval' };
     }
     if (!integration.isVersionSupported()) {
       console.log(`\n❌ bfcl 版本过低（要求 >= ${'0.4.0'}）`);
-      return;
+      return { success: false, message: 'bfcl 版本不受支持（要求 >= 0.4.0）' };
     }
     const safeModelName = modelName.replace('/', '_');
     const resultDir = join(this.projectRoot, 'result', safeModelName);
@@ -190,11 +205,15 @@ export class BFCLEvaluationTool extends Tool<typeof bfclInputSchema> {
       copyFileSync(sourceFile, targetFile);
     } catch (error) {
       console.log(`\n❌ 复制结果文件失败: ${String(error)}`);
-      return;
+      return { success: false, message: `复制官方评估结果文件失败：${String(error)}` };
     }
     console.log(`\n✅ 结果文件已复制到:`);
     console.log(`   ${targetFile}`);
-    integration.runEvaluation(modelName, category, targetFile);
+    const success = integration.runEvaluation(modelName, category, targetFile);
+    return {
+      success,
+      message: success ? 'BFCL 官方评估已完成' : 'BFCL 官方评估命令执行失败'
+    };
   }
 
   /** 生成评估报告（对齐上游 `generate_report`）。 */

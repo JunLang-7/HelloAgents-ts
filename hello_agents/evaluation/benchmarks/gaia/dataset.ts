@@ -60,15 +60,15 @@ export function standardizeGaiaItem(item: Record<string, unknown>): GaiaItem {
       (typeof item.final_answer === 'string' ? item.final_answer : ''),
     file_name: typeof item.file_name === 'string' ? item.file_name : '',
     file_path: typeof item.file_path === 'string' ? item.file_path : '',
-    annotator_metadata:
-      (isRecord(item['Annotator Metadata']) ? item['Annotator Metadata'] : {}) ??
-      (isRecord(item.annotator_metadata) ? item.annotator_metadata : {}),
+    annotator_metadata: isRecord(item['Annotator Metadata'])
+      ? item['Annotator Metadata']
+      : isRecord(item.annotator_metadata)
+        ? item.annotator_metadata
+        : {},
     steps:
       (typeof item.Steps === 'number' ? item.Steps : undefined) ??
       (typeof item.steps === 'number' ? item.steps : 0),
-    tools:
-      (Array.isArray(item.Tools) ? item.Tools : []) ??
-      (Array.isArray(item.tools) ? item.tools : []),
+    tools: Array.isArray(item.Tools) ? item.Tools : Array.isArray(item.tools) ? item.tools : [],
     raw_item: item
   };
 }

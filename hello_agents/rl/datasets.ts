@@ -97,8 +97,12 @@ function toGsm8kRaw(item: Record<string, unknown>): Gsm8kRawItem {
   };
 }
 
-/** 读取本地 GSM8K 数据（JSON 数组或逐行 JSONL）。 */
-export function loadGsm8kLocal(dataDir: string): Gsm8kRawItem[] {
+/** 读取本地 GSM8K 数据（JSON 数组或逐行 JSONL）。
+ *
+ * 当提供 `split` 时只读取匹配该 split 的文件（如 `gsm8k_train.json` /
+ * `gsm8k_train.jsonl` 或 `train.json` / `train.jsonl`），避免 train/test 混用。
+ */
+export function loadGsm8kLocal(dataDir: string, split?: string): Gsm8kRawItem[] {
   const items: Gsm8kRawItem[] = [];
   let entries: string[];
   try {
@@ -108,9 +112,22 @@ export function loadGsm8kLocal(dataDir: string): Gsm8kRawItem[] {
   }
   const jsonFiles = entries
     .filter((name) => name.endsWith('.json') || name.endsWith('.jsonl'))
+    .filter((name) => {
+      if (!split) return true;
+      return (
+        name.endsWith(`_${split}.json`) ||
+        name.endsWith(`_${split}.jsonl`) ||
+        name === `${split}.json` ||
+        name === `${split}.jsonl`
+      );
+    })
     .sort();
   if (jsonFiles.length === 0) {
-    throw new Error(`本地数据目录中没有 JSON/JSONL 文件: ${dataDir}`);
+    throw new Error(
+      split === undefined
+        ? `本地数据目录中没有 JSON/JSONL 文件: ${dataDir}`
+        : `本地数据目录中没有匹配 split='${split}' 的 JSON/JSONL 文件（如 gsm8k_${split}.json）: ${dataDir}`
+    );
   }
   for (const name of jsonFiles) {
     const full = join(dataDir, name);
@@ -175,7 +192,7 @@ export class GSM8KDataset {
           '\n数据可从 https://huggingface.co/datasets/openai/gsm8k 下载（JSONL 行含 question/answer 字段）。'
       );
     }
-    let items = loadGsm8kLocal(this.dataDir);
+    let items = loadGsm8kLocal(this.dataDir, this.split);
     if (this.max_samples !== undefined && this.max_samples > 0) {
       items = items.slice(0, Math.min(this.max_samples, items.length));
     }

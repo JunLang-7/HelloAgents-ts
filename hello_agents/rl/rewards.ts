@@ -120,7 +120,8 @@ export function createStepReward(baseRewardFn: RewardFunction, stepBonus = 0.1):
     const finalRewards: number[] = [];
     for (let i = 0; i < baseRewards.length; i += 1) {
       const base = baseRewards[i] ?? 0;
-      const numSteps = completions[i]?.split('\n').length ?? 1;
+      // 对齐上游 count('\n')：无换行不奖励
+      const numSteps = (completions[i]?.match(/\n/g) ?? []).length;
       const stepReward = Math.min(stepBonus * numSteps, 0.5);
       finalRewards.push(base + stepReward);
     }

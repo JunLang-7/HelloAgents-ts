@@ -74,6 +74,13 @@ beforeAll(() => {
     'gsm8k_train.json',
     JSON.stringify([...GSM8K_RAW, { question: 'Bad one', answer: 42 }])
   );
+  writeFixture(
+    'gsm8k_test.json',
+    JSON.stringify([
+      { question: 'Test Q1', answer: 'T.\n#### 42' },
+      { question: 'Test Q2', answer: 'U.\n#### 99' }
+    ])
+  );
 });
 
 afterAll(() => {
@@ -139,7 +146,8 @@ describe('MathRewardFunction（确定性对照）', () => {
     const fn = createStepReward(base, 0.1);
     const completions = ['Final Answer: 2', 'a\nb\nc\nd\ne\nf\ng\nh\nFinal Answer: 2'];
     const rewards = fn(completions, { ground_truth: ['2', '2'] });
-    expect(rewards[0]).toBe(1.1);
+    // 对齐上游 count('\n')：无换行不奖励
+    expect(rewards[0]).toBe(1);
     expect(rewards[1]).toBe(1.5);
   });
 
@@ -188,6 +196,20 @@ describe('RL datasets（确定性对照）', () => {
     );
     expect(rl.prompt).toContain('<|im_start|>user');
     expect(rl.prompt).toContain('Question: Q?');
+  });
+
+  test('GSM8KDataset 按 split 过滤文件（train 不混入 test）', () => {
+    const train = new GSM8KDataset({ dataDir: fixtureRoot, split: 'train', format_type: 'sft' });
+    const trainItems = train.getDataset();
+    expect(trainItems.length).toBe(4); // GSM8K_RAW 3 条 + 数字 answer 的坏行（answer 置空仍入列）
+    const test = new GSM8KDataset({ dataDir: fixtureRoot, split: 'test', format_type: 'sft' });
+    const testItems = test.getDataset();
+    expect(testItems.length).toBe(2);
+    expect((testItems[0] as { prompt: string }).prompt).toContain('Test Q1');
+    // 无匹配 split 报错并提示命名
+    expect(() =>
+      new GSM8KDataset({ dataDir: fixtureRoot, split: 'valid', format_type: 'sft' }).getDataset()
+    ).toThrow(/valid/);
   });
 
   test('GSM8KDataset 本地 JSON 加载并应用 max_samples', () => {
@@ -387,9 +409,9 @@ describe('RLTrainingTool（ToolRegistry 可调用）', () => {
     });
     const res = await tool.execute({ action: 'evaluate', model_name: 'mock', max_samples: 3 });
     expect(res.status).toBe('success');
-    // 3 题中仅 1 题真实答案=2
-    expect(res.data?.num_samples).toBe(3);
-    expect(String(res.data?.accuracy)).toBe('33.33%');
+    // 评估使用 test 集（42/99），注入答案均为 2 → 0 命中，不泄漏训练集
+    expect(res.data?.num_samples).toBe(2);
+    expect(String(res.data?.accuracy)).toBe('0.00%');
   });
 
   test('train 经 mock backend 成功（adapter 边界）', async () => {
@@ -434,6 +456,72 @@ describe('RLTrainingTool（ToolRegistry 可调用）', () => {
     expect(res.status).toBe('success');
   });
 
+  test('registerDataset 后可通过工具按名使用（自定义数据集生效）', async () => {
+    const tool = new RLTrainingTool({ dataDir: fixtureRoot });
+    // 注册已格式化样本（对齐上游 HuggingFace Dataset 语义：训练直接用）
+    tool.registerDataset('my-math', [
+      { prompt: 'Custom Q', ground_truth: '7', question: 'Custom Q', full_answer: 'C.\n#### 7' }
+    ]);
+    const res = await tool.execute({ action: 'load_dataset', dataset: 'my-math', format: 'rl' });
+    expect(res.status).toBe('success');
+    expect(res.data?.dataset_size).toBe(1);
+    expect(res.data?.sample_keys).toContain('ground_truth');
+    // 未注册的名字仍明确报错
+    const missing = await tool.execute({ action: 'load_dataset', dataset: 'nope', format: 'sft' });
+    expect(missing.status).toBe('error');
+    expect(String(missing.text)).toContain('不支持的数据集');
+  });
+
+  test('registerRewardFunction 生效：evaluate 使用注册函数，GRPO train 诚实报错', async () => {
+    const tool = new RLTrainingTool({
+      dataDir: fixtureRoot,
+      generateCompletions: (prompts: string[]) => prompts.map(() => 'Final Answer: 42')
+    });
+    // 注册固定 0.5 的函数：若被真正使用，accuracy=50%（默认 accuracy 会不同）
+    tool.registerRewardFunction('strict-42', (completions) => completions.map(() => 0.5));
+    const evalRes = await tool.execute({
+      action: 'evaluate',
+      model_name: 'mock',
+      reward_function: 'strict-42',
+      max_samples: 2
+    });
+    expect(evalRes.status).toBe('success');
+    expect(String(evalRes.data?.accuracy)).toBe('50.00%');
+    // create_reward 可引用注册名
+    const createRes = await tool.execute({ action: 'create_reward', reward_type: 'strict-42' });
+    expect(createRes.status).toBe('success');
+    expect(createRes.data?.registered).toBe(true);
+    // GRPO train 用自定义奖励 → 明确跨进程边界报错（不静默忽略）
+    const backend = new MockTrainingBackend({
+      status: 'success',
+      algorithm: 'grpo',
+      model: 'm',
+      output_dir: './output',
+      num_epochs: 1,
+      dataset_size: 2,
+      backend: 'mock'
+    });
+    const trainTool = new RLTrainingTool({ backend, dataDir: fixtureRoot });
+    trainTool.registerRewardFunction('strict-42', (completions) => completions.map(() => 1));
+    const trainRes = await trainTool.execute({
+      action: 'train',
+      algorithm: 'grpo',
+      reward_type: 'strict-42',
+      max_samples: 2
+    });
+    expect(trainRes.status).toBe('error');
+    expect(trainRes.errorInfo?.code).toBe('CUSTOM_REWARD_BACKEND_BOUNDARY');
+    // 未注册的 reward_type 也明确报错（不静默回退 accuracy）
+    const unknownRes = await trainTool.execute({
+      action: 'train',
+      algorithm: 'grpo',
+      reward_type: 'no-such-reward',
+      max_samples: 2
+    });
+    expect(unknownRes.status).toBe('error');
+    expect(unknownRes.errorInfo?.code).toBe('UNKNOWN_REWARD_FUNCTION');
+  });
+
   test('便捷函数 trainWithSft / trainWithGrpo / evaluateModel', async () => {
     const sftRes = await trainWithSft({ dataDir: fixtureRoot, maxSamples: 2, numEpochs: 1 });
     // 默认 backend 为 Python 桥接：本机无 trl → BACKEND_UNAVAILABLE 指引
@@ -444,9 +532,11 @@ describe('RLTrainingTool（ToolRegistry 可调用）', () => {
     const evalRes = await evaluateModel({
       dataDir: fixtureRoot,
       maxSamples: 2,
-      generateCompletions: (prompts) => prompts.map(() => 'Final Answer: 6')
+      generateCompletions: (prompts) => prompts.map(() => 'Final Answer: 42')
     });
     expect(evalRes.status).toBe('success');
+    // test 集 2 条，注入答案 42 命中 1 条
     expect(evalRes.data?.num_samples).toBe(2);
+    expect(String(evalRes.data?.accuracy)).toBe('50.00%');
   });
 });

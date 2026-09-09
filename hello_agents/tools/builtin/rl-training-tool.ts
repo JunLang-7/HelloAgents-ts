@@ -36,7 +36,8 @@ const rlInputSchema = z
     dataset: z.string().default('gsm8k'),
     format: z.enum(['sft', 'rl']).default('sft'),
     split: z.string().default('train'),
-    reward_type: z.enum(['accuracy', 'length_penalty', 'step']).default('accuracy'),
+    reward_type: z.string().default('accuracy'),
+    reward_function: z.string().optional(),
     max_samples: z.number().int().nonnegative().optional(),
     num_epochs: z.number().int().positive().default(3),
     output_dir: z.string().default('./output'),
@@ -138,11 +139,13 @@ export class RLTrainingTool extends Tool<typeof rlInputSchema> {
   }
 
   private loadDatasetForTraining(input: RlInput, format: 'sft' | 'rl'): unknown[] {
-    if (input.dataset !== 'gsm8k') {
-      throw new Error(`不支持的数据集: ${input.dataset}。支持的数据集: gsm8k`);
-    }
     if (this.customDatasets[input.dataset]) {
       return this.customDatasets[input.dataset]!;
+    }
+    if (input.dataset !== 'gsm8k') {
+      throw new Error(
+        `不支持的数据集: ${input.dataset}。支持: gsm8k 或已注册的自定义数据集（registerDataset）。`
+      );
     }
     const dataDir = input.data_dir ?? this.dataDir;
     if (!dataDir) {
@@ -180,10 +183,32 @@ export class RLTrainingTool extends Tool<typeof rlInputSchema> {
       });
       result = wrapper.train();
     } else {
+      if (this.customRewardFunctions[input.reward_type]) {
+        return ToolResponse.fromObject({
+          status: 'error',
+          text:
+            `自定义奖励函数 '${input.reward_type}' 无法跨 Python 训练后端执行。` +
+            '真实 GRPO 训练仅支持内置 reward_type: accuracy / length_penalty / step；' +
+            '自定义奖励函数可配合 evaluate 的 reward_function 参数使用。',
+          data: {},
+          error: {
+            code: 'CUSTOM_REWARD_BACKEND_BOUNDARY',
+            message: '自定义奖励函数无法跨 Python 训练后端执行'
+          }
+        });
+      }
+      if (!['accuracy', 'length_penalty', 'step'].includes(input.reward_type)) {
+        return ToolResponse.fromObject({
+          status: 'error',
+          text: `未注册的自定义奖励函数: ${input.reward_type}（先调用 registerRewardFunction）`,
+          data: {},
+          error: { code: 'UNKNOWN_REWARD_FUNCTION', message: `未注册: ${input.reward_type}` }
+        });
+      }
       const wrapper = new GRPOTrainerWrapper({
         config,
         dataset: rlData as Gsm8kExample[],
-        rewardType: input.reward_type,
+        rewardType: input.reward_type as 'accuracy' | 'length_penalty' | 'step',
         backend: this.backend
       });
       result = wrapper.train();
@@ -220,6 +245,14 @@ export class RLTrainingTool extends Tool<typeof rlInputSchema> {
   }
 
   private handleCreateReward(input: RlInput): ToolResponse {
+    const custom = this.customRewardFunctions[input.reward_type];
+    if (custom) {
+      return ToolResponse.fromObject({
+        status: 'success',
+        text: `自定义奖励函数（已注册）: ${input.reward_type}（可用于 evaluate 的 reward_function 参数）`,
+        data: { reward_type: input.reward_type, registered: true, source: 'customRewardFunctions' }
+      });
+    }
     const base = createAccuracyReward();
     switch (input.reward_type) {
       case 'accuracy':
@@ -243,6 +276,13 @@ export class RLTrainingTool extends Tool<typeof rlInputSchema> {
           status: 'success',
           text: '步骤奖励函数: 基础奖励 + 0.1 * 步骤数',
           data: { reward_type: 'step', step_bonus: 0.1 }
+        });
+      default:
+        return ToolResponse.fromObject({
+          status: 'error',
+          text: `未注册的自定义奖励函数: ${input.reward_type}（先调用 registerRewardFunction）`,
+          data: {},
+          error: { code: 'UNKNOWN_REWARD_FUNCTION', message: `未注册: ${input.reward_type}` }
         });
     }
   }
@@ -268,7 +308,19 @@ export class RLTrainingTool extends Tool<typeof rlInputSchema> {
     const prompts = examples.map((e) => e.prompt);
     const groundTruths = examples.map((e) => e.ground_truth);
     const completions = await this.generateCompletionsImpl(prompts);
-    const rewardFn: RewardFunction = createAccuracyReward();
+    let rewardFn: RewardFunction = createAccuracyReward();
+    if (input.reward_function !== undefined) {
+      const custom = this.customRewardFunctions[input.reward_function];
+      if (!custom) {
+        return ToolResponse.fromObject({
+          status: 'error',
+          text: `未注册的自定义奖励函数: ${input.reward_function}（先调用 registerRewardFunction）`,
+          data: {},
+          error: { code: 'UNKNOWN_REWARD_FUNCTION', message: `未注册: ${input.reward_function}` }
+        });
+      }
+      rewardFn = custom;
+    }
     const metrics = evaluateRewards(completions, groundTruths, rewardFn);
     const accuracy = metrics.mean_reward;
     return ToolResponse.fromObject({

@@ -1,13 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 
+import { HelloAgentsLLM, LLMError } from '../hello_agents/index.js';
 import {
   AnthropicAdapter,
   GeminiAdapter,
-  HelloAgentsLLM,
-  LLMError,
   OpenAIAdapter,
   createAdapter
-} from '../hello_agents/index.js';
+} from '../hello_agents/adapters/providers.js';
 import type { FetchLike } from '../hello_agents/adapters/providers.js';
 
 const config = {

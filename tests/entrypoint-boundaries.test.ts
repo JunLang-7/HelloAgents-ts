@@ -124,6 +124,12 @@ describe('#81 teaching entrypoint boundary', () => {
     expect(typeof memory.WorkingMemory).toBe('function');
     expect(typeof tools.ToolRegistry).toBe('function');
     expect(typeof utils.Logger).toBe('function');
+    const rag = await import('../hello_agents/memory/rag/index.js');
+    const storage = await import('../hello_agents/memory/storage/index.js');
+    const types = await import('../hello_agents/memory/types/index.js');
+    expect(typeof rag.createRagPipeline).toBe('function');
+    expect(typeof storage.DocumentStore).toBe('function');
+    expect(typeof types.WorkingMemory).toBe('function');
   });
 
   test('teaching subpath barrels stay usable end-to-end (context + memory + tools)', async () => {

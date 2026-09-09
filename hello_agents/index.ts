@@ -190,12 +190,8 @@ export type {
 } from './context/truncator.js';
 export { WorkingMemory } from './context/working-memory.js';
 export type { WorkingMemoryItem, WorkingMemoryOptions } from './context/working-memory.js';
-export { ContextBuilder } from './context/builder.js';
-export type {
-  BuildContextOptions,
-  ContextBuilderOptions,
-  ContextPacket
-} from './context/builder.js';
+export { ContextBuilder, ContextConfig, ContextPacket, countTokens } from './context/builder.js';
+export type { MemoryToolLike, RagToolLike } from './context/builder.js';
 export { SimpleAgent } from './agents/simple-agent.js';
 export type {
   AgentInvocationOptions,

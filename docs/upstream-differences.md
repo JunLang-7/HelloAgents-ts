@@ -265,6 +265,22 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Status:** kept (approved)
 - **Reason:** Hardening only; all in-range integer values behave exactly as upstream.
 
+### DIFF-030 — tiktoken → character-estimate token counting
+
+- **Area:** `context`
+- **Upstream:** `count_tokens` uses `tiktoken` (`cl100k_base`); only on exception falls back to `len(text) // 4`.
+- **TS:** No built-in cl100k_base tokenizer; `countTokens` uses the character estimate (`1 token ≈ 4 chars`) unconditionally, matching the upstream fallback semantics. Callers can inject an exact tokenizer via `TokenCounter` where precision matters.
+- **Status:** kept (approved)
+- **Reason:** Deterministic and dependency-free; the estimate branch is upstream's own degraded contract.
+
+### DIFF-031 — async build (RAG retrieval is asynchronous)
+
+- **Area:** `context`
+- **Upstream:** `ContextBuilder.build`/`_gather` are synchronous; both tools' `run` are sync in Python.
+- **TS:** `RAGTool` retrieval is asynchronous, so `build`/`_gather` return `Promise<string>`/`Promise<ContextPacket[]>`. `MemoryTool.searchMemory` stays sync (matches upstream text semantics).
+- **Status:** kept (approved)
+- **Reason:** The async boundary follows the TS RAG pipeline (DIFF-024 family); the returned string contract is unchanged.
+
 ## Known upstream dead-parameter semantics (verified, not differences)
 
 These parameters are **declared and passed but never consumed** on both sides;

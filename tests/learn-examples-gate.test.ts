@@ -21,8 +21,12 @@ const MAPPINGS: ReadonlyArray<readonly [upstream: string, ts: readonly string[]]
 describe('learn examples traceability (#78)', () => {
   it('every upstream example has a tracked TypeScript counterpart', () => {
     for (const [upstream, tsFiles] of MAPPINGS) {
-      const upstreamPath = resolve(UPSTREAM_EXAMPLES, upstream);
-      expect(existsSync(upstreamPath), `上游示例缺失: ${upstream}`).toBe(true);
+      // .upstream-ref 是本地浅克隆（gitignored），CI 上不存在；存在时才校验上游文件。
+      if (existsSync(UPSTREAM_EXAMPLES)) {
+        expect(existsSync(resolve(UPSTREAM_EXAMPLES, upstream)), `上游示例缺失: ${upstream}`).toBe(
+          true
+        );
+      }
       for (const ts of tsFiles) {
         expect(existsSync(resolve(ROOT, ts)), `TS 对应缺失: ${ts} (← ${upstream})`).toBe(true);
       }

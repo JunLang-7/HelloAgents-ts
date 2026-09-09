@@ -2,7 +2,7 @@
  * MCP 模块桶（对齐上游 `protocols/mcp/__init__.py`）。
  *
  * 上游 `MCPServer` 依赖 fastmcp、`MCPClient` 依赖 mcp 库（缺失时占位抛
- * ImportError）。TS 教学端（DIFF-037）内置两种参考实现（内存/stdio），
+ * ImportError）。TS 教学端（DIFF-036）内置两种参考实现（内存/stdio），
  * 因此不设占位；`MCP_SERVER_AVAILABLE`/`MCP_CLIENT_AVAILABLE` 恒为 true。
  */
 import { MCPServer, MCPServerBuilder, createExampleServer } from './server.js';

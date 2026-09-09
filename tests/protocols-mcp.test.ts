@@ -2,7 +2,9 @@
  * #75 协议模块测试：MCP（utils / server / client memory + stdio / 工具封装）。
  */
 import { describe, expect, test } from 'bun:test';
-import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { readFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -158,6 +160,34 @@ describe('MCP stdio transport（真实子进程 + JSON-RPC 2.0，fixture 验证�
     const client = new MCPClient([process.execPath, '/nonexistent/script-that-does-not-exist.mjs']);
     await expect(client.listTools()).rejects.toThrow();
     await client.close().catch(() => {});
+  });
+
+  test('client sends notifications/initialized after the handshake (MCP lifecycle)', async () => {
+    const notifyFile = join(tmpdir(), `mcp-initialized-${process.pid}-${Date.now()}.log`);
+    const script = [
+      "const { createInterface } = require('node:readline');",
+      "const fs = require('node:fs');",
+      'const rl = createInterface({ input: process.stdin });',
+      "rl.on('line', (line) => {",
+      '  const req = JSON.parse(line);',
+      '  if (req.id === undefined) {',
+      "    fs.appendFileSync(process.argv[1], req.method + '\\n');",
+      "  } else if (req.method === 'initialize') {",
+      "    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: { protocolVersion: '2025-03-26', capabilities: {}, serverInfo: { name: 'probe', version: '1' } } }) + '\\n');",
+      '  } else {',
+      "    process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: {} }) + '\\n');",
+      '  }',
+      '});',
+      "rl.on('close', () => process.exit(0));"
+    ].join('');
+    const client = new MCPClient([process.execPath, '-e', script, notifyFile]);
+    await client.ping();
+    // 通知写入异步完成，短暂等待后断言。
+    await new Promise((resolve2) => setTimeout(resolve2, 150));
+    await client.close();
+    const log = readFileSync(notifyFile, 'utf8');
+    rmSync(notifyFile, { force: true });
+    expect(log).toContain('notifications/initialized');
   });
 });
 

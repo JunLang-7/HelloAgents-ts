@@ -8,7 +8,7 @@
  *   /`resources/list`/`resources/read`/`prompts/list`/`prompts/get`），用于
  *   本地进程边界验证
  *
- * `http`/`sse` 传输不在内置范围（DIFF-037）：教学端通过 transport port 注入，
+ * `http`/`sse` 传输不在内置范围（DIFF-036）：教学端通过 transport port 注入，
  * 未配置时明确报错，不冒充真实服务端。
  */
 import { createInterface } from 'node:readline';
@@ -123,7 +123,7 @@ export class MCPServer implements McpServerLike {
       return this.runStdio(process.stdin, process.stdout);
     }
     throw new Error(
-      `MCP transport '${transport}' is not built in (DIFF-037): ` +
+      `MCP transport '${transport}' is not built in (DIFF-036): ` +
         'inject an HTTP/SSE transport provider to use it.'
     );
   }
@@ -155,6 +155,10 @@ export class MCPServer implements McpServerLike {
         if (request.method === 'exit') {
           rl.close();
           resolve();
+          return;
+        }
+        if (request.id === undefined) {
+          // JSON-RPC 2.0 通知（如 notifications/initialized）：无需响应。
           return;
         }
         const response = await this.handleJsonRpc(request);

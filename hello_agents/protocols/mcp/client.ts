@@ -5,7 +5,7 @@
  * FastMCP 实例（memory）、配置字典、http(s) URL（http/sse）、.py 路径
  * （PythonStdio）、命令列表（Stdio）、其他（自动推断）。
  *
- * TS 端（DIFF-037）通过 transport port 实现同等的 source 分类：
+ * TS 端（DIFF-036）通过 transport port 实现同等的 source 分类：
  * - `McpServerLike` 实例 → 内置 `MemoryTransport`
  * - 脚本路径（.mjs/.js/.ts）或命令列表 → 内置 `StdioJsonRpcTransport`
  *   （真实子进程 + JSON-RPC 2.0 行协议）
@@ -100,7 +100,7 @@ export interface SseTransportOptions {
   headers?: Record<string, string>;
 }
 
-/** 未配置的 HTTP/SSE 传输占位（DIFF-037：注入实现后替换）。 */
+/** 未配置的 HTTP/SSE 传输占位（DIFF-036：注入实现后替换）。 */
 class UnconfiguredHttpTransport implements MCPTransport {
   public readonly kind: 'http' | 'sse';
   private readonly url: string;
@@ -114,17 +114,17 @@ class UnconfiguredHttpTransport implements MCPTransport {
 
   public async connect(): Promise<void> {
     throw new Error(
-      `MCP ${this.method} transport is not built in (DIFF-037): ` +
+      `MCP ${this.method} transport is not built in (DIFF-036): ` +
         `inject an ${this.method} transport provider for ${this.url}.`
     );
   }
 
   public async close(): Promise<void> {}
   public async listTools(): Promise<McpToolInfo[]> {
-    throw new Error(`${this.method} transport not configured (DIFF-037)`);
+    throw new Error(`${this.method} transport not configured (DIFF-036)`);
   }
   public async callTool(): Promise<unknown> {
-    throw new Error(`${this.method} transport not configured (DIFF-037)`);
+    throw new Error(`${this.method} transport not configured (DIFF-036)`);
   }
 }
 
@@ -201,20 +201,40 @@ export class StdioJsonRpcTransport implements MCPTransport {
       capabilities: {},
       clientInfo: { name: 'helloagents-ts', version: '0.2.0' }
     });
+    // MCP 生命周期规范：初始化成功后必须发送 notifications/initialized。
+    this.sendNotification('notifications/initialized');
   }
 
   public async close(): Promise<void> {
     if (!this.child || this.closed) return;
     this.closed = true;
     const child = this.child;
-    try {
-      await this.request('exit', {});
-    } catch {
-      // 服务器可能已经关闭，直接终止。
-    }
-    child.stdin.end();
-    child.kill();
     this.child = undefined;
+    // MCP 生命周期规范：stdio 先关闭输入流（服务器收到 EOF 自然退出），
+    // 等待进程退出，超时（2s）后才按需终止进程。
+    child.stdin.end();
+    const exited = new Promise<boolean>((resolve) => {
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolve(true);
+        return;
+      }
+      const onExit = (): void => {
+        child.off('exit', onExit);
+        resolve(true);
+      };
+      child.on('exit', onExit);
+    });
+    await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 2000))]);
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill();
+    }
+  }
+
+  /** 发送 JSON-RPC 2.0 通知（无 id、无需响应）。 */
+  private sendNotification(method: string, params: Record<string, unknown> = {}): void {
+    const child = this.child;
+    if (!child || this.closed) return;
+    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`);
   }
 
   private request(method: string, params: Record<string, unknown>): Promise<JsonRpcResponse> {
@@ -346,9 +366,9 @@ export class MCPClient {
       return new UnconfiguredHttpTransport('http', source);
     }
     if (/\.(py)$/i.test(source)) {
-      // 上游 PythonStdio：TS 教学端明确报错（DIFF-037：Python 服务需通过命令列表或脚本路径接入）
+      // 上游 PythonStdio：TS 教学端明确报错（DIFF-036：Python 服务需通过命令列表或脚本路径接入）
       throw new Error(
-        'Python MCP server paths are not supported directly (DIFF-037): ' +
+        'Python MCP server paths are not supported directly (DIFF-036): ' +
           'pass a command list such as ["python", "<script.py>"] to launch it via stdio.'
       );
     }

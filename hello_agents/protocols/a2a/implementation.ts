@@ -1,7 +1,7 @@
 /**
  * A2A（Agent-to-Agent Protocol）实现（对齐上游 `protocols/a2a/implementation.py`）。
  *
- * 上游基于 Flask（服务器）+ requests（客户端）。TS 教学端（DIFF-038）改用
+ * 上游基于 Flask（服务器）+ requests（客户端）。TS 教学端（DIFF-037）改用
  * Node 内置 `node:http`/全局 `fetch`，无第三方依赖：
  * - `A2AServer.run()` 返回可关闭的 `http.Server` 句柄（非阻塞；上游 Flask
  *   `app.run` 是阻塞的）——差异已登记。
@@ -90,7 +90,7 @@ export class A2AServer {
   /**
    * 运行服务器（非阻塞，返回可关闭的 `http.Server`）。
    *
-   * 上游 Flask `app.run` 阻塞直至进程退出；TS 端（DIFF-038）返回句柄，
+   * 上游 Flask `app.run` 阻塞直至进程退出；TS 端（DIFF-037）返回句柄，
    * 便于测试与程序化生命周期管理。`onReady` 在监听成功后回调。
    */
   public run(

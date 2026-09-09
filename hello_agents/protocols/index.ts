@@ -7,7 +7,7 @@
  * - ANP（Agent Network Protocol）：智能体网络协议（概念性实现）
  *
  * 上游 MCP 依赖 fastmcp（缺失时占位抛 ImportError）。TS 教学端
- * （DIFF-037）内置两种参考传输，因此 `MCP_AVAILABLE` 恒为 true，
+ * （DIFF-036）内置两种参考传输，因此 `MCP_AVAILABLE` 恒为 true，
  * 不设占位类。
  */
 import { Protocol } from './base.js';

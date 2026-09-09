@@ -94,10 +94,24 @@ describe('#81 teaching entrypoint boundary', () => {
   test('package exports declare only teaching entrypoints; optional modules are not resolvable', () => {
     const declared = Object.keys(packageJson.exports);
     expect(declared).toContain('.');
-    for (const sub of ['./agents', './context', './core', './memory', './tools', './utils']) {
+    for (const sub of [
+      './agents',
+      './context',
+      './core',
+      './memory',
+      './memory/rag',
+      './memory/storage',
+      './memory/types',
+      './protocols',
+      './protocols/mcp',
+      './protocols/a2a',
+      './protocols/anp',
+      './tools',
+      './utils'
+    ]) {
       expect(declared).toContain(sub);
     }
-    for (const optional of ['./protocols', './evaluation', './rl', './adapters', './skills']) {
+    for (const optional of ['./evaluation', './rl', './adapters', './skills']) {
       expect(declared).not.toContain(optional);
     }
     // The root export object must map to dist paths (types + import + default).
@@ -130,6 +144,19 @@ describe('#81 teaching entrypoint boundary', () => {
     expect(typeof rag.createRagPipeline).toBe('function');
     expect(typeof storage.DocumentStore).toBe('function');
     expect(typeof types.WorkingMemory).toBe('function');
+    // #75: protocol subpaths expose the MCP/A2A/ANP teaching barrels.
+    const protocols = await import('../hello_agents/protocols/index.js');
+    const mcp = await import('../hello_agents/protocols/mcp/index.js');
+    const a2a = await import('../hello_agents/protocols/a2a/index.js');
+    const anp = await import('../hello_agents/protocols/anp/index.js');
+    expect(typeof protocols.MCPClient).toBe('function');
+    expect(typeof protocols.MCPServer).toBe('function');
+    expect(typeof protocols.A2AServer).toBe('function');
+    expect(typeof protocols.A2AClient).toBe('function');
+    expect(typeof protocols.ANPDiscovery).toBe('function');
+    expect(typeof mcp.createContext).toBe('function');
+    expect(typeof a2a.createExampleAgent).toBe('function');
+    expect(typeof anp.registerService).toBe('function');
   });
 
   test('teaching subpath barrels stay usable end-to-end (context + memory + tools)', async () => {

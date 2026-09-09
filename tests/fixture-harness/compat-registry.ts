@@ -384,6 +384,49 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     status: 'kept',
     approved: true,
     reason: '#81 acceptance 3: a same-name API must not masquerade as the teaching implementation.'
+  },
+  {
+    id: 'DIFF-036',
+    area: 'protocols.mcp',
+    upstream:
+      'MCPClient/MCPServer wrap fastmcp (memory/stdio/http/sse, decorator registration); MCP_AVAILABLE false without fastmcp',
+    ts: 'No third-party MCP dependency: McpServerLike→MemoryTransport, command/script→StdioJsonRpcTransport (JSON-RPC 2.0), http(s)/config→unconfigured transport contracts rejecting connect until injected; addTool explicit registration; availability flags always true',
+    status: 'kept',
+    approved: true,
+    reason:
+      '#75 acceptance 2/4: protocol deps load on demand and stdio boundary is verifiable with local fixtures; missing transports are truthful, not fake.'
+  },
+  {
+    id: 'DIFF-037',
+    area: 'protocols.a2a',
+    upstream:
+      'A2AServer runs Flask (/info /skills /execute/<skill> /ask /health); A2AClient uses requests; run() blocks',
+    ts: 'Same HTTP contract on node:http + fetch (no third-party deps, real local HTTP tested); run() non-blocking returning closable Server; fixed calculate skill unmatched prefix Error: so /ask falls through to greet',
+    status: 'kept',
+    approved: true,
+    reason:
+      '#75 acceptance 3: A2A registration/discovery/invocation verified over real network without a Python runtime; non-blocking server enables lifecycle tests.'
+  },
+  {
+    id: 'DIFF-038',
+    area: 'protocols.a2a surface',
+    upstream:
+      'A2AAgent=A2AServer, A2AMessage=dict, MessageType=str; create_message/parse_message placeholders raising ImportError',
+    ts: 'Identical policy: A2AAgent class alias, A2AMessage=Record<string,unknown>, MessageType=string, createMessage/parseMessage throw typed errors; placeholder behavior unchanged',
+    status: 'kept',
+    approved: true,
+    reason:
+      '#75 acceptance 3 requires an explicit keep-or-change decision; upstream documents these aliases for backward compatibility, so the port preserves them.'
+  },
+  {
+    id: 'DIFF-039',
+    area: 'tools.builtin MCPTool expansion',
+    upstream: 'MCPTool.get_expanded_tools() returns synchronously after __init__ discovery',
+    ts: 'getExpandedToolsAsync() returns Promise<Tool[]> because stdio discovery is async; MCPWrappedTool builds zod schema from MCP input_schema (passthrough when no properties)',
+    status: 'kept',
+    approved: true,
+    reason:
+      'Synchronous expansion cannot await a real child process; the async contract makes the transport dependency explicit.'
   }
 ];
 

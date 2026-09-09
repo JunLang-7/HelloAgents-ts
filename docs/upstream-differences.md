@@ -312,6 +312,78 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Reason:** #81 acceptance ③ — a same-name API must not masquerade as the
   teaching implementation.
 
+### DIFF-036 — MCP transport strategy (built-in memory/stdio reference transports)
+
+- **Area:** `protocols.mcp` / `tools.builtin.MCPTool`
+- **Upstream:** `MCPClient`/`MCPServer` wrap `fastmcp` (v2+): FastMCP instance
+  (memory), Python stdio, HTTP/SSE and config-based transports; `MCPServer`
+  registers tools via decorators; `MCP_AVAILABLE` is false without `fastmcp`.
+- **TS:** no third-party MCP dependency. `MCPClient` keeps the same
+  `server_source` classification but maps it to a transport port:
+  `McpServerLike` instance → built-in `MemoryTransport`; command list or
+  script path → built-in `StdioJsonRpcTransport` (real child process,
+  JSON-RPC 2.0 line protocol); `http(s)` URL or `{transport,url}` config →
+  `HttpTransport`/`SseTransport` contracts that are **not built in** and
+  reject `connect()` with a typed DIFF-037 error until a provider is injected.
+  Python `.py` paths are not launched directly (explicit error; pass a command
+  list instead). `MCPServer` maintains a local tool/resource/prompt registry
+  and registers with explicit `addTool(func, name?, description?)` (no
+  decorator reflection); `run('stdio')` serves the same JSON-RPC methods,
+  `run('http'|'sse')` rejects. `MCP_SERVER_AVAILABLE`/`MCP_CLIENT_AVAILABLE`/
+  `MCP_AVAILABLE` are always `true`.
+- **Status:** kept (approved)
+- **Reason:** #75 acceptance ②/④ — protocol deps load on demand and the
+  stdio/transport boundary must be verifiable with local fixtures; the port
+  split keeps the client contract while making the "missing transport" state
+  truthful instead of a fake client.
+
+### DIFF-037 — A2A implementation stack (node:http/fetch) and server lifecycle
+
+- **Area:** `protocols.a2a`
+- **Upstream:** `A2AServer` runs Flask (`/info`, `/skills`, `/execute/<skill>`,
+  `/ask`, `/health`); `A2AClient` uses `requests`; `run()` blocks.
+- **TS:** the same HTTP contract is implemented on `node:http` (server) and
+  global `fetch` (client) — no third-party dependency, real local HTTP
+  interoperability is tested end to end. `run(host, port)` is non-blocking and
+  returns a closable `http.Server` (upstream blocks until process exit).
+  **Fixed:** the example `calculate` skill returned a non-`Error` "Please
+  provide an expression" when unmatched, which made `/ask`'s try-all-skills
+  policy select it for unrelated questions; TS prefixes unmatched input with
+  `Error:` so `/ask` falls through to the greeting skill.
+- **Status:** kept (approved) + one `fixed` defect
+- **Reason:** #75 acceptance ③ — A2A registration/discovery/invocation must be
+  verified over real network unit tests without requiring a Python runtime;
+  the non-blocking server enables programmatic lifecycle in tests and apps.
+
+### DIFF-038 — A2A aliases and placeholder message helpers policy
+
+- **Area:** `protocols.a2a` public surface
+- **Upstream:** `A2AAgent = A2AServer`, `A2AMessage = dict`, `MessageType = str`;
+  `create_message`/`parse_message` are placeholders that raise `ImportError`
+  ("Please install a2a library").
+- **TS:** identical policy kept: `A2AAgent` is the `A2AServer` class alias,
+  `A2AMessage = Record<string, unknown>`, `MessageType = string`, and
+  `createMessage`/`parseMessage` throw an error stating the official a2a-sdk
+  message helpers are not built in. No change to placeholder behavior.
+- **Status:** kept (approved)
+- **Reason:** #75 acceptance ③ requires an explicit keep-or-change decision;
+  upstream documents these aliases for backward compatibility, so the port
+  preserves them and documents the placeholder contract.
+
+### DIFF-039 — MCPTool expansion is asynchronous
+
+- **Area:** `tools.builtin.MCPTool` / `MCPWrappedTool`
+- **Upstream:** `MCPTool.get_expanded_tools()` returns synchronously after
+  discovery ran during `__init__`.
+- **TS:** tool discovery requires async transport I/O (stdio), so
+  `MCPTool.getExpandedToolsAsync()` returns `Promise<Tool[]>`; callers that
+  need expanded tools `await` it first. `MCPWrappedTool` builds its zod input
+  schema from the MCP `input_schema` (`passthrough` when the server exposes no
+  properties) and delegates `call_tool` back to the parent `MCPTool`.
+- **Status:** kept (approved)
+- **Reason:** a synchronous `getExpandedTools` cannot await a real child
+  process; the async contract makes the transport dependency explicit.
+
 ## Known upstream dead-parameter semantics (verified, not differences)
 
 These parameters are **declared and passed but never consumed** on both sides;

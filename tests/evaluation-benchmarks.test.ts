@@ -31,6 +31,7 @@ import {
 import {
   GAIADataset,
   GAIAEvaluator,
+  standardizeGaiaItem,
   checkExactMatch,
   checkPartialMatch,
   extractGaiaAnswer,
@@ -290,6 +291,29 @@ describe('GAIA dataset 与 evaluator（本地 fixture + 远程 opt-in）', () =>
     expect(results.exact_match_rate).toBe(0);
   });
 
+  test('真实 GAIA 形态：Level 为字符串仍正确归一化并过滤', () => {
+    const localDir = join(fixtureRoot, 'gaia-real');
+    mkdirSync(localDir, { recursive: true });
+    // 官方 metadata.parquet 的 Level 是字符串 '1'/'2'/'3'
+    writeFileSync(
+      join(localDir, 'gaia_validation.json'),
+      JSON.stringify([
+        { task_id: 'r1', Question: 'Q1', Level: '2', 'Final answer': 'a' },
+        { task_id: 'r2', Question: 'Q2', Level: '3', 'Final answer': 'b' },
+        { task_id: 'r3', Question: 'Q3', Level: '1', 'Final answer': 'c' }
+      ]),
+      'utf8'
+    );
+    const items = new GAIADataset({ localDataDir: localDir }).load();
+    expect(items.map((i) => i.level).sort()).toEqual([1, 2, 3]);
+    const lvl2 = new GAIADataset({ localDataDir: localDir, level: 2 }).load();
+    expect(lvl2.length).toBe(1);
+    expect(lvl2[0]?.task_id).toBe('r1');
+    // 非法 level 回退 1（对齐上游默认）
+    const bad = standardizeGaiaItem({ task_id: 'x', Level: 'abc' });
+    expect(bad.level).toBe(1);
+  });
+
   test('本地 fixture 评估命中精确匹配并导出官方格式', async () => {
     const localDir = join(fixtureRoot, 'gaia-local');
     const evaluator = new GAIAEvaluator({ dataset: new GAIADataset({ localDataDir: localDir }) });
@@ -319,6 +343,23 @@ describe('AIDataset', () => {
     const problems = dataset.load();
     expect(problems.length).toBe(2);
     expect(problems[0]?.problem).toBe('1+1?');
+  });
+
+  test('真实 AIME 形态：answer 为数字时归一化为字符串', () => {
+    // math-ai/aime25 test.jsonl 的行：{ id, problem, answer: number }
+    const dataPath = writeFixture(
+      'aime25-real.json',
+      JSON.stringify([
+        { id: '0', problem: 'Find 5+2.', answer: 7 },
+        { id: '1', problem: 'Compute 3*4.', answer: 12 }
+      ])
+    );
+    const dataset = new AIDataset({ datasetType: 'generated', dataPath });
+    const problems = dataset.load();
+    expect(problems.length).toBe(2);
+    expect(problems[0]?.problem_id).toBe('0');
+    expect(problems[0]?.answer).toBe('7');
+    expect(problems[1]?.answer).toBe('12');
   });
 
   test('real 数据集（AIME 下载）明确抛错并指引本地文件', () => {

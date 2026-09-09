@@ -34,6 +34,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * 将 GAIA 的 level 字段（官方数据为字符串 '1'/'2'/'3'，部分数据集为 number）
+ * 归一化为整数；非法值回退到 1（对齐上游默认值语义）。
+ */
+function normalizeGaiaLevel(value: unknown, fallback: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return typeof fallback === 'number' && Number.isFinite(fallback) ? fallback : 1;
+}
+
 /** 标准化数据项格式（对齐上游 `_standardize_item`）。 */
 export function standardizeGaiaItem(item: Record<string, unknown>): GaiaItem {
   return {
@@ -41,9 +54,7 @@ export function standardizeGaiaItem(item: Record<string, unknown>): GaiaItem {
     question:
       (typeof item.Question === 'string' ? item.Question : '') ||
       (typeof item.question === 'string' ? item.question : ''),
-    level:
-      (typeof item.Level === 'number' ? item.Level : undefined) ??
-      (typeof item.level === 'number' ? item.level : 1),
+    level: normalizeGaiaLevel(item.Level, item.level),
     final_answer:
       (typeof item['Final answer'] === 'string' ? item['Final answer'] : '') ||
       (typeof item.final_answer === 'string' ? item.final_answer : ''),

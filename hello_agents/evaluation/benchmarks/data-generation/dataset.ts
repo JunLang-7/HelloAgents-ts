@@ -35,7 +35,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringField(item: Record<string, unknown>, keys: string[]): string {
   for (const key of keys) {
-    if (typeof item[key] === 'string') return item[key];
+    const value = item[key];
+    if (typeof value === 'string') return value;
+    // 真实 AIME 数据 answer 为数字（如 70），归一化为字符串以统一下游契约
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   }
   return '';
 }

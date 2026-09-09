@@ -427,6 +427,64 @@ export const COMPAT_DIFFS: CompatDiff[] = [
     approved: true,
     reason:
       'Synchronous expansion cannot await a real child process; the async contract makes the transport dependency explicit.'
+  },
+  {
+    id: 'DIFF-040',
+    area: 'evaluation/benchmarks/bfcl dataset',
+    upstream:
+      'BFCLEvaluator.__init__ forwards local_data_dir to BFCLDataset, whose constructor has no such parameter (TypeError on instantiation)',
+    ts: 'BFCLDataset accepts dataDir only; BFCLEvaluator never forwards unknown options',
+    status: 'fixed',
+    approved: true,
+    reason: 'Upstream bug; TS follows the documented constructor contract'
+  },
+  {
+    id: 'DIFF-041',
+    area: 'evaluation/benchmarks/bfcl metrics',
+    upstream:
+      'ast.parse / ast.dump compare full call-expression AST dumps including quoting and literal text',
+    ts: 'parseCallExpression + normalizeLiteral produce {name, args} with Python-compatible literal coercion, compared by JSON equality; unparseable candidates decay to Jaccard stringSimilarity',
+    status: 'kept',
+    approved: true,
+    reason:
+      'No Python ast in the TS runtime; normalized structure is the comparable semantic equivalent'
+  },
+  {
+    id: 'DIFF-042',
+    area: 'evaluation/benchmarks gaia + data_generation datasets',
+    upstream:
+      'GAIA loadFromRemote uses huggingface_hub.snapshot_download (gated, HF_TOKEN); AIDataset.loadRealData downloads math-ai/aime25',
+    ts: 'No huggingface_hub equivalent bundled: GAIA remote returns empty with local-dir guide; AIME real loading throws with Python-download guide; opt-in, never in default test network path',
+    status: 'unsupported',
+    approved: true,
+    reason: 'Portability; users download once via Python or local files'
+  },
+  {
+    id: 'DIFF-043',
+    area: 'tools.builtin evaluation tools',
+    upstream: 'Tools receive the Python agent object as a positional run(agent=...) argument',
+    ts: 'Agent (and LLM for judge/win-rate tools) injected via tool options at construction; input carries only serializable parameters so tools stay callable through ToolRegistry with Zod JSON schemas',
+    status: 'kept',
+    approved: true,
+    reason: 'Zod JSON input schemas cannot serialize live agent/LLM instances'
+  },
+  {
+    id: 'DIFF-044',
+    area: 'evaluation/benchmarks/data_generation win_rate',
+    upstream: 'random.sample / random.choice with unseeded global random; runs not reproducible',
+    ts: 'WinRateEvaluator / WinRateTool accept injectable rng (default Math.random); fixed rng makes sampling reproducible',
+    status: 'kept',
+    approved: true,
+    reason: 'Reproducibility required for tests and auditable evaluations'
+  },
+  {
+    id: 'DIFF-045',
+    area: 'evaluation/benchmarks/bfcl integration',
+    upstream: 'Official-eval step assumes bfcl CLI is installed',
+    ts: 'BFCLIntegration parses bfcl --version, gates on >= 0.4.0 (semverGte), clear install guide when missing/too old; HELLOAGENTS_BFCL_BIN override; runs real commands, never mocked',
+    status: 'kept',
+    approved: true,
+    reason: 'Makes the external-tool dependency explicit and verifiable'
   }
 ];
 

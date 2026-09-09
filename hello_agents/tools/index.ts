@@ -65,3 +65,15 @@ export { RAGTool } from './builtin/rag-tool.js';
 export type { RagLlmLike, RagLlmMessage, RAGToolOptions } from './builtin/rag-tool.js';
 export { A2ATool, ANPTool, MCPTool, MCP_SERVER_ENV_MAP } from './builtin/protocol-tools.js';
 export { MCPWrappedTool } from './builtin/mcp-wrapper-tool.js';
+export {
+  BFCLEvaluationTool,
+  GAIAEvaluationTool,
+  LLMJudgeTool,
+  WinRateTool
+} from './builtin/evaluation-tools.js';
+export type {
+  BFCLEvaluationToolOptions,
+  GAIAEvaluationToolOptions,
+  LLMJudgeToolOptions,
+  WinRateToolOptions
+} from './builtin/evaluation-tools.js';

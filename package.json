@@ -96,7 +96,32 @@
       "import": "./dist/utils/index.js",
       "default": "./dist/utils/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./evaluation": {
+      "types": "./dist/evaluation/index.d.ts",
+      "import": "./dist/evaluation/index.js",
+      "default": "./dist/evaluation/index.js"
+    },
+    "./evaluation/benchmarks": {
+      "types": "./dist/evaluation/benchmarks/index.d.ts",
+      "import": "./dist/evaluation/benchmarks/index.js",
+      "default": "./dist/evaluation/benchmarks/index.js"
+    },
+    "./evaluation/benchmarks/bfcl": {
+      "types": "./dist/evaluation/benchmarks/bfcl/index.d.ts",
+      "import": "./dist/evaluation/benchmarks/bfcl/index.js",
+      "default": "./dist/evaluation/benchmarks/bfcl/index.js"
+    },
+    "./evaluation/benchmarks/gaia": {
+      "types": "./dist/evaluation/benchmarks/gaia/index.d.ts",
+      "import": "./dist/evaluation/benchmarks/gaia/index.js",
+      "default": "./dist/evaluation/benchmarks/gaia/index.js"
+    },
+    "./evaluation/benchmarks/data-generation": {
+      "types": "./dist/evaluation/benchmarks/data-generation/index.d.ts",
+      "import": "./dist/evaluation/benchmarks/data-generation/index.js",
+      "default": "./dist/evaluation/benchmarks/data-generation/index.js"
+    }
   },
   "types": "./dist/index.d.ts",
   "files": [
@@ -130,6 +155,7 @@
     "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run build && bun run test:node && bun run test:package"
   },
   "dependencies": {
+    "hyparquet": "^1.30.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

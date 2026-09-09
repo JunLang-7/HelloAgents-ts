@@ -10,7 +10,7 @@
  * 上游 `PPOTrainerWrapper` 本身未实现（NotImplementedError），TS 保持一致。
  */
 
-import { writeFileSync } from 'node:fs';
+import { unlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -334,9 +334,9 @@ export class PythonTrainingBackend implements TrainingBackend {
       };
     } finally {
       try {
-        // 清理临时数据集文件
+        unlinkSync(datasetPath);
       } catch {
-        // ignore
+        // 训练进程启动失败或文件已被清理时无需中断调用方。
       }
     }
   }

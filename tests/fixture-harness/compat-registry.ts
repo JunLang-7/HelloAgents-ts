@@ -344,7 +344,7 @@ export const COMPAT_DIFFS: CompatDiff[] = [
       'Hardening only; all in-range integer values behave exactly as upstream, out-of-range ones fail fast.'
   },
   {
-    id: 'DIFF-030',
+    id: 'DIFF-032',
     area: 'context',
     upstream:
       'count_tokens uses tiktoken (cl100k_base); only on exception falls back to len(text) // 4',
@@ -355,7 +355,7 @@ export const COMPAT_DIFFS: CompatDiff[] = [
       'Deterministic and dependency-free; the estimate branch is upstream own degraded contract.'
   },
   {
-    id: 'DIFF-031',
+    id: 'DIFF-033',
     area: 'context',
     upstream: 'ContextBuilder.build/_gather are synchronous; both tools run sync in Python',
     ts: 'RAGTool retrieval is asynchronous, so build/_gather return Promise<string>/Promise<ContextPacket[]>; MemoryTool.searchMemory stays sync',

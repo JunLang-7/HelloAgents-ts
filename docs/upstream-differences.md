@@ -265,7 +265,7 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Status:** kept (approved)
 - **Reason:** Hardening only; all in-range integer values behave exactly as upstream.
 
-### DIFF-030 — tiktoken → character-estimate token counting
+### DIFF-032 — tiktoken → character-estimate token counting
 
 - **Area:** `context`
 - **Upstream:** `count_tokens` uses `tiktoken` (`cl100k_base`); only on exception falls back to `len(text) // 4`.
@@ -273,7 +273,7 @@ and enforced by the release gate (`scripts/release-gate.ts`).
 - **Status:** kept (approved)
 - **Reason:** Deterministic and dependency-free; the estimate branch is upstream's own degraded contract.
 
-### DIFF-031 — async build (RAG retrieval is asynchronous)
+### DIFF-033 — async build (RAG retrieval is asynchronous)
 
 - **Area:** `context`
 - **Upstream:** `ContextBuilder.build`/`_gather` are synchronous; both tools' `run` are sync in Python.

@@ -8,16 +8,25 @@
  * 3. Structure: 组织成 [Role & Policies]/[Task]/[State]/[Evidence]/[Context]/[Output] 模板
  * 4. Compress: 超出可用预算时按行截断
  *
+ * 调用契约（两套并存）：
+ * - 上游契约（v0.2.0）：`new ContextBuilder(memory_tool?, rag_tool?, config?)`，
+ *   `build(user_query, history?, system_instructions?, additional_packets?)` 为 async。
+ * - 1.x 兼容契约：`new ContextBuilder({ maxTokens, reserveRatio, minRelevance,
+ *   enableCompression, tokenCounter })`，`build({ userQuery, conversationHistory,
+ *   systemInstructions, additionalPackets })` 同步返回 string（保留 TokenCounter
+ *   注入行为与 1.x 输出格式）。`docs/context-engineering-guide.md` 使用此契约。
+ *
  * 与上游的差异（docs/upstream-differences.md）：
- * - DIFF-030：上游 `tiktoken`（cl100k_base）在 TS 无内置等价，`countTokens`
+ * - DIFF-032：上游 `tiktoken`（cl100k_base）在 TS 无内置等价，`countTokens`
  *   使用字符估算（1 token ≈ 4 字符，与上游降级分支一致）；调用方可注入
  *   精确 tokenizer（`TokenCounter`）。
- * - DIFF-031：上游 `build` 同步调用工具的 `run`；TS 侧 RAGTool 检索为异步，
+ * - DIFF-033：上游 `build` 同步调用工具的 `run`；TS 侧 RAGTool 检索为异步，
  *   故 `build`/`_gather` 为 async，返回 `Promise<string>`。
  * - 上游 `ContextConfig.enable_mmr` / `mmr_lambda` / `system_prompt_template`
  *   声明但从未使用（dead parameters），TS 侧同声明不消费，语义完全一致。
  */
 import type { Message } from '../core/message.js';
+import { TokenCounter } from './token-counter.js';
 
 // ---------------------------------------------------------------------------
 // 工具结果接口（结构类型：避免 context → tools 的重依赖）
@@ -31,6 +40,45 @@ export interface MemoryToolLike {
 /** RAGTool 的最小公开面（`search` 返回工具响应，文本含「未找到」标记）。 */
 export interface RagToolLike {
   search(input: { query?: string; limit?: number }): Promise<{ text: string }>;
+}
+
+// ---------------------------------------------------------------------------
+// 1.x 兼容类型（保留旧公共 API 的类型导出）
+// ---------------------------------------------------------------------------
+
+/** 1.x 构造契约（`new ContextBuilder({ ... })`）；与上游位置参数构造并存。 */
+export interface ContextBuilderOptions {
+  /** 为响应预留 token 后的最大上下文预算。 */
+  readonly maxTokens?: number;
+  /** 为模型响应预留的预算比例。 */
+  readonly reserveRatio?: number;
+  /** 非指令数据包的最低词法相关性。 */
+  readonly minRelevance?: number;
+  /** 超出预算时是否压缩到可用预算。 */
+  readonly enableCompression?: boolean;
+  /** 用于执行预算限制的 token 计数器（1.x 注入行为，保留）。 */
+  readonly tokenCounter?: TokenCounter;
+}
+
+/** 1.x 同步 `build` 的入参（旧字段名，guide 沿用）。 */
+export interface BuildContextOptions {
+  /** 当前用户请求，始终包含在任务部分。 */
+  readonly userQuery: string;
+  /** 用于构建上下文部分的最近消息。 */
+  readonly conversationHistory?: readonly Message[];
+  /** 高优先级指令，存在时始终包含。 */
+  readonly systemInstructions?: string;
+  /** 检索事实、任务状态和其他上下文数据包（1.x 结构或新 class 均可）。 */
+  readonly additionalPackets?: readonly (ContextPacket | ContextPacketLike)[];
+}
+
+/** 1.x 结构的上下文包（旧字段名 `tokenCount`/`relevanceScore`/数值时间戳）。 */
+export interface ContextPacketLike {
+  readonly content: string;
+  readonly metadata?: Record<string, unknown>;
+  readonly timestamp?: number | Date;
+  readonly tokenCount?: number;
+  readonly relevanceScore?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +108,16 @@ export class ContextPacket {
     // 上游 __post_init__：token_count 为 0 时自动按内容计算
     if (this.token_count === 0) this.token_count = countTokens(this.content);
   }
+
+  /** 1.x 兼容字段名（新字段为 `token_count`）。 */
+  public get tokenCount(): number {
+    return this.token_count;
+  }
+
+  /** 1.x 兼容字段名（新字段为 `relevance_score`）。 */
+  public get relevanceScore(): number {
+    return this.relevance_score;
+  }
 }
 
 /** 上下文构建配置（上游 `ContextConfig` dataclass）。 */
@@ -80,7 +138,17 @@ export class ContextConfig {
   public enable_compression = true;
 
   public constructor(values?: Partial<ContextConfig>) {
-    Object.assign(this, values);
+    if (values === undefined) return;
+    // 显式赋值并跳过 undefined：保留默认值（避免 Object.assign 写入 undefined）
+    if (values.max_tokens !== undefined) this.max_tokens = values.max_tokens;
+    if (values.reserve_ratio !== undefined) this.reserve_ratio = values.reserve_ratio;
+    if (values.min_relevance !== undefined) this.min_relevance = values.min_relevance;
+    if (values.enable_mmr !== undefined) this.enable_mmr = values.enable_mmr;
+    if (values.mmr_lambda !== undefined) this.mmr_lambda = values.mmr_lambda;
+    if (values.system_prompt_template !== undefined)
+      this.system_prompt_template = values.system_prompt_template;
+    if (values.enable_compression !== undefined)
+      this.enable_compression = values.enable_compression;
   }
 
   /** 获取可用 token 预算（扣除余量）。 */
@@ -93,45 +161,189 @@ export class ContextConfig {
 // ContextBuilder
 // ---------------------------------------------------------------------------
 
-/** 上下文构建器 — GSSC 流水线（上游 `ContextBuilder`）。 */
+/** 上下文构建器 — GSSC 流水线（上游 `ContextBuilder`，兼容 1.x 契约）。 */
 export class ContextBuilder {
   public readonly memory_tool: MemoryToolLike | undefined;
   public readonly rag_tool: RagToolLike | undefined;
   public readonly config: ContextConfig;
 
+  /** 1.x 兼容：注入的 TokenCounter（旧契约 `build` 的预算计数）。 */
+  public readonly tokenCounter: TokenCounter;
+
+  private readonly legacyBudget: { maxTokens: number; reserveRatio: number } | undefined;
+
+  /** 1.x 构造契约：`new ContextBuilder({ maxTokens, tokenCounter, ... })`。 */
+  public constructor(options?: ContextBuilderOptions | undefined);
+  /** 上游构造契约：`new ContextBuilder(memory_tool?, rag_tool?, config?)`。 */
   public constructor(
     memory_tool?: MemoryToolLike | undefined,
     rag_tool?: RagToolLike | undefined,
     config?: ContextConfig | undefined
+  );
+  public constructor(
+    a?: ContextBuilderOptions | MemoryToolLike | undefined,
+    b?: RagToolLike | undefined,
+    c?: ContextConfig | undefined
   ) {
-    this.memory_tool = memory_tool;
-    this.rag_tool = rag_tool;
-    this.config = config ?? new ContextConfig();
+    if (isLegacyOptions(a)) {
+      // 1.x 契约：options 对象 → 旧配置（默认值与上游一致）
+      this.tokenCounter = a.tokenCounter ?? new TokenCounter();
+      this.config = new ContextConfig({
+        ...(a.maxTokens !== undefined ? { max_tokens: a.maxTokens } : {}),
+        ...(a.reserveRatio !== undefined ? { reserve_ratio: a.reserveRatio } : {}),
+        ...(a.minRelevance !== undefined ? { min_relevance: a.minRelevance } : {}),
+        ...(a.enableCompression !== undefined ? { enable_compression: a.enableCompression } : {})
+      });
+      this.memory_tool = undefined;
+      this.rag_tool = undefined;
+      this.legacyBudget = {
+        maxTokens: a.maxTokens ?? 8000,
+        reserveRatio: a.reserveRatio ?? 0.15
+      };
+    } else {
+      // 上游契约：位置参数
+      this.memory_tool = a as MemoryToolLike | undefined;
+      this.rag_tool = b;
+      this.config = c ?? new ContextConfig();
+      this.tokenCounter = new TokenCounter();
+      this.legacyBudget = undefined;
+    }
   }
 
-  /** 构建完整上下文（Gather → Select → Structure → Compress）。 */
-  public async build(
+  /** 1.x 同步构建（`build({ userQuery, ... })`，TokenCounter 预算，返回 string）。 */
+  public build(options: BuildContextOptions): string;
+  /** 上游异步构建（`build(user_query, history?, sys?, extra?)`，返回 Promise<string>）。 */
+  public build(
     user_query: string,
     conversation_history?: readonly Message[] | undefined,
     system_instructions?: string | undefined,
-    additional_packets?: readonly ContextPacket[] | undefined
+    additional_packets?: readonly (ContextPacket | ContextPacketLike)[] | undefined
+  ): Promise<string>;
+  public build(
+    a: string | BuildContextOptions,
+    b?: readonly Message[],
+    c?: string,
+    d?: readonly (ContextPacket | ContextPacketLike)[]
+  ): string | Promise<string> {
+    if (typeof a === 'string') return this.buildUpstream(a, b, c, d);
+    return this.buildLegacy(a);
+  }
+
+  /** 上游 GSSC 异步流水线（Gather → Select → Structure → Compress）。 */
+  private async buildUpstream(
+    user_query: string,
+    conversation_history: readonly Message[] | undefined,
+    system_instructions: string | undefined,
+    additional_packets: readonly (ContextPacket | ContextPacketLike)[] | undefined
   ): Promise<string> {
-    // 1. Gather: 收集候选信息
+    const normalized_extra = (additional_packets ?? []).map((p) => normalizePacket(p));
     const packets = await this._gather(
       user_query,
       conversation_history ?? [],
       system_instructions,
-      additional_packets ?? []
+      normalized_extra
     );
-
-    // 2. Select: 筛选与排序
     const selected_packets = this._select(packets, user_query);
-
-    // 3. Structure: 组织成结构化模板
     const structured_context = this._structure(selected_packets, user_query, system_instructions);
-
-    // 4. Compress: 压缩与规范化（如果超预算）
     return this._compress(structured_context);
+  }
+
+  /**
+   * 1.x 同步契约（精确复刻 1.x 行为：TokenCounter 预算、1.x 输出模板、顺序保留）。
+   * 与上游 async 路径并存；`docs/context-engineering-guide.md` 使用本路径。
+   */
+  private buildLegacy(options: BuildContextOptions): string {
+    const budget = Math.floor(
+      (this.legacyBudget?.maxTokens ?? 8000) * (1 - (this.legacyBudget?.reserveRatio ?? 0.15))
+    );
+    const minRelevance = this.config.min_relevance;
+    const enableCompression = this.config.enable_compression;
+
+    const packets: LegacyPacket[] = [
+      ...(options.systemInstructions
+        ? [
+            {
+              content: options.systemInstructions,
+              metadata: { type: 'instructions' },
+              explicitScore: undefined
+            }
+          ]
+        : []),
+      ...(options.conversationHistory?.length
+        ? [
+            {
+              content: options.conversationHistory
+                .slice(-10)
+                .map((message) => message.toText())
+                .join('\n'),
+              metadata: { type: 'history' },
+              explicitScore: undefined
+            }
+          ]
+        : []),
+      ...(options.additionalPackets ?? []).map((packet) => ({
+        content: packet.content,
+        metadata: packet.metadata ?? {},
+        explicitScore: packet.relevanceScore
+      }))
+    ];
+
+    const query = new Set(options.userQuery.toLowerCase().split(/\s+/).filter(Boolean));
+    const selected = packets.filter((packet) => {
+      const type = packet.metadata['type'];
+      if (type === 'instructions') return true;
+      const words = new Set(packet.content.toLowerCase().split(/\s+/));
+      const score =
+        packet.explicitScore ??
+        (query.size === 0 ? 0 : [...query].filter((word) => words.has(word)).length / query.size);
+      return score >= minRelevance;
+    });
+
+    const byType = (type: string | readonly string[]) =>
+      selected.filter((packet) => {
+        const value = packet.metadata['type'];
+        return Array.isArray(type) ? type.includes(String(value)) : value === type;
+      });
+
+    const sections = [
+      ...byType('instructions').map((packet) => `[Role & Policies]\n${packet.content}`),
+      `[Task]\n用户问题：${options.userQuery}`,
+      ...(byType(['task_state']).length
+        ? [
+            `[State]\n关键进展与未决问题：\n${byType('task_state')
+              .map((packet) => packet.content)
+              .join('\n')}`
+          ]
+        : []),
+      ...(byType(['related_memory', 'knowledge_base', 'retrieval', 'tool_result']).length
+        ? [
+            `[Evidence]\n事实与引用：\n${byType([
+              'related_memory',
+              'knowledge_base',
+              'retrieval',
+              'tool_result'
+            ])
+              .map((packet) => packet.content)
+              .join('\n')}`
+          ]
+        : []),
+      ...(byType('history').length
+        ? [
+            `[Context]\n对话历史与背景：\n${byType('history')
+              .map((packet) => packet.content)
+              .join('\n')}`
+          ]
+        : []),
+      '[Output]\n请按以下格式回答：\n1. 结论（简洁明确）\n2. 依据（列出支撑证据及来源）\n3. 风险与假设（如有）\n4. 下一步行动建议（如适用）'
+    ];
+    const result = sections.join('\n\n');
+    if (!enableCompression || this.tokenCounter.count(result) <= budget) return result;
+    const kept: string[] = [];
+    for (const line of result.split('\n')) {
+      if (this.tokenCounter.count([...kept, line].join('\n')) > budget) break;
+      kept.push(line);
+    }
+    return kept.join('\n');
   }
 
   /** Gather: 收集候选信息（P0 系统指令 / P1 记忆 / P2 RAG / P3 对话历史 / 额外包）。 */
@@ -172,7 +384,7 @@ export class ContextBuilder {
       }
     }
 
-    // P2: 从 RAG 中获取事实证据（DIFF-031：检索为异步）
+    // P2: 从 RAG 中获取事实证据（DIFF-033：检索为异步）
     if (this.rag_tool) {
       try {
         const rag_response = await this.rag_tool.search({ query: user_query, limit: 5 });
@@ -352,12 +564,54 @@ export class ContextBuilder {
 }
 
 // ---------------------------------------------------------------------------
+// 内部工具
+// ---------------------------------------------------------------------------
+
+/** 1.x 同步路径的内部包形状（显式分数用于区分「未提供」与「显式 0」）。 */
+interface LegacyPacket {
+  content: string;
+  metadata: Record<string, unknown>;
+  explicitScore: number | undefined;
+}
+
+/** 将 1.x 结构或 class 包统一归一化为 class 实例。 */
+function normalizePacket(packet: ContextPacket | ContextPacketLike): ContextPacket {
+  if (packet instanceof ContextPacket) return packet;
+  return new ContextPacket(
+    packet.content,
+    packet.timestamp === undefined
+      ? undefined
+      : packet.timestamp instanceof Date
+        ? packet.timestamp
+        : new Date(packet.timestamp),
+    packet.metadata,
+    packet.tokenCount,
+    packet.relevanceScore
+  );
+}
+
+/** 判定 1.x options 构造（对象含任一旧选项键）。 */
+function isLegacyOptions(
+  value: ContextBuilderOptions | MemoryToolLike | undefined
+): value is ContextBuilderOptions {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    ('maxTokens' in value ||
+      'reserveRatio' in value ||
+      'minRelevance' in value ||
+      'enableCompression' in value ||
+      'tokenCounter' in value)
+  );
+}
+
+// ---------------------------------------------------------------------------
 // countTokens
 // ---------------------------------------------------------------------------
 
 /**
  * 计算文本 token 数（上游 `count_tokens`）。
- * DIFF-030：上游用 tiktoken（cl100k_base），TS 无内置等价 tokenizer；
+ * DIFF-032：上游用 tiktoken（cl100k_base），TS 无内置等价 tokenizer；
  * 使用降级估算（1 token ≈ 4 字符），与上游异常分支的语义一致。
  */
 export function countTokens(text: string): number {

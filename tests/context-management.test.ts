@@ -338,3 +338,77 @@ describe('ContextBuilder GSSC stages (upstream-aligned)', () => {
     expect(context).toContain('事实证据');
   });
 });
+
+describe('ContextBuilder 1.x compatibility contract', () => {
+  test('legacy options constructor + sync build returns a string (guide pattern)', () => {
+    const history = new HistoryManager({ maxTokens: 4096, retainRecentTurns: 2 });
+    history.add(new Message('Earlier answer', 'assistant'));
+    history.add(new Message('New question', 'user'));
+    const context = new ContextBuilder({ maxTokens: 4096 }).build({
+      systemInstructions: 'Answer concisely.',
+      conversationHistory: history.getAll(),
+      userQuery: 'New question'
+    });
+    expect(typeof context).toBe('string');
+    expect(context).toContain('[Role & Policies]\nAnswer concisely.');
+    expect(context).toContain('[Task]\n用户问题：New question');
+    expect(context).toContain('[Context]\n对话历史与背景：');
+    expect(context).toContain('[Output]');
+    expect(context).toContain('1. 结论（简洁明确）');
+  });
+
+  test('injected TokenCounter drives the legacy budget and compresses', () => {
+    let calls = 0;
+    const counter = new TokenCounter({
+      tokenize: (text) => {
+        calls += 1;
+        return Math.floor([...text].length / 4);
+      }
+    });
+    const builder = new ContextBuilder({ maxTokens: 32, tokenCounter: counter });
+    const context = builder.build({
+      userQuery: 'q',
+      systemInstructions: 'Be concise.',
+      additionalPackets: [
+        { content: 'packet one', metadata: { type: 'tool_result' }, relevanceScore: 0.9 }
+      ]
+    });
+    expect(calls).toBeGreaterThan(0);
+    expect(context).toContain('1. 结论');
+    expect(context).not.toContain('4. 下一步行动建议');
+  });
+
+  test('legacy build accepts 1.x-shaped packets (ContextPacketLike) and filters by relevance', () => {
+    const builder = new ContextBuilder({});
+    const context = builder.build({
+      userQuery: 'shared',
+      additionalPackets: [
+        {
+          content: 'shared fact',
+          metadata: { type: 'tool_result' },
+          timestamp: Date.now(),
+          tokenCount: 2,
+          relevanceScore: 0.8
+        },
+        { content: 'unrelated note', metadata: { type: 'related_memory' } }
+      ]
+    });
+    expect(context).toContain('[Evidence]');
+    expect(context).toContain('shared fact');
+    expect(context).not.toContain('unrelated note');
+  });
+
+  test('upstream positional constructor and legacy options constructor coexist', async () => {
+    const upstream = new ContextBuilder(
+      undefined,
+      undefined,
+      new ContextConfig({ max_tokens: 100 })
+    );
+    expect(upstream.config.max_tokens).toBe(100);
+    expect(upstream.memory_tool).toBeUndefined();
+    const legacy = new ContextBuilder({ maxTokens: 200 });
+    expect(legacy.config.max_tokens).toBe(200);
+    const result = await upstream.build('q');
+    expect(typeof result).toBe('string');
+  });
+});

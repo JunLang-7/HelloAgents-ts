@@ -42,18 +42,36 @@ npm install @junlang-7/helloagents@learn
 
 ### Minimal Agent (mock by default)
 
-Examples run in **mock / dry-run mode by default** — no API key required. Real
-API calls are opt-in: set `OPENAI_API_KEY` (or `LLM_API_KEY`) and
-`HELLOAGENTS_REAL_API=1`, or simply construct `HelloAgentsLLM` with explicit
-options.
+Examples run in **mock / dry-run mode by default** — no API key required. Use
+an explicit `MockAdapter` for dry runs; real API calls are opt-in (set
+`LLM_MODEL_ID` / `LLM_API_KEY` / `LLM_BASE_URL`, or construct
+`HelloAgentsLLM` with explicit options — no adapter means a real provider).
 
 ```ts
-import { HelloAgentsLLM, SimpleAgent } from '@junlang-7/helloagents';
+import { HelloAgentsLLM, MockAdapter, SimpleAgent } from '@junlang-7/helloagents';
 
-const llm = new HelloAgentsLLM(); // reads LLM_* env vars; mock adapter by default
+const llm = new HelloAgentsLLM({
+  model: 'example-model',
+  apiKey: 'example-key',
+  baseUrl: 'https://example.invalid/v1',
+  adapter: new MockAdapter({
+    invoke: () => ({
+      content: '你好！我是示例助手。',
+      model: 'example-model',
+      usage: {},
+      latency_ms: 0
+    })
+  })
+});
 const agent = new SimpleAgent({ name: 'assistant', llm });
 
 console.log(await agent.run('你好，请介绍一下自己'));
+```
+
+For a real provider, either export the `LLM_*` variables or pass options:
+
+```ts
+const llm = new HelloAgentsLLM(); // reads LLM_* env vars
 ```
 
 ### Environment Variables

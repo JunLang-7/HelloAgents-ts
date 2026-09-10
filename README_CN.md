@@ -39,17 +39,36 @@ npm install @junlang-7/helloagents@learn
 
 ### 最小 Agent（默认 mock）
 
-所有示例默认以 **mock / dry-run** 模式运行，无需 API Key。真实 API 调用需要
-显式 opt-in：设置 `OPENAI_API_KEY`（或 `LLM_API_KEY`）与 `HELLOAGENTS_REAL_API=1`，
-或在构造 `HelloAgentsLLM` 时显式传入参数。
+所有示例默认以 **mock / dry-run** 模式运行，无需 API Key。dry-run 需显式
+构造 `MockAdapter`；真实 API 调用需要显式 opt-in（设置 `LLM_MODEL_ID` /
+`LLM_API_KEY` / `LLM_BASE_URL`，或构造 `HelloAgentsLLM` 时显式传参——不传
+adapter 即走真实 provider）。
 
 ```ts
-import { HelloAgentsLLM, SimpleAgent } from '@junlang-7/helloagents';
+import { HelloAgentsLLM, MockAdapter, SimpleAgent } from '@junlang-7/helloagents';
 
-const llm = new HelloAgentsLLM(); // 读取 LLM_* 环境变量；默认 mock adapter
+const llm = new HelloAgentsLLM({
+  model: 'example-model',
+  apiKey: 'example-key',
+  baseUrl: 'https://example.invalid/v1',
+  adapter: new MockAdapter({
+    invoke: () => ({
+      content: '你好！我是示例助手。',
+      model: 'example-model',
+      usage: {},
+      latency_ms: 0
+    })
+  })
+});
 const agent = new SimpleAgent({ name: 'assistant', llm });
 
 console.log(await agent.run('你好，请介绍一下自己'));
+```
+
+使用真实 provider：导出 `LLM_*` 变量即可。
+
+```ts
+const llm = new HelloAgentsLLM(); // 读取 LLM_* 环境变量
 ```
 
 ### 环境变量

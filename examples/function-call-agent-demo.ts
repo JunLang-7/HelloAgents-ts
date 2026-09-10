@@ -1,8 +1,9 @@
 /**
  * 最简 FunctionCallAgent 示例（对应上游 examples/agent/function_call_agent_demo.py）。
  *
- * 默认使用 mock LLM（dry-run，无需任何 API Key）；设置 OPENAI_API_KEY 或
- * HELLOAGENTS_REAL_API=1 后改用真实 OpenAI 兼容接口。
+ * 默认使用 mock LLM（dry-run，无需任何 API Key）：mock 第一轮返回结构化
+ * tool_call，Agent 真正执行注册的 get_horoscope，第二轮返回最终回答。
+ * 设置 OPENAI_API_KEY 或 HELLOAGENTS_REAL_API=1 后改用真实 OpenAI 兼容接口。
  *
  * 运行：bun run examples/function-call-agent-demo.ts
  */
@@ -10,7 +11,7 @@ import { FunctionCallAgent } from '../hello_agents/agents/index.js';
 import { HelloAgentsLLM } from '../hello_agents/core/index.js';
 import { ToolRegistry, FunctionTool } from '../hello_agents/tools/index.js';
 import { z } from 'zod';
-import { heading, mockLlm } from './_shared.js';
+import { heading, mockLlmWithTools } from './_shared.js';
 
 function getHoroscope(sign: string): string {
   const sample: Record<string, string> = {
@@ -29,8 +30,11 @@ function buildLlm(): HelloAgentsLLM {
   if (USE_REAL_API) {
     return new HelloAgentsLLM({ model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini' });
   }
-  // mock/dry-run：给模型一段"调用工具"的回答，验证工具真正被执行
-  return mockLlm(['调用 get_horoscope 获取金牛座今日运势。', '根据工具结果回答用户。']);
+  // mock/dry-run：第一轮返回结构化 tool_call，第二轮返回最终回答
+  return mockLlmWithTools([
+    { toolCall: { name: 'get_horoscope', arguments: '{"sign":"金牛座"}' } },
+    '根据工具结果回答用户。'
+  ]);
 }
 
 async function main(): Promise<void> {
@@ -39,13 +43,17 @@ async function main(): Promise<void> {
 
   const llm = buildLlm();
 
+  let horoscopeCalls = 0;
   const registry = new ToolRegistry();
   registry.registerFunction(
     new FunctionTool({
       name: 'get_horoscope',
       description: "Get today's horoscope for an astrological sign.",
       inputSchema: z.object({ sign: z.string() }).strict(),
-      handler: ({ sign }) => getHoroscope(sign)
+      handler: ({ sign }) => {
+        horoscopeCalls += 1;
+        return getHoroscope(sign);
+      }
     })
   );
 
@@ -58,6 +66,7 @@ async function main(): Promise<void> {
   const question = '请告诉我金牛座今天的运势，并说明是如何得到信息的。';
   const answer = await agent.run(question);
   console.log('Agent:', answer);
+  console.log(`get_horoscope 实际执行次数: ${horoscopeCalls}`);
 }
 
 void main();

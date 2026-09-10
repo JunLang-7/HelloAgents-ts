@@ -157,7 +157,7 @@
     "test:integration": "bun run build && node ./tests/real-api-opt-in.mjs",
     "fixture:gate": "bun test tests/learn-fixture-gate.test.ts",
     "release:gate": "bun scripts/release-gate.ts",
-    "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run build && bun run test:node && bun run test:package"
+    "prepublishOnly": "bun run typecheck && bun run lint && bun run test && bun run fixture:gate && bun run release:gate && bun run build && bun run test:node && bun run test:package"
   },
   "dependencies": {
     "hyparquet": "^1.30.0",

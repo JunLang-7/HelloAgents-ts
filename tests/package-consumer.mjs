@@ -70,18 +70,33 @@ function run(command, arguments_, cwd) {
   });
 }
 
+function firstPackedArtifact(packResult) {
+  const parsed = JSON.parse(packResult);
+  if (Array.isArray(parsed)) return parsed[0];
+  if (parsed && typeof parsed === 'object') {
+    if (typeof parsed.filename === 'string') return parsed;
+    const artifacts = Object.values(parsed).filter(
+      (value) => value && typeof value === 'object' && typeof value.filename === 'string'
+    );
+    if (artifacts.length === 1) return artifacts[0];
+  }
+  return undefined;
+}
+
 try {
   const packResult = run(
     'npm',
     ['pack', '--json', '--pack-destination', temporaryDirectory],
     repositoryRoot
   );
-  const packed = JSON.parse(packResult)[0];
+  // npm 10 returns an array while npm 11+ may return a package-name keyed object.
+  const packed = firstPackedArtifact(packResult);
   const packedFile = packed?.filename;
   assert.equal(typeof packedFile, 'string', 'npm pack must produce one archive');
   const packedPaths = new Set(packed?.files?.map((file) => file.path) ?? []);
   for (const requiredPath of [
     'README.md',
+    'README_CN.md',
     'LICENSE',
     'NOTICE',
     'package.json',

@@ -3,11 +3,12 @@
  * Release gate for learn-v0.2.0 compatibility.
  *
  * Checks (issue #82 acceptance criteria #7):
- *   1. Compatibility matrix has no "Implemented" row without evidence
- *      (a test file or fixture referencing that area).
- *   2. No unapproved "kept" differences in the compat registry.
- *   3. Generated fixture manifest exists and references valid files.
- *   4. No fixture case has zero assertions in the gate test.
+ *   1. Compatibility matrix has no unfinished row and no "Implemented" row
+ *      without evidence (a test file or fixture referencing that area).
+ *   2. Package metadata keeps the learn release isolated from npm `latest`.
+ *   3. No unapproved "kept" differences in the compat registry.
+ *   4. Generated fixture manifest exists and references valid files.
+ *   5. No fixture case has zero assertions in the gate test.
  *
  * Exit code 0 = pass, 1 = fail (with report on stderr).
  *
@@ -21,6 +22,7 @@ const MATRIX_PATH = join(ROOT, 'docs', 'learn-v0.2.0-compatibility-matrix.md');
 const FIXTURE_DIR = join(ROOT, 'tests', 'fixtures', 'generated');
 const GATE_TEST_PATH = join(ROOT, 'tests', 'learn-fixture-gate.test.ts');
 const COMPAT_REGISTRY_PATH = join(ROOT, 'tests', 'fixture-harness', 'compat-registry.ts');
+const PACKAGE_PATH = join(ROOT, 'package.json');
 
 interface MatrixRow {
   symbols: string;
@@ -127,13 +129,13 @@ function checkMatrixEvidence(rows: MatrixRow[]): string[] {
   const testSources = loadAllTestSources(join(ROOT, 'tests'));
 
   for (const row of implemented) {
-    let tokens = extractModuleTokens(row.destination);
-    // Barrel destinations (only index.ts) yield no usable token — fall back to
-    // the exported symbol names in the symbols column (e.g. MemoryManager).
-    if (tokens.length === 0) {
-      const symbolNames = row.symbols.match(/`[A-Za-z_][A-Za-z0-9_]*`/g) ?? [];
-      tokens = symbolNames.map((s) => s.replaceAll('`', ''));
-    }
+    // A test usually references the public symbol rather than the kebab-case
+    // implementation filename, so consider both forms for every row.
+    const symbolNames = row.symbols.match(/`[A-Za-z_][A-Za-z0-9_]*`/g) ?? [];
+    const tokens = [
+      ...extractModuleTokens(row.destination),
+      ...symbolNames.map((symbol) => symbol.replaceAll('`', ''))
+    ];
     if (tokens.length === 0) {
       failures.push(
         `Implemented row has no parseable destination or symbols to verify: ${row.symbols.slice(0, 60)}`
@@ -148,6 +150,49 @@ function checkMatrixEvidence(rows: MatrixRow[]): string[] {
       );
     }
   }
+  return failures;
+}
+
+function checkMatrixCompletion(rows: MatrixRow[]): string[] {
+  const unfinished = rows.filter((row) =>
+    ['Planned', 'Optional planned', 'Partial'].includes(row.status)
+  );
+  return unfinished.map(
+    (row) =>
+      `Unfinished compatibility row (${row.status}): ${row.owner} ${row.symbols.slice(0, 60)}`
+  );
+}
+
+function checkPackageMetadata(): string[] {
+  const failures: string[] = [];
+  const manifest = JSON.parse(readFileSync(PACKAGE_PATH, 'utf-8')) as {
+    name?: string;
+    version?: string;
+    type?: string;
+    files?: string[];
+    engines?: Record<string, string>;
+    publishConfig?: Record<string, string>;
+  };
+  const expectedFiles = ['dist', 'README.md', 'README_CN.md', 'LICENSE', 'NOTICE'];
+
+  if (manifest.name !== '@junlang-7/helloagents')
+    failures.push(`Unexpected package name: ${String(manifest.name)}`);
+  if (manifest.version !== '0.2.0')
+    failures.push(`Learn release version must be 0.2.0, got ${String(manifest.version)}`);
+  if (manifest.type !== 'module') failures.push('Package must remain ESM (`type: module`)');
+  if (manifest.publishConfig?.tag !== 'learn')
+    failures.push('publishConfig.tag must be `learn` so npm `latest` cannot be overwritten');
+  if (manifest.publishConfig?.access !== 'public')
+    failures.push('publishConfig.access must be `public` for the scoped package');
+  if (manifest.publishConfig?.registry !== 'https://registry.npmjs.org')
+    failures.push('publishConfig.registry must be the public npm registry');
+  if (manifest.engines?.node !== '>=22') failures.push('engines.node must remain `>=22`');
+  if (manifest.engines?.bun !== '>=1.3.14') failures.push('engines.bun must remain `>=1.3.14`');
+  for (const file of expectedFiles) {
+    if (!manifest.files?.includes(file))
+      failures.push(`Package files allowlist is missing: ${file}`);
+  }
+
   return failures;
 }
 
@@ -226,7 +271,14 @@ function main(): void {
   ).length;
   const unrecognized = rows.filter((r) => !r.recognized);
 
+  failures.push(
+    ...unrecognized.map(
+      (row) => `Unrecognized compatibility status: ${row.ownerStatus.slice(0, 80)}`
+    )
+  );
+  failures.push(...checkMatrixCompletion(rows));
   failures.push(...checkMatrixEvidence(rows));
+  failures.push(...checkPackageMetadata());
   failures.push(...checkCompatRegistry());
   failures.push(...checkFixtures());
   failures.push(...checkGateTest());

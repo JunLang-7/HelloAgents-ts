@@ -85,8 +85,15 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 try:
     import torch
     torch.manual_seed(args["seed"])
+    # The public device probe treats CUDA as the supported accelerator. Keep
+    # Trainer placement consistent with it: on Apple Silicon, TRL may select
+    # MPS even though GRPO attention with dropout is unsupported there.
+    force_cpu = not torch.cuda.is_available()
 except Exception:
-    pass
+    force_cpu = True
+
+use_fp16 = bool(args.get("use_fp16", False)) and not force_cpu
+use_bf16 = bool(args.get("use_bf16", False)) and not force_cpu
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import Dataset
@@ -104,7 +111,7 @@ if tokenizer.pad_token is None:
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
     trust_remote_code=True,
-    device_map="auto" if (args.get("use_fp16") or args.get("use_bf16")) else None,
+    device_map="auto" if (use_fp16 or use_bf16) else None,
 )
 
 report_to = []
@@ -128,10 +135,11 @@ if algorithm == "sft":
         warmup_steps=args["warmup_steps"],
         logging_steps=args["logging_steps"],
         save_steps=args["save_steps"],
-        fp16=args.get("use_fp16", False),
-        bf16=args.get("use_bf16", False),
+        fp16=use_fp16,
+        bf16=use_bf16,
         gradient_checkpointing=args.get("gradient_checkpointing", False),
         max_length=args.get("max_length", 2048),
+        use_cpu=force_cpu,
         report_to=report_to,
     )
     trainer = SFTTrainer(
@@ -236,8 +244,9 @@ elif algorithm == "grpo":
         warmup_steps=args["warmup_steps"],
         logging_steps=args["logging_steps"],
         save_steps=args["save_steps"],
-        fp16=args.get("use_fp16", False),
-        bf16=args.get("use_bf16", False),
+        fp16=use_fp16,
+        bf16=use_bf16,
+        use_cpu=force_cpu,
         report_to=report_to,
         remove_unused_columns=False,
         generation_batch_size=max(8, args["per_device_train_batch_size"] * 8),

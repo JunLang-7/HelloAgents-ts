@@ -5,6 +5,23 @@ All notable changes are documented here. This project follows
 
 ## Unreleased
 
+## [0.2.0-learn] - Unreleased
+
+### Added
+
+- Teaching-oriented TypeScript port of the Python `learn_version` line at the
+  pinned upstream commit `3927c6d1decb37737c4c1344fde00ccef55ab1f3`.
+- Core agents and tools, Memory/RAG with optional Qdrant and Neo4j backends,
+  context engineering, MCP/A2A/ANP protocols, evaluation, RL helpers, and the
+  Chapter 07–11 teaching examples.
+- Bun-first and Node.js 22/24 package validation, Python-derived compatibility
+  fixtures, explicit subpath exports, and optional-dependency import boundaries.
+
+### Release channel
+
+- Publish as `@junlang-7/helloagents@0.2.0` with npm dist-tag `learn`.
+- Keep npm `latest` on the separate production-oriented `1.x` line.
+
 ## [1.0.1] - 2026-08-15
 
 ### Fixed

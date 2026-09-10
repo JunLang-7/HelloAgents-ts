@@ -24,8 +24,8 @@ try {
     { temperature: 0, maxTokens: 32 }
   );
 
-  assert.equal(typeof response.content, 'string');
-  assert.notEqual(response.content.trim(), '', 'provider must return non-empty content');
+  assert.equal(typeof response, 'string');
+  assert.notEqual(response.trim(), '', 'provider must return non-empty content');
   process.stdout.write('Real API integration passed.\n');
 } catch {
   throw new Error('Real API integration failed (details redacted).');

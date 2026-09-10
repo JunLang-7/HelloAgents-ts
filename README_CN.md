@@ -1,26 +1,29 @@
-# HelloAgents TypeScript — 教学版（Learn Version）
+# HelloAgents TypeScript — 教学版
 
 [English](README.md) | [简体中文](README_CN.md)
 
-> 📚 **`learn-version`（0.2.0）** — 面向教学的 Python
-> [`learn_version`](https://github.com/jjyaoao/HelloAgents/tree/learn_version)
-> 分支 TypeScript 忠实复刻，配套
-> [Datawhale Hello-Agents 教程](https://github.com/datawhalechina/hello-agents)。
-> 本分支与面向生产的 `1.x` 分支独立维护，npm 上以 **`learn`** tag 发布。
+> 🚧 **`learn-version` 开发分支（`0.2.0`）**——忠实移植 Python [`learn_version`](https://github.com/jjyaoao/HelloAgents/tree/learn_version) 分支的 TypeScript 教学版本。本版本线与生产向 `1.x` 独立维护，并通过 npm `learn` tag 发布。
+>
+> 教学版移植已完成：以下模块清单均移植自上游 `learn_version` 分支（基线 `3927c6d`），逐模块可追溯性见 [`docs/learn-v0.2.0-compatibility-matrix.md`](docs/learn-v0.2.0-compatibility-matrix.md)，获批差异见 [`docs/upstream-differences.md`](docs/upstream-differences.md)。
 
-[![Bun 1.4+](https://img.shields.io/badge/bun-1.4%2B-f9f1e1.svg)](https://bun.sh/)
+> 🤖 教学友好的多智能体框架——使用轻量、直观的抽象配套 Datawhale Hello-Agents 教程。
+
+[![Bun 1.3+](https://img.shields.io/badge/bun-1.3%2B-f9f1e1.svg)](https://bun.sh/)
 [![Node.js 22+](https://img.shields.io/badge/node-22%2B-339933.svg)](https://nodejs.org/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](LICENSE)
 
-HelloAgents TypeScript（教学版）是对 Python 教程分支的教学优先复刻。每个模块
-均可在 `docs/learn-v0.2.0-compatibility-matrix.md` 中追溯到上游文件，并在
-`docs/upstream-differences.md`（DIFF 登记表）中记录有意的差异。**Bun 优先**，
-同时兼容 Node.js 22+。
+HelloAgents TypeScript 是
+[HelloAgents Python](https://github.com/jjyaoao/HelloAgents) 的 TypeScript
+忠实重实现，[HelloAgents-Go](https://github.com/chaojixinren/HelloAgents-go) 用作跨语言参考，本项目以 Bun 为优先运行时，同时支持 Node.js 22+。基于 OpenAI 原生 API 构建的生产级多智能体框架，集成了工具响应协议（ToolResponse）、上下文工程（HistoryManager/TokenCounter）、会话持久化（SessionStore）、子代理机制（TaskTool）、乐观锁（文件编辑）、熔断器（CircuitBreaker）、Skills 知识外化、TodoWrite 进度管理、DevLog 决策记录、流式输出（SSE）、异步生命周期、可观测性（TraceLogger）、日志系统（四种范式）、LLM/Agent 基类重构等 16 项核心能力，为构建复杂智能体应用提供完整的工程化支持。
 
-- 🐍 **Python 原版（教程）**：[HelloAgents](https://github.com/jjyaoao/HelloAgents) `learn_version`
-- 🐹 **Go 参考实现**：[HelloAgents-Go](https://github.com/chaojixinren/HelloAgents-go)
+## 📌 版本说明
 
-## 快速开始
+- 🐍 **Python 原版**：[HelloAgents](https://github.com/jjyaoao/HelloAgents)，与 [Datawhale Hello-Agents 教程](https://github.com/datawhalechina/hello-agents) 配套。
+- 🚀 **TypeScript 实现**：当前仓库，提供适用于 Bun 和 Node.js 的 ESM 公共包。
+- 🐹 **Go 实现**：[HelloAgents-Go](https://github.com/chaojixinren/HelloAgents-go)，用于跨语言结构参考。
+- 📦 **Python 历史版本**：[Releases](https://github.com/jjyaoao/HelloAgents/releases)提供 Python 版本从 v0.1.1 到 v0.2.9 的所有版本。
+
+## 🚀 快速开始
 
 ### 安装
 
@@ -28,54 +31,32 @@ HelloAgents TypeScript（教学版）是对 Python 教程分支的教学优先�
 bun add @junlang-7/helloagents@learn
 ```
 
-或使用 npm：
+发布的 ESM 包也支持 Node.js：
 
 ```bash
 npm install @junlang-7/helloagents@learn
 ```
 
-> `@learn` dist-tag 始终指向最新教学版构建（`0.2.x`）；默认 `latest` tag 属于
-> 独立的 `1.x` 生产线。
-
-### 最小 Agent（默认 mock）
-
-所有示例默认以 **mock / dry-run** 模式运行，无需 API Key。dry-run 需显式
-构造 `MockAdapter`；真实 API 调用需要显式 opt-in（设置 `LLM_MODEL_ID` /
-`LLM_API_KEY` / `LLM_BASE_URL`，或构造 `HelloAgentsLLM` 时显式传参——不传
-adapter 即走真实 provider）。
+### 基本使用
 
 ```ts
-import { HelloAgentsLLM, MockAdapter, SimpleAgent } from '@junlang-7/helloagents';
+import { CalculatorTool, HelloAgentsLLM, ReActAgent, ToolRegistry } from '@junlang-7/helloagents';
 
-const llm = new HelloAgentsLLM({
-  model: 'example-model',
-  apiKey: 'example-key',
-  baseUrl: 'https://example.invalid/v1',
-  adapter: new MockAdapter({
-    invoke: () => ({
-      content: '你好！我是示例助手。',
-      model: 'example-model',
-      usage: {},
-      latency_ms: 0
-    })
-  })
+const llm = new HelloAgentsLLM();
+const registry = new ToolRegistry().register(new CalculatorTool());
+const agent = new ReActAgent({
+  name: 'assistant',
+  llm,
+  toolRegistry: registry
 });
-const agent = new SimpleAgent({ name: 'assistant', llm });
 
-console.log(await agent.run('你好，请介绍一下自己'));
+console.log(await agent.run('What is sqrt(144)?'));
 ```
 
-使用真实 provider：导出 `LLM_*` 变量即可。
+### 环境配置
 
-```ts
-const llm = new HelloAgentsLLM(); // 读取 LLM_* 环境变量
-```
-
-### 环境变量
-
-创建 `.env` 文件（模板见 [`.env.example`](.env.example)）或在 shell 中导出。
-框架根据 `LLM_BASE_URL` 自动选择 provider adapter（OpenAI 兼容 / Anthropic /
-Gemini）。
+创建 `.env` 文件，或在 shell 中导出变量。完整模板见
+[`.env.example`](.env.example)。
 
 ```bash
 LLM_MODEL_ID=your-model-name
@@ -84,75 +65,175 @@ LLM_BASE_URL=https://your-openai-compatible-endpoint/v1
 LLM_TIMEOUT=60
 ```
 
-### 可选依赖（用到才加载）
-
-导入包本身不需要 Bun/Node.js 之外的任何依赖。重量级后端均为**用时探测**，
-缺失不会导致导入失败：
-
-| 能力                | 依赖                                 | 说明                                         |
-| ------------------- | ------------------------------------ | -------------------------------------------- |
-| 语义记忆 / RAG      | Qdrant + Neo4j 服务                  | 仅在配置了 `QDRANT_URL` / `NEO4J_URI` 时使用 |
-| BFCL 评测           | `bfcl` CLI                           | 校验 `bfcl --version >= 0.4.0`               |
-| RL 训练（SFT/GRPO） | Python：`trl`/`torch`/`transformers` | 经 Python 解释器桥接；缺后端返回安装指导     |
-| HF 模型下载         | `HF_TOKEN`（可选）                   | 仅真实训练需要                               |
-
-## 教学示例（第 07–11 章 + Function Calling）
-
-每个上游示例都有可追踪的 TypeScript 对应文件：
-
-| 上游（Python，基线 `3927c6d`）               | TypeScript 示例                                                                                                                                              | 默认运行方式                          |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
-| `examples/agent/function_call_agent_demo.py` | [`examples/function-call-agent-demo.ts`](examples/function-call-agent-demo.ts)                                                                               | mock LLM，真实 API opt-in             |
-| `examples/chapter07_basic_setup.py`          | [`examples/chapter07-basic-setup.ts`](examples/chapter07-basic-setup.ts)                                                                                     | mock LLM，真实 API opt-in             |
-| `examples/chapter08_memory_rag.py`           | [`examples/chapter08-memory.ts`](examples/chapter08-memory.ts)                                                                                               | 内存路径；Qdrant/Neo4j 段 opt-in      |
-| `examples/chapter09_context_engineering.py`  | [`examples/chapter09_context_engineering.ts`](examples/chapter09_context_engineering.ts)                                                                     | SQLite 记忆；RAG 段 opt-in            |
-| `examples/chapter10_protocols.py`            | [`examples/chapter10-mcp.ts`](examples/chapter10-mcp.ts) + [`chapter10-a2a.ts`](examples/chapter10-a2a.ts) + [`chapter10-anp.ts`](examples/chapter10-anp.ts) | 本地 transport，无需外部服务          |
-| `examples/chapter11_RL.py`                   | [`examples/chapter11-rl.ts`](examples/chapter11-rl.ts)                                                                                                       | 数据集/奖励纯逻辑；训练需 Python 后端 |
-
-运行任意示例：
-
-```bash
-bun run examples/chapter07-basic-setup.ts
+```ts
+// 自动检测provider
+llm = HelloAgentsLLM(); // 框架自动检测为modelscope
+console.log(`检测到的provider: ${llm.provider}`);
 ```
 
-## 模块结构
+> 💡 **智能检测**: 框架会根据API密钥格式和Base URL自动选择合适的provider
+
+### 支持的LLM提供商
+
+框架基于 **3 种适配器** 支持所有主流 LLM 服务：
+
+#### 1. OpenAI 兼容适配器（默认）
+
+支持所有提供 OpenAI 兼容接口的服务：
+
+| 提供商类型   | 示例服务                               | 配置示例                             |
+| ------------ | -------------------------------------- | ------------------------------------ |
+| **云端 API** | OpenAI、DeepSeek、Qwen、Kimi、智谱 GLM | `LLM_BASE_URL=api.deepseek.com`      |
+| **本地推理** | vLLM、Ollama、SGLang                   | `LLM_BASE_URL=http://localhost:8000` |
+| **其他兼容** | 任何 OpenAI 格式接口                   | `LLM_BASE_URL=your-endpoint`         |
+
+#### 2. Anthropic 适配器
+
+| 提供商     | 检测条件                        | 配置示例                                 |
+| ---------- | ------------------------------- | ---------------------------------------- |
+| **Claude** | `base_url` 包含 `anthropic.com` | `LLM_BASE_URL=https://api.anthropic.com` |
+
+#### 3. Gemini 适配器
+
+| 提供商            | 检测条件                                                 | 配置示例                                                 |
+| ----------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| **Google Gemini** | `base_url` 包含 `googleapis.com` 或 `generativelanguage` | `LLM_BASE_URL=https://generativelanguage.googleapis.com` |
+
+> 💡 **自动适配**：框架根据 `base_url` 自动选择适配器，无需手动指定。
+
+## 📚 教学示例（第 07–11 章 + Function Calling）
+
+每个上游示例都有可追踪的 TypeScript 对应文件（权威清单：[`examples/upstream-example-manifest.json`](examples/upstream-example-manifest.json)）：
+
+| 上游（Python，基线 `3927c6d`）               | TypeScript 示例                                                                                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `examples/agent/function_call_agent_demo.py` | [`examples/function-call-agent-demo.ts`](examples/function-call-agent-demo.ts)                                                                               |
+| `examples/chapter07_basic_setup.py`          | [`examples/chapter07-basic-setup.ts`](examples/chapter07-basic-setup.ts)                                                                                     |
+| `examples/chapter08_memory_rag.py`           | [`examples/chapter08-memory.ts`](examples/chapter08-memory.ts)                                                                                               |
+| `examples/chapter09_context_engineering.py`  | [`examples/chapter09_context_engineering.ts`](examples/chapter09_context_engineering.ts)                                                                     |
+| `examples/chapter10_protocols.py`            | [`examples/chapter10-mcp.ts`](examples/chapter10-mcp.ts) + [`chapter10-a2a.ts`](examples/chapter10-a2a.ts) + [`chapter10-anp.ts`](examples/chapter10-anp.ts) |
+| `examples/chapter11_RL.py`                   | [`examples/chapter11-rl.ts`](examples/chapter11-rl.ts)                                                                                                       |
+
+示例默认以 **mock / dry-run** 模式运行（无需 API Key）；真实 API 调用需要显式 opt-in（`OPENAI_API_KEY` / `HELLOAGENTS_REAL_API=1`）。
+
+## 🏗️ 项目结构
 
 ```text
-hello_agents/
-├── agents/        # SimpleAgent、ReActAgent、ReflectionAgent、PlanAndSolveAgent、
-│                  #   FunctionCallAgent、ToolAwareSimpleAgent
-├── context/       # ContextBuilder、HistoryManager、TokenCounter、truncator
-├── core/          # HelloAgentsLLM、Agent 基类、Config、SessionStore、流式
-├── evaluation/    # BFCL / GAIA / data-generation 基准
-├── memory/        # 工作/情景/语义/感知记忆、RAG、embedding
-├── protocols/     # MCP、A2A、ANP（导入安全；adapter 用时加载）
-├── rl/            # GSM8K 数据集、数学奖励、训练后端（SFT/GRPO）
-├── tools/         # Tool/ToolResponse、ToolRegistry、ToolChain、内置工具
-├── utils/         # logging、serialization、helpers
-└── index.ts       # 根教学桶
+hello-agents/
+├── hello_agents/                  # 主包
+│   ├── adapters/                  # LLM 提供商适配器
+│   │   ├── openai.ts              # OpenAI 兼容适配器
+│   │   ├── anthropic.ts           # Anthropic 适配器
+│   │   ├── gemini.ts              # Gemini 适配器
+│   │   ├── providers.ts           # 适配器自动检测
+│   │   └── mock.ts                # 测试适配器
+│   ├── core/                      # 核心组件
+│   │   ├── llm.ts                 # LLM 客户端与配置
+│   │   ├── agent.ts               # Agent 基类和函数调用辅助方法
+│   │   ├── config.ts              # 配置管理
+│   │   ├── session-store.ts       # 会话持久化
+│   │   ├── lifecycle.ts           # 异步生命周期
+│   │   ├── streaming.ts           # SSE 流式输出
+│   │   └── message.ts             # 消息定义
+│   ├── agents/                    # Agent 实现
+│   │   ├── simple-agent.ts        # SimpleAgent
+│   │   ├── react-agent.ts         # ReActAgent
+│   │   ├── reflection-agent.ts    # ReflectionAgent
+│   │   ├── plan-solve-agent.ts    # PlanSolveAgent
+│   │   └── factory.ts             # Agent 工厂
+│   ├── tools/                     # 工具系统
+│   │   ├── registry.ts            # 工具注册表
+│   │   ├── response.ts            # ToolResponse 协议
+│   │   ├── circuit-breaker.ts     # 熔断器
+│   │   ├── tool-filter.ts         # 子代理工具过滤器
+│   │   └── builtin/               # 内置工具
+│   │       ├── file-tools.ts      # 文件工具和乐观锁
+│   │       ├── task-tool.ts       # 子代理工具
+│   │       ├── todo-write-tool.ts # 进度管理
+│   │       ├── dev-log-tool.ts    # 决策日志
+│   │       └── skill-tool.ts      # 技能知识外化
+│   ├── context/                   # 上下文工程
+│   │   ├── history.ts             # HistoryManager
+│   │   ├── token-counter.ts       # TokenCounter
+│   │   ├── truncator.ts           # ObservationTruncator
+│   │   └── builder.ts             # ContextBuilder
+│   ├── observability/             # 可观测性
+│   │   └── trace-logger.ts        # TraceLogger
+│   └── skills/                    # 技能系统
+│       └── loader.ts              # SkillLoader
+├── docs/                          # 文档
+├── examples/                      # 可运行示例
+└── tests/                         # 测试用例
 ```
 
-## 版本策略
+## 🤝 贡献
 
-- **`learn-version` / npm `learn` tag（0.2.0）**：教学线。PR 合入
-  `learn-version`；`main` 不是本线的合并目标。
-- **`main` / npm `latest`（1.x）**：独立的生产线。
-- 兼容性由 `tests/learn-fixture-gate.test.ts` 与 `scripts/release-gate.ts`
-  强制：每个 "Implemented" 矩阵行必须有真实测试证据，每个保留差异必须登记
-  到 DIFF 表。
+欢迎贡献代码！请遵循以下步骤：
 
-## 文档
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
 
-- [教学版范围](docs/learn-version-scope.md)
-- [兼容矩阵](docs/learn-v0.2.0-compatibility-matrix.md)
-- [上游差异（DIFF 登记表）](docs/upstream-differences.md)
-- [配置说明](docs/configuration.md)
-- [从 Python 迁移](docs/migration-from-python.md)
-- [上下文工程指南](docs/context-engineering-guide.md)
-- [自定义工具](docs/custom-tools.md)
-- [函数调用架构](docs/function-calling-architecture.md)
+## 📄 许可证
 
-## 参与贡献与许可证
+本项目采用 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
-参与说明见 [CI 协作](docs/ci-integration.md)；仓库以 CC BY-NC-SA 4.0 许可
-（见 [LICENSE](LICENSE)）。
+**许可证要点**：
+
+- ✅ **署名** (Attribution): 使用时需要注明原作者
+- ✅ **相同方式共享** (ShareAlike): 修改后的作品需使用相同许可证
+- ⚠️ **非商业性使用** (NonCommercial): 不得用于商业目的
+
+如需商业使用，请联系项目维护者获取授权。
+
+## 🙏 致谢
+
+- 感谢 [HelloAgents Python 项目](https://github.com/jjyaoao/HelloAgents) 提供的原始实现
+- 感谢 [Datawhale Hello-Agents 教程](https://github.com/datawhalechina/hello-agents) 提供的优秀开源教程
+- 感谢 [HelloAgents-Go](https://github.com/chaojixinren/HelloAgents-go) 提供的 Go 实现
+
+## 📚 文档资源
+
+详细了解 HelloAgents v1.0.0 的 16 项核心能力：
+
+### 基础设施
+
+- **[工具响应协议](./docs/tool-response-protocol.md)** - ToolResponse 统一返回格式
+- **[上下文工程](./docs/context-engineering-guide.md)** - HistoryManager/TokenCounter/Truncator
+
+### 核心能力
+
+- **[可观测性](./docs/observability-guide.md)** - TraceLogger 追踪系统
+- **[熔断器](./docs/circuit-breaker-guide.md)** - CircuitBreaker 容错机制
+- **[会话持久化](./docs/session-persistence-guide.md)** - SessionStore 会话管理
+
+### 增强能力
+
+- **[子代理机制](./docs/subagent-guide.md)** - TaskTool 与 ToolFilter
+- **[Skills 知识外化](./docs/skills-usage-guide.md)** - 技能系统使用指南
+- **[乐观锁](./docs/file-tools.md)** - 文件编辑工具的并发控制
+- **[TodoWrite 进度管理](./docs/todowrite-usage-guide.md)** - 任务进度追踪
+
+### 辅助功能
+
+- **[DevLog 决策日志](./docs/devlog-guide.md)** - 开发决策记录
+- **[异步生命周期](./docs/async-agent-guide.md)** - 异步 Agent 实现
+
+### 核心架构
+
+- **[流式输出](./docs/streaming-sse-guide.md)** - SSE 流式响应
+- **[Function Calling 架构](./docs/function-calling-architecture.md)** - LLM/Agent 基类重构
+- **[日志系统](./docs/logging-system-guide.md)** - 四种日志范式
+
+### 扩展能力
+
+- **[自定义工具扩展](./docs/custom-tools.md)** - 三种工具实现方式（函数式/标准类/可展开）
+
+---
+
+<div align="center">
+
+**HelloAgents-ts** - 让智能体开发变得简单而强大 🚀
+</div>

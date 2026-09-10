@@ -5,7 +5,7 @@ All notable changes are documented here. This project follows
 
 ## Unreleased
 
-## [0.2.0-learn] - Unreleased
+## [0.2.0-learn] - 2026-09-10
 
 ### Added
 

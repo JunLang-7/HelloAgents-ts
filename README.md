@@ -4,7 +4,7 @@
 
 > 🚧 **`learn-version` development branch (`0.2.0`)** — a teaching-oriented TypeScript port of the Python [`learn_version`](https://github.com/jjyaoao/HelloAgents/tree/learn_version) branch. This line is maintained separately from the production-oriented `1.x` line and is published with the npm `learn` tag.
 >
-> The documentation below still describes the `1.x` implementation while the faithful teaching-version port is in progress. Track the work in the `v0.2.0` milestone.
+> The teaching-version port is complete: the module inventory below is ported from the upstream `learn_version` branch (baseline `3927c6d`), with per-module traceability in [`docs/learn-v0.2.0-compatibility-matrix.md`](docs/learn-v0.2.0-compatibility-matrix.md) and approved deviations in [`docs/upstream-differences.md`](docs/upstream-differences.md).
 
 > 🤖 Teaching-friendly Multi-Agent Framework — lightweight abstractions aligned with the Datawhale Hello-Agents tutorial.
 
@@ -12,17 +12,20 @@
 [![Node.js 22+](https://img.shields.io/badge/node-22%2B-339933.svg)](https://nodejs.org/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](LICENSE)
 
-HelloAgents TypeScript is a faithful TypeScript reimplementation of
-[HelloAgents Python](https://github.com/jjyaoao/HelloAgents), with
-[HelloAgents-Go](https://github.com/chaojixinren/HelloAgents-go) as a
-cross-language reference. It is a Bun-first, Node.js 22+-compatible,
-production-grade multi-agent framework built on the native OpenAI API. It
-integrates 16 core capabilities: Tool Response Protocol (ToolResponse), Context
-Engineering (HistoryManager/TokenCounter), Session Persistence (SessionStore),
-Sub-Agent Mechanism (TaskTool), Optimistic Locking (file editing), Circuit
-Breaker (CircuitBreaker), Skills externalization, TodoWrite progress management,
-DevLog decision recording, Streaming Output (SSE), Async Lifecycle,
-Observability (TraceLogger), and LLM/Agent base-class architecture.
+HelloAgents TypeScript (Learn Version) is a faithful, teaching-first
+TypeScript port of the Python
+[HelloAgents `learn_version`](https://github.com/jjyaoao/HelloAgents) branch,
+with [HelloAgents-Go](https://github.com/chaojixinren/HelloAgents-go) as a
+cross-language reference. Bun-first, Node.js 22+-compatible. It ports the
+teaching modules: agents (SimpleAgent/ReActAgent/ReflectionAgent/
+PlanAndSolveAgent/FunctionCallAgent), tools (ToolRegistry/ToolChain), memory
+(four types + RAG), context engineering, evaluation benchmarks, protocols
+(MCP/A2A/ANP), and RL training (SFT/GRPO). Per-module traceability lives in the
+[compatibility matrix](docs/learn-v0.2.0-compatibility-matrix.md); approved
+deviations in the [DIFF registry](docs/upstream-differences.md). 1.x-only
+capabilities (SessionStore, TaskTool, Skills, CircuitBreaker, TodoWrite,
+DevLog, file tools, SSE helpers, real provider adapters) are out of scope for
+Learn 0.2.0 and are **not** exported.
 
 ## 📌 Version Notes
 
@@ -36,13 +39,13 @@ Observability (TraceLogger), and LLM/Agent base-class architecture.
 ### Installation
 
 ```bash
-bun add @junlang-7/helloagents
+bun add @junlang-7/helloagents@learn
 ```
 
 The published ESM package also works with Node.js:
 
 ```bash
-npm install @junlang-7/helloagents
+npm install @junlang-7/helloagents@learn
 ```
 
 ### Basic Usage
@@ -108,54 +111,45 @@ Supports every service with an OpenAI-compatible interface:
 
 > 💡 **Auto-Adaptation**: the framework selects an adapter from `base_url`; no manual configuration is required.
 
+## 📚 Teaching Examples (Chapter 07–11 + Function Calling)
+
+Every upstream example has a traceable TypeScript counterpart (manifest: [`examples/upstream-example-manifest.json`](examples/upstream-example-manifest.json)):
+
+| Upstream (Python, baseline `3927c6d`)        | TypeScript example                                                                                                                                           |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `examples/agent/function_call_agent_demo.py` | [`examples/function-call-agent-demo.ts`](examples/function-call-agent-demo.ts)                                                                               |
+| `examples/chapter07_basic_setup.py`          | [`examples/chapter07-basic-setup.ts`](examples/chapter07-basic-setup.ts)                                                                                     |
+| `examples/chapter08_memory_rag.py`           | [`examples/chapter08-memory.ts`](examples/chapter08-memory.ts)                                                                                               |
+| `examples/chapter09_context_engineering.py`  | [`examples/chapter09_context_engineering.ts`](examples/chapter09_context_engineering.ts)                                                                     |
+| `examples/chapter10_protocols.py`            | [`examples/chapter10-mcp.ts`](examples/chapter10-mcp.ts) + [`chapter10-a2a.ts`](examples/chapter10-a2a.ts) + [`chapter10-anp.ts`](examples/chapter10-anp.ts) |
+| `examples/chapter11_RL.py`                   | [`examples/chapter11-rl.ts`](examples/chapter11-rl.ts)                                                                                                       |
+
+Examples run in **mock / dry-run mode by default** (no API key needed); real API calls are opt-in (`OPENAI_API_KEY` / `HELLOAGENTS_REAL_API=1`).
+
 ## 🏗️ Project Structure
 
 ```text
-hello-agents/
-├── hello_agents/                  # Main package
-│   ├── adapters/                  # LLM provider adapters
-│   │   ├── openai.ts              # OpenAI-compatible adapter
-│   │   ├── anthropic.ts           # Anthropic adapter
-│   │   ├── gemini.ts              # Gemini adapter
-│   │   ├── providers.ts           # Adapter auto-detection
-│   │   └── mock.ts                # Test adapter
-│   ├── core/                      # Core components
-│   │   ├── llm.ts                 # LLM client and configuration
-│   │   ├── agent.ts               # Agent base class and Function Calling helpers
-│   │   ├── config.ts              # Configuration management
-│   │   ├── session-store.ts       # Session persistence
-│   │   ├── lifecycle.ts           # Async lifecycle
-│   │   ├── streaming.ts           # SSE streaming output
-│   │   └── message.ts             # Message definitions
-│   ├── agents/                    # Agent implementations
-│   │   ├── simple-agent.ts        # SimpleAgent
-│   │   ├── react-agent.ts         # ReActAgent
-│   │   ├── reflection-agent.ts    # ReflectionAgent
-│   │   ├── plan-solve-agent.ts    # PlanSolveAgent
-│   │   └── factory.ts             # Agent factory
-│   ├── tools/                     # Tool system
-│   │   ├── registry.ts            # Tool registry
-│   │   ├── response.ts            # ToolResponse protocol
-│   │   ├── circuit-breaker.ts     # Circuit breaker
-│   │   ├── tool-filter.ts         # Tool filters for subagents
-│   │   └── builtin/               # Built-in tools
-│   │       ├── file-tools.ts      # File tools and optimistic locking
-│   │       ├── task-tool.ts       # Sub-agent tool
-│   │       ├── todo-write-tool.ts # Progress management
-│   │       ├── dev-log-tool.ts    # Decision logging
-│   │       └── skill-tool.ts      # Skills externalization
-│   ├── context/                   # Context engineering
-│   │   ├── history.ts             # HistoryManager
-│   │   ├── token-counter.ts       # TokenCounter
-│   │   ├── truncator.ts           # ObservationTruncator
-│   │   └── builder.ts             # ContextBuilder
-│   ├── observability/             # Observability
-│   │   └── trace-logger.ts        # TraceLogger
-│   └── skills/                    # Skills system
-│       └── loader.ts              # SkillLoader
-├── docs/                          # Documentation
-├── examples/                      # Runnable examples
-└── tests/                         # Test cases
+hello_agents/
+├── agents/        # SimpleAgent, ReActAgent, ReflectionAgent, PlanAndSolveAgent,
+│                  #   FunctionCallAgent, ToolAwareSimpleAgent
+├── context/       # ContextBuilder, HistoryManager, TokenCounter, truncators
+├── core/          # HelloAgentsLLM, Agent base class, Config, Message
+├── evaluation/    # BFCL / GAIA / data-generation benchmarks
+├── memory/        # Working/Episodic/Semantic/Perceptual memory, RAG, embedding
+├── protocols/     # MCP, A2A, ANP (import-safe; adapters load-on-use)
+├── rl/            # GSM8K datasets, math rewards, training backends (SFT/GRPO)
+├── tools/         # Tool/ToolResponse, ToolRegistry, ToolChain, builtin tools
+├── utils/         # logging, serialization, helpers
+└── index.ts       # root barrel
+```
+
+> Learn 0.2.0 exports only the teaching modules above. 1.x leftover files
+> (`session-store.ts`, `task-tool.ts`, `skill-tool.ts`, `circuit-breaker.ts`,
+> `todo-write-tool.ts`, `dev-log-tool.ts`, `file-tools.ts`, SSE streaming
+> helpers, …) are out of scope and not exported by this line (see the
+> [compatibility matrix](docs/learn-v0.2.0-compatibility-matrix.md); #81
+> enforces entrypoint separation).
+
 ```
 
 ## 🤝 Contributing
@@ -188,40 +182,28 @@ For commercial use, contact the maintainers for authorization.
 
 ## 📚 Documentation Resources
 
-Learn more about the 16 core capabilities of HelloAgents TypeScript.
+Learn-version specific:
 
-### Infrastructure
+- **[Learn version scope](docs/learn-version-scope.md)** — scope of the 0.2.0 teaching line
+- **[Compatibility matrix](docs/learn-v0.2.0-compatibility-matrix.md)** — per-module upstream traceability
+- **[Upstream differences (DIFF registry)](docs/upstream-differences.md)** — approved deviations
+- **[Migration from Python](docs/migration-from-python.md)** — how teaching APIs map to the Python original
+- **[Releasing](docs/releasing.md)** — `learn` tag publishing
 
-- **[Tool Response Protocol](docs/tool-response-protocol.md)** - ToolResponse unified return format
-- **[Context Engineering](docs/context-engineering-guide.md)** - HistoryManager, TokenCounter, and Truncator
+Guides for the teaching modules:
 
-### Core Capabilities
+- **[Configuration](docs/configuration.md)** — LLM env vars and provider adapters
+- **[Context engineering](docs/context-engineering-guide.md)** — ContextBuilder, HistoryManager, TokenCounter
+- **[Custom tools](docs/custom-tools.md)** — functional, class-based, and expandable tools
+- **[Function calling architecture](docs/function-calling-architecture.md)** — LLM/Agent base class design
+- **[Protocols](docs/protocols-guide.md)** — MCP, A2A, ANP usage
+- **[Observability](docs/observability-guide.md)** — TraceLogger (kept as agent dependency)
+- **[Async agents](docs/async-agent-guide.md)** — async agent implementations
+- **[Logging system](docs/logging-system-guide.md)** — logging architecture
+- **[Architecture](docs/architecture.md)** — overall design
+- **[CI integration](docs/ci-integration.md)** — quality gates
+- **[Compatibility contract](docs/compatibility-contract.md)** — what the line promises
 
-- **[Observability](docs/observability-guide.md)** - TraceLogger tracing system
-- **[Circuit Breaker](docs/circuit-breaker-guide.md)** - CircuitBreaker fault tolerance
-- **[Session Persistence](docs/session-persistence-guide.md)** - SessionStore session management
-
-### Enhanced Capabilities
-
-- **[Sub-Agent Mechanism](docs/subagent-guide.md)** - TaskTool and ToolFilter
-- **[Skills Externalization](docs/skills-usage-guide.md)** - Skills system usage
-- **[Optimistic Locking](docs/file-tools.md)** - concurrent control for file editing tools
-- **[TodoWrite Progress Management](docs/todowrite-usage-guide.md)** - task progress tracking
-
-### Auxiliary Features
-
-- **[DevLog Decision Logging](docs/devlog-guide.md)** - development decision recording
-- **[Async Lifecycle](docs/async-agent-guide.md)** - asynchronous Agent implementation
-
-### Core Architecture
-
-- **[Streaming Output](docs/streaming-sse-guide.md)** - SSE streaming responses
-- **[Function Calling Architecture](docs/function-calling-architecture.md)** - LLM/Agent base class architecture
-- **[Logging System](docs/logging-system-guide.md)** - logging architecture
-
-### Extension Capabilities
-
-- **[Custom Tool Extension](docs/custom-tools.md)** - functional, standard-class, and expandable tools
 
 ---
 
@@ -229,3 +211,4 @@ Learn more about the 16 core capabilities of HelloAgents TypeScript.
 
 **HelloAgents TypeScript** - Making agent development simple and powerful
 </div>
+```

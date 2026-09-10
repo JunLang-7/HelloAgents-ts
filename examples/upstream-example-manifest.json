@@ -1,0 +1,30 @@
+{
+  "baseline": "3927c6d1decb37737c4c1344fde00ccef55ab1f3",
+  "note": "上游教学示例 → TypeScript 对应文件权威清单（#78）。tests/learn-examples-gate.test.ts 与 README 映射表均以此为准。",
+  "examples": [
+    {
+      "upstream": "examples/agent/function_call_agent_demo.py",
+      "ts": ["examples/function-call-agent-demo.ts"]
+    },
+    {
+      "upstream": "examples/chapter07_basic_setup.py",
+      "ts": ["examples/chapter07-basic-setup.ts"]
+    },
+    {
+      "upstream": "examples/chapter08_memory_rag.py",
+      "ts": ["examples/chapter08-memory.ts"]
+    },
+    {
+      "upstream": "examples/chapter09_context_engineering.py",
+      "ts": ["examples/chapter09_context_engineering.ts"]
+    },
+    {
+      "upstream": "examples/chapter10_protocols.py",
+      "ts": ["examples/chapter10-mcp.ts", "examples/chapter10-a2a.ts", "examples/chapter10-anp.ts"]
+    },
+    {
+      "upstream": "examples/chapter11_RL.py",
+      "ts": ["examples/chapter11-rl.ts"]
+    }
+  ]
+}

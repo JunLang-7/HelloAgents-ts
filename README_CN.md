@@ -4,7 +4,7 @@
 
 > 🚧 **`learn-version` 开发分支（`0.2.0`）**——忠实移植 Python [`learn_version`](https://github.com/jjyaoao/HelloAgents/tree/learn_version) 分支的 TypeScript 教学版本。本版本线与生产向 `1.x` 独立维护，并通过 npm `learn` tag 发布。
 >
-> 忠实移植尚在进行中，以下文档暂时仍描述 `1.x` 实现；具体进度以 `v0.2.0` Milestone 为准。
+> 教学版移植已完成：以下模块清单均移植自上游 `learn_version` 分支（基线 `3927c6d`），逐模块可追溯性见 [`docs/learn-v0.2.0-compatibility-matrix.md`](docs/learn-v0.2.0-compatibility-matrix.md)，获批差异见 [`docs/upstream-differences.md`](docs/upstream-differences.md)。
 
 > 🤖 教学友好的多智能体框架——使用轻量、直观的抽象配套 Datawhale Hello-Agents 教程。
 
@@ -12,9 +12,17 @@
 [![Node.js 22+](https://img.shields.io/badge/node-22%2B-339933.svg)](https://nodejs.org/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](LICENSE)
 
-HelloAgents TypeScript 是
-[HelloAgents Python](https://github.com/jjyaoao/HelloAgents) 的 TypeScript
-忠实重实现，[HelloAgents-Go](https://github.com/chaojixinren/HelloAgents-go) 用作跨语言参考，本项目以 Bun 为优先运行时，同时支持 Node.js 22+。基于 OpenAI 原生 API 构建的生产级多智能体框架，集成了工具响应协议（ToolResponse）、上下文工程（HistoryManager/TokenCounter）、会话持久化（SessionStore）、子代理机制（TaskTool）、乐观锁（文件编辑）、熔断器（CircuitBreaker）、Skills 知识外化、TodoWrite 进度管理、DevLog 决策记录、流式输出（SSE）、异步生命周期、可观测性（TraceLogger）、日志系统（四种范式）、LLM/Agent 基类重构等 16 项核心能力，为构建复杂智能体应用提供完整的工程化支持。
+HelloAgents TypeScript（教学版）是对 Python
+[HelloAgents `learn_version`](https://github.com/jjyaoao/HelloAgents) 分支的
+忠实教学优先移植，[HelloAgents-Go](https://github.com/chaojixinren/HelloAgents-go)
+用作跨语言参考，以 Bun 为优先运行时，同时支持 Node.js 22+。移植的教学模块包括：
+agents（SimpleAgent/ReActAgent/ReflectionAgent/PlanAndSolveAgent/FunctionCallAgent）、
+tools（ToolRegistry/ToolChain）、memory（四种记忆 + RAG）、上下文工程、评测基准、
+协议（MCP/A2A/ANP）与 RL 训练（SFT/GRPO）。逐模块可追溯性见
+[兼容矩阵](docs/learn-v0.2.0-compatibility-matrix.md)，获批差异见
+[DIFF 登记表](docs/upstream-differences.md)。1.x 专属能力（SessionStore、
+TaskTool、Skills、CircuitBreaker、TodoWrite、DevLog、file tools、SSE 辅助、
+真实 provider adapters）不属于 Learn 0.2.0 范围，**不导出**。
 
 ## 📌 版本说明
 
@@ -28,13 +36,13 @@ HelloAgents TypeScript 是
 ### 安装
 
 ```bash
-bun add @junlang-7/helloagents
+bun add @junlang-7/helloagents@learn
 ```
 
 发布的 ESM 包也支持 Node.js：
 
 ```bash
-npm install @junlang-7/helloagents
+npm install @junlang-7/helloagents@learn
 ```
 
 ### 基本使用
@@ -101,54 +109,44 @@ console.log(`检测到的provider: ${llm.provider}`);
 
 > 💡 **自动适配**：框架根据 `base_url` 自动选择适配器，无需手动指定。
 
+## 📚 教学示例（第 07–11 章 + Function Calling）
+
+每个上游示例都有可追踪的 TypeScript 对应文件（权威清单：[`examples/upstream-example-manifest.json`](examples/upstream-example-manifest.json)）：
+
+| 上游（Python，基线 `3927c6d`）               | TypeScript 示例                                                                                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `examples/agent/function_call_agent_demo.py` | [`examples/function-call-agent-demo.ts`](examples/function-call-agent-demo.ts)                                                                               |
+| `examples/chapter07_basic_setup.py`          | [`examples/chapter07-basic-setup.ts`](examples/chapter07-basic-setup.ts)                                                                                     |
+| `examples/chapter08_memory_rag.py`           | [`examples/chapter08-memory.ts`](examples/chapter08-memory.ts)                                                                                               |
+| `examples/chapter09_context_engineering.py`  | [`examples/chapter09_context_engineering.ts`](examples/chapter09_context_engineering.ts)                                                                     |
+| `examples/chapter10_protocols.py`            | [`examples/chapter10-mcp.ts`](examples/chapter10-mcp.ts) + [`chapter10-a2a.ts`](examples/chapter10-a2a.ts) + [`chapter10-anp.ts`](examples/chapter10-anp.ts) |
+| `examples/chapter11_RL.py`                   | [`examples/chapter11-rl.ts`](examples/chapter11-rl.ts)                                                                                                       |
+
+示例默认以 **mock / dry-run** 模式运行（无需 API Key）；真实 API 调用需要显式 opt-in（`OPENAI_API_KEY` / `HELLOAGENTS_REAL_API=1`）。
+
 ## 🏗️ 项目结构
 
 ```text
-hello-agents/
-├── hello_agents/                  # 主包
-│   ├── adapters/                  # LLM 提供商适配器
-│   │   ├── openai.ts              # OpenAI 兼容适配器
-│   │   ├── anthropic.ts           # Anthropic 适配器
-│   │   ├── gemini.ts              # Gemini 适配器
-│   │   ├── providers.ts           # 适配器自动检测
-│   │   └── mock.ts                # 测试适配器
-│   ├── core/                      # 核心组件
-│   │   ├── llm.ts                 # LLM 客户端与配置
-│   │   ├── agent.ts               # Agent 基类和函数调用辅助方法
-│   │   ├── config.ts              # 配置管理
-│   │   ├── session-store.ts       # 会话持久化
-│   │   ├── lifecycle.ts           # 异步生命周期
-│   │   ├── streaming.ts           # SSE 流式输出
-│   │   └── message.ts             # 消息定义
-│   ├── agents/                    # Agent 实现
-│   │   ├── simple-agent.ts        # SimpleAgent
-│   │   ├── react-agent.ts         # ReActAgent
-│   │   ├── reflection-agent.ts    # ReflectionAgent
-│   │   ├── plan-solve-agent.ts    # PlanSolveAgent
-│   │   └── factory.ts             # Agent 工厂
-│   ├── tools/                     # 工具系统
-│   │   ├── registry.ts            # 工具注册表
-│   │   ├── response.ts            # ToolResponse 协议
-│   │   ├── circuit-breaker.ts     # 熔断器
-│   │   ├── tool-filter.ts         # 子代理工具过滤器
-│   │   └── builtin/               # 内置工具
-│   │       ├── file-tools.ts      # 文件工具和乐观锁
-│   │       ├── task-tool.ts       # 子代理工具
-│   │       ├── todo-write-tool.ts # 进度管理
-│   │       ├── dev-log-tool.ts    # 决策日志
-│   │       └── skill-tool.ts      # 技能知识外化
-│   ├── context/                   # 上下文工程
-│   │   ├── history.ts             # HistoryManager
-│   │   ├── token-counter.ts       # TokenCounter
-│   │   ├── truncator.ts           # ObservationTruncator
-│   │   └── builder.ts             # ContextBuilder
-│   ├── observability/             # 可观测性
-│   │   └── trace-logger.ts        # TraceLogger
-│   └── skills/                    # 技能系统
-│       └── loader.ts              # SkillLoader
-├── docs/                          # 文档
-├── examples/                      # 可运行示例
-└── tests/                         # 测试用例
+hello_agents/
+├── agents/        # SimpleAgent、ReActAgent、ReflectionAgent、PlanAndSolveAgent、
+│                  #   FunctionCallAgent、ToolAwareSimpleAgent
+├── context/       # ContextBuilder、HistoryManager、TokenCounter、truncator
+├── core/          # HelloAgentsLLM、Agent 基类、Config、Message
+├── evaluation/    # BFCL / GAIA / data-generation 基准
+├── memory/        # 工作/情景/语义/感知记忆、RAG、embedding
+├── protocols/     # MCP、A2A、ANP（导入安全；adapter 用时加载）
+├── rl/            # GSM8K 数据集、数学奖励、训练后端（SFT/GRPO）
+├── tools/         # Tool/ToolResponse、ToolRegistry、ToolChain、内置工具
+├── utils/         # logging、serialization、helpers
+└── index.ts       # 根教学桶
+```
+
+> Learn 0.2.0 仅导出上表中的教学模块。1.x 遗留文件（`session-store.ts`、
+> `task-tool.ts`、`skill-tool.ts`、`circuit-breaker.ts`、`todo-write-tool.ts`、
+> `dev-log-tool.ts`、`file-tools.ts`、SSE 流式 helper 等）不属于本版导出
+> 范围（见 [兼容矩阵](docs/learn-v0.2.0-compatibility-matrix.md)，
+> #81 强制入口分离）。
+
 ```
 
 ## 🤝 贡献
@@ -181,40 +179,28 @@ hello-agents/
 
 ## 📚 文档资源
 
-详细了解 HelloAgents v1.0.0 的 16 项核心能力：
+教学版专项：
 
-### 基础设施
+- **[教学版范围](docs/learn-version-scope.md)** — 0.2.0 教学线范围
+- **[兼容矩阵](docs/learn-v0.2.0-compatibility-matrix.md)** — 逐模块上游可追溯性
+- **[上游差异（DIFF 登记表）](docs/upstream-differences.md)** — 获批差异
+- **[从 Python 迁移](docs/migration-from-python.md)** — 教学 API 与 Python 原版对应关系
+- **[发布说明](docs/releasing.md)** — `learn` tag 发布
 
-- **[工具响应协议](./docs/tool-response-protocol.md)** - ToolResponse 统一返回格式
-- **[上下文工程](./docs/context-engineering-guide.md)** - HistoryManager/TokenCounter/Truncator
+教学模块指南：
 
-### 核心能力
+- **[配置说明](docs/configuration.md)** — LLM 环境变量与 provider adapter
+- **[上下文工程](docs/context-engineering-guide.md)** — ContextBuilder、HistoryManager、TokenCounter
+- **[自定义工具](docs/custom-tools.md)** — 函数式/标准类/可展开工具
+- **[函数调用架构](docs/function-calling-architecture.md)** — LLM/Agent 基类设计
+- **[协议](docs/protocols-guide.md)** — MCP、A2A、ANP 使用
+- **[可观测性](docs/observability-guide.md)** — TraceLogger（作为 Agent 依赖保留）
+- **[异步 Agent](docs/async-agent-guide.md)** — 异步实现
+- **[日志系统](docs/logging-system-guide.md)** — 日志架构
+- **[架构](docs/architecture.md)** — 整体设计
+- **[CI 协作](docs/ci-integration.md)** — 质量门禁
+- **[兼容契约](docs/compatibility-contract.md)** — 本线承诺
 
-- **[可观测性](./docs/observability-guide.md)** - TraceLogger 追踪系统
-- **[熔断器](./docs/circuit-breaker-guide.md)** - CircuitBreaker 容错机制
-- **[会话持久化](./docs/session-persistence-guide.md)** - SessionStore 会话管理
-
-### 增强能力
-
-- **[子代理机制](./docs/subagent-guide.md)** - TaskTool 与 ToolFilter
-- **[Skills 知识外化](./docs/skills-usage-guide.md)** - 技能系统使用指南
-- **[乐观锁](./docs/file-tools.md)** - 文件编辑工具的并发控制
-- **[TodoWrite 进度管理](./docs/todowrite-usage-guide.md)** - 任务进度追踪
-
-### 辅助功能
-
-- **[DevLog 决策日志](./docs/devlog-guide.md)** - 开发决策记录
-- **[异步生命周期](./docs/async-agent-guide.md)** - 异步 Agent 实现
-
-### 核心架构
-
-- **[流式输出](./docs/streaming-sse-guide.md)** - SSE 流式响应
-- **[Function Calling 架构](./docs/function-calling-architecture.md)** - LLM/Agent 基类重构
-- **[日志系统](./docs/logging-system-guide.md)** - 四种日志范式
-
-### 扩展能力
-
-- **[自定义工具扩展](./docs/custom-tools.md)** - 三种工具实现方式（函数式/标准类/可展开）
 
 ---
 
@@ -222,3 +208,4 @@ hello-agents/
 
 **HelloAgents-ts** - 让智能体开发变得简单而强大 🚀
 </div>
+```

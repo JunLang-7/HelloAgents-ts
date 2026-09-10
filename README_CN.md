@@ -141,14 +141,6 @@ hello_agents/
 └── index.ts       # 根教学桶
 ```
 
-> Learn 0.2.0 仅导出上表中的教学模块。1.x 遗留文件（`session-store.ts`、
-> `task-tool.ts`、`skill-tool.ts`、`circuit-breaker.ts`、`todo-write-tool.ts`、
-> `dev-log-tool.ts`、`file-tools.ts`、SSE 流式 helper 等）不属于本版导出
-> 范围（见 [兼容矩阵](docs/learn-v0.2.0-compatibility-matrix.md)，
-> #81 强制入口分离）。
-
-```
-
 ## 🤝 贡献
 
 欢迎贡献代码！请遵循以下步骤：
@@ -201,11 +193,9 @@ hello_agents/
 - **[CI 协作](docs/ci-integration.md)** — 质量门禁
 - **[兼容契约](docs/compatibility-contract.md)** — 本线承诺
 
-
 ---
 
 <div align="center">
 
 **HelloAgents-ts** - 让智能体开发变得简单而强大 🚀
 </div>
-```

@@ -143,15 +143,6 @@ hello_agents/
 └── index.ts       # root barrel
 ```
 
-> Learn 0.2.0 exports only the teaching modules above. 1.x leftover files
-> (`session-store.ts`, `task-tool.ts`, `skill-tool.ts`, `circuit-breaker.ts`,
-> `todo-write-tool.ts`, `dev-log-tool.ts`, `file-tools.ts`, SSE streaming
-> helpers, …) are out of scope and not exported by this line (see the
-> [compatibility matrix](docs/learn-v0.2.0-compatibility-matrix.md); #81
-> enforces entrypoint separation).
-
-```
-
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:
@@ -204,11 +195,9 @@ Guides for the teaching modules:
 - **[CI integration](docs/ci-integration.md)** — quality gates
 - **[Compatibility contract](docs/compatibility-contract.md)** — what the line promises
 
-
 ---
 
 <div align="center">
 
 **HelloAgents TypeScript** - Making agent development simple and powerful
 </div>
-```
